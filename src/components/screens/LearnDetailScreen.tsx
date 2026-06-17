@@ -4,7 +4,8 @@ import { ChevronLeft, Play, RotateCcw, Info, CheckCircle2, Volume2, Languages, L
 import { LessonContent } from '../../lib/lessons';
 import { ChessLogic } from '../../lib/chess-logic';
 import ChessBoard2D from '../game/ChessBoard2D';
-import { getNarration, Language, LANGUAGE_LABELS, isGenAINarrationAvailable } from '../../services/narrationService';
+import { getNarration, Language, LANGUAGE_LABELS } from '../../services/narrationService';
+import { getLocalLessonText, getLocalLessonObj } from '../../services/lessonTranslations';
 
 interface LearnDetailScreenProps {
   lesson: LessonContent;
@@ -20,6 +21,8 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
   const [demoIndex, setDemoIndex] = useState(0);
   const [isNarrating, setIsNarrating] = useState(false);
   const [narrationLang, setNarrationLang] = useState<Language>('en');
+  const [narrationText, setNarrationText] = useState<string | null>(null);
+  const [isFallback, setIsFallback] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isMounted = useRef(true);
@@ -72,6 +75,8 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
       window.speechSynthesis.cancel();
     }
     setIsNarrating(false);
+    setNarrationText(null);
+    setIsFallback(false);
   };
 
   const playSpeechSynthesisFallback = (text: string, lang: Language): boolean => {
@@ -82,7 +87,6 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
 
     try {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
       
       let targetLang = 'en-US';
       if (lang === 'hi') {
@@ -90,14 +94,28 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
       } else if (lang === 'ar') {
         targetLang = 'ar-SA';
       }
+      
+      const localTransText = lang !== 'en' ? getLocalLessonText(lesson.id, lang) : '';
+      const speechText = localTransText || text;
+      
+      setNarrationText(speechText);
+      setIsFallback(true);
+
+      const utterance = new SpeechSynthesisUtterance(speechText);
       utterance.lang = targetLang;
 
       // Select matching voice
       const voices = window.speechSynthesis.getVoices();
-      const matchingVoice = voices.find(v => 
+      let matchingVoice = voices.find(v => 
         v.lang.toLowerCase() === targetLang.toLowerCase() || 
         v.lang.toLowerCase().startsWith(targetLang.split('-')[0].toLowerCase())
       );
+      
+      if (!matchingVoice && lang !== 'en') {
+        const langPrefix = targetLang.split('-')[0].toLowerCase();
+        matchingVoice = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix));
+      }
+      
       if (matchingVoice) {
         utterance.voice = matchingVoice;
       }
@@ -115,7 +133,6 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
         }
       };
 
-      // Workaround for mobile speech synthesis engine getting stuck
       window.speechSynthesis.resume();
       window.speechSynthesis.speak(utterance);
       return true;
@@ -138,8 +155,11 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     }
     
     setNarrationLang(lang);
-    const fullText = `${lesson.title}. ${lesson.description}. Rules: ${lesson.rules.join('. ')}`;
+    setIsFallback(false);
     
+    const fullText = `${lesson.title}. ${lesson.description}. Rules: ${lesson.rules.join('. ')}`;
+    const localText = lang !== 'en' ? getLocalLessonText(lesson.id, lang) : fullText;
+    setNarrationText(localText);
     setIsNarrating(true);
 
     // Setup a 30s safety timeout to prevent infinite spinner
@@ -158,7 +178,6 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     if (!isOnline) {
       const success = playSpeechSynthesisFallback(fullText, lang);
       if (!success) {
-        // Fallback to text-only (just clear narrating state, text is already on screen)
         stopNarration();
       }
       return;
@@ -170,9 +189,14 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     audioRef.current = audio;
     
     try {
-      const audioUrl = await getNarration(fullText, lang);
+      const response = await getNarration(fullText, lang);
 
-      if (audioUrl && isMounted.current) {
+      if (response && isMounted.current) {
+        const { audioUrl, translatedText } = response;
+        if (translatedText) {
+          setNarrationText(translatedText);
+        }
+        
         audio.src = audioUrl;
         audio.onended = () => {
           if (isMounted.current) {
@@ -377,6 +401,23 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
               <p className="text-[#f5d666] leading-relaxed font-serif italic text-xs sm:text-base md:text-lg border-l-2 border-[#d9ad33] pl-3 sm:pl-4 py-1">
                 "{lesson.description}"
               </p>
+              <AnimatePresence>
+                {narrationText && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-4 p-3 rounded-xl bg-[#d9ad33]/10 border border-[#d9ad33]/20 overflow-hidden"
+                  >
+                    <span className="text-[7px] sm:text-[9px] text-[#d9ad33] font-black uppercase tracking-wider block mb-1">
+                      {isFallback ? "🗣️ Local Narration (Fallback)" : "🗣️ Live Narration"}
+                    </span>
+                    <p className="text-[10px] sm:text-xs text-[#e2ddd4] leading-relaxed italic">
+                      "{narrationText}"
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="space-y-4 sm:space-y-6">

@@ -5,6 +5,7 @@ import { AppScreen, PlayerData } from '../../types';
 import { auth } from '../../firebase';
 import { playSound } from '../../lib/sounds';
 import ScreenBackground from '../ui/ScreenBackground';
+import { getApiUrl } from '../../services/apiClient';
 
 interface TournamentScreenProps {
   onNavigate: (screen: AppScreen, level?: any, localConfig?: any, multiplayerConfig?: any) => void;
@@ -24,7 +25,7 @@ export default function TournamentScreen({ onNavigate, playerData }: TournamentS
     try {
       setLoading(true);
       setErrorMsg(null);
-      const res = await fetch('/api/tournaments/active');
+      const res = await fetch(getApiUrl('/api/tournaments/active'));
       if (res.ok) {
         const data = await res.json();
         setTournament(data);
@@ -52,7 +53,7 @@ export default function TournamentScreen({ onNavigate, playerData }: TournamentS
       setSuccessMsg(null);
 
       const idToken = await user.getIdToken();
-      const res = await fetch('/api/tournaments/register', {
+      const res = await fetch(getApiUrl('/api/tournaments/register'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

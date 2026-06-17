@@ -18,11 +18,13 @@ export class RealtimeClient {
   public onMessageCallback: ((msg: ServerMessage) => void) | null = null;
   public onErrorCallback: ((err: any) => void) | null = null;
   public onStatusCallback: ((status: RealtimeConnectionStatus) => void) | null = null;
+  public onLatencyCallback: ((rtt: number | null) => void) | null = null;
 
   private uid = '';
   private displayName = '';
   private token: string | null = null;
   private rating: number = 1200;
+  private lastPingTime = 0;
 
   constructor(url?: string) {
     if (url) {
@@ -78,6 +80,13 @@ export class RealtimeClient {
     this.authenticated = false;
     this.isConnecting = false;
     this.updateStatus('closed');
+    if (this.onLatencyCallback) {
+      try {
+        this.onLatencyCallback(null);
+      } catch (err) {
+        console.error('[RealtimeClient] Error in latency callback on disconnect:', err);
+      }
+    }
   }
 
   public sendMessage(msg: any) {
@@ -121,6 +130,14 @@ export class RealtimeClient {
       this.onCloseCallback();
     }
     
+    if (this.onLatencyCallback) {
+      try {
+        this.onLatencyCallback(null);
+      } catch (err) {
+        console.error('[RealtimeClient] Error in latency callback on close:', err);
+      }
+    }
+    
     this.updateStatus('reconnecting');
     this.scheduleReconnect();
   }
@@ -144,6 +161,19 @@ export class RealtimeClient {
         this.startHeartbeat();
       }
 
+      if (msg.type === 'pong') {
+        if (this.lastPingTime > 0) {
+          const rtt = Date.now() - this.lastPingTime;
+          if (this.onLatencyCallback) {
+            try {
+              this.onLatencyCallback(rtt);
+            } catch (err) {
+              console.error('[RealtimeClient] Error in latency callback on pong:', err);
+            }
+          }
+        }
+      }
+
       if (this.onMessageCallback) {
         this.onMessageCallback(msg);
       }
@@ -155,6 +185,7 @@ export class RealtimeClient {
   private startHeartbeat() {
     this.stopHeartbeat();
     this.heartbeatInterval = setInterval(() => {
+      this.lastPingTime = Date.now();
       this.sendMessage({
         type: 'heartbeat',
         room_id: this.activeRoomId,

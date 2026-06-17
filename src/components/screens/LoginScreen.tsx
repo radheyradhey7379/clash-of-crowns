@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Crown, Play, User, LogIn, ShieldAlert } from 'lucide-react';
-import { auth, googleProvider, db } from '../../firebase';
+import { auth, googleProvider, db, isFirebaseConfigured } from '../../firebase';
 import { signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, where, getDocs, setDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { AppScreen } from '../../types';
@@ -16,7 +16,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [visitorId, setVisitorId] = useState<string | null>(null);
 
-  // Initialize FingerprintJS on mount
+  // Initialize FingerprintJS and check Firebase config on mount
   useEffect(() => {
     const setFp = async () => {
       const fp = await FingerprintJS.load();
@@ -24,6 +24,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setVisitorId(result.visitorId);
     };
     setFp();
+
+    if (!isFirebaseConfigured) {
+      setError("Google login unavailable in this build. Guest mode only.");
+    }
   }, []);
 
   const handleLoginLogic = async (user: any) => {
@@ -45,6 +49,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   };
 
   const handleGoogleLogin = async () => {
+    if (!isFirebaseConfigured) {
+      setError("Google login unavailable in this build. Guest mode only.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -63,7 +71,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       if (err.message && err.message.includes("popups are unsupported")) {
         setError(err.message);
       } else {
-        setError("Google Login is unavailable in this testing build. Please Sign in as Guest.");
+        setError("Google login unavailable in this build. Guest mode only.");
       }
     } finally {
       setIsLoading(false);
@@ -117,8 +125,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           <div className="w-full space-y-3 landscape:space-y-4">
             <button
               onClick={handleGoogleLogin}
-              disabled={isLoading}
-              className="w-full h-14 bg-[#1a1a1e] border border-[#323238] hover:border-[#f5d666]/50 rounded-xl flex items-center px-6 transition-all group relative overflow-hidden cursor-pointer"
+              disabled={isLoading || !isFirebaseConfigured}
+              className={`w-full h-14 bg-[#1a1a1e] border border-[#323238] rounded-xl flex items-center px-6 transition-all group relative overflow-hidden ${!isFirebaseConfigured ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#f5d666]/50 cursor-pointer'}`}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-[#f5d666]/0 via-[#f5d666]/5 to-[#f5d666]/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
               <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-4">

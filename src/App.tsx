@@ -24,6 +24,7 @@ import MaintenanceScreen from './components/screens/MaintenanceScreen';
 import SoftUpdateNotice from './components/ui/SoftUpdateNotice';
 import { useVersionGate } from './lib/version/useVersionGate';
 import { setBackendHealthy } from './lib/config/featureAvailability';
+import { getApiUrl } from './services/apiClient';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -101,7 +102,7 @@ export default function App() {
     const interval = setInterval(async () => {
       const start = Date.now();
       try {
-        const response = await fetch('/api/health'); // Using health endpoint as heartbeat
+        const response = await fetch(getApiUrl('/api/health')); // Using health endpoint as heartbeat
         if (response.ok) {
           setBackendHealthy(true);
           const end = Date.now();
@@ -136,6 +137,14 @@ export default function App() {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Preload 3D board safely after startup
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      import('./components/game/ChessBoard3D').catch(() => {});
+    }, 2000);
+    return () => clearTimeout(timer);
   }, []);
 
   // Hide StatusBar on native platform

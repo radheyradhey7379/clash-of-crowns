@@ -33,8 +33,17 @@ const firebaseConfig = {
   firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || "mock_db_id",
 };
 
+export const isFirebaseConfigured = !!(
+  import.meta.env.VITE_FIREBASE_API_KEY &&
+  import.meta.env.VITE_FIREBASE_API_KEY !== 'your_api_key' &&
+  import.meta.env.VITE_FIREBASE_API_KEY !== 'mock_api_key' &&
+  import.meta.env.VITE_FIREBASE_PROJECT_ID &&
+  import.meta.env.VITE_FIREBASE_PROJECT_ID !== 'your_project' &&
+  import.meta.env.VITE_FIREBASE_PROJECT_ID !== 'mock_project_id'
+);
+
 // Check for missing required config without crashing completely
-if (!import.meta.env.VITE_FIREBASE_API_KEY || !import.meta.env.VITE_FIREBASE_PROJECT_ID) {
+if (!isFirebaseConfigured) {
   console.error("❌ Firebase Initialization Error: Missing required environment variables. App will run in fallback/offline mode if possible.");
 }
 

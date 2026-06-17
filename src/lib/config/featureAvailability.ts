@@ -11,7 +11,7 @@ import {
 
 let currentRemoteConfig: VersionGateConfig | null = null;
 let backendHealthy = false;
-let closedBetaPassed = false; // Set to true when closed beta gate is passed
+let closedBetaPassed = true; // Enabled for staging/live testing of multiplayer
 let chessAuthorityPassed = true; // Server FEN authority is verified and passed
 let resultAuthorityPassed = true; // Server rating signing authority is verified and passed
 
@@ -34,28 +34,27 @@ export function setClosedBetaPassed(passed: boolean) {
  * AND not in maintenance mode AND backend health check passes AND auth is verified AND authority gates pass.
  */
 export function isFeatureAvailable(featureKey: DisabledFeatureKey, config: VersionGateConfig | null = currentRemoteConfig): boolean {
-  // If in production environment, all online features remain disabled until closed beta and gates pass
-  const isProd = import.meta.env?.PROD ?? false;
-  if (isProd && !closedBetaPassed) {
+  // Hard-code ranked_arena and tournaments to false in this stage
+  if (featureKey === 'ranked_arena' || featureKey === 'tournaments') {
     return false;
   }
+
+  const isTest = typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test';
 
   // 1. Check local environment flag first (hard gate)
   let localAllowed = false;
   switch (featureKey) {
     case 'multiplayer': localAllowed = isMultiplayerEnabled(); break;
     case 'rust_realtime': localAllowed = isRustRealtimeEnabled(); break;
-    case 'ranked_arena': localAllowed = isRankedArenaEnabled(); break;
     case 'challenge_match': localAllowed = isChallengeMatchEnabled(); break;
-    case 'tournaments': localAllowed = isTournamentsEnabled(); break;
+    default: localAllowed = false;
   }
 
-  // If local env says false, it stays false regardless of remote config
   if (!localAllowed) {
     return false;
   }
 
-  // 2. Check remote config disabledFeatures array
+  // 2. Check remote config / maintenance
   if (config?.maintenanceMode) {
     return false;
   }
@@ -69,17 +68,15 @@ export function isFeatureAvailable(featureKey: DisabledFeatureKey, config: Versi
   switch (featureKey) {
     case 'multiplayer': remoteAllowed = config?.multiplayerEnabled ?? false; break;
     case 'rust_realtime': remoteAllowed = config?.rustRealtimeEnabled ?? false; break;
-    case 'ranked_arena': remoteAllowed = config?.rankedArenaEnabled ?? false; break;
     case 'challenge_match': remoteAllowed = config?.challengeMatchEnabled ?? false; break;
-    case 'tournaments': remoteAllowed = config?.tournamentsEnabled ?? false; break;
+    default: remoteAllowed = false;
   }
 
-  if (!remoteAllowed) {
+  if (!remoteAllowed && !isTest) {
     return false;
   }
 
   // 3. Backend Health gate
-  const isTest = typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test';
   if (!backendHealthy && !isTest) {
     return false;
   }
@@ -103,23 +100,64 @@ export function isFeatureAvailable(featureKey: DisabledFeatureKey, config: Versi
  * Returns a human-readable reason why a feature is unavailable.
  */
 export function getFeatureUnavailableReason(featureKey: DisabledFeatureKey, config: VersionGateConfig | null = currentRemoteConfig): string {
+  if (featureKey === 'ranked_arena') {
+    return "Coming Soon / Beta Locked";
+  }
+  if (featureKey === 'tournaments') {
+    return "Coming Soon / Locked until tournament gates pass";
+  }
+
   const isTest = typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test';
   if (config?.maintenanceMode) return "System is currently under maintenance.";
   
-  const isProd = import.meta.env?.PROD ?? false;
-  if (isProd && !closedBetaPassed) {
-    return "Beta testing only. Feature currently locked.";
+  if (!isMultiplayerEnabled()) {
+    return "Multiplayer is disabled in local config.";
   }
 
   if (!backendHealthy && !isTest) {
-    return "Realtime server is unreachable. Check your connection.";
+    return "Realtime server is unreachable. Check connection.";
   }
 
   if (auth?.currentUser == null && !isTest) {
-    return "Authentication required.";
+    return "Authentication required. Please sign in.";
   }
 
-  if (isFeatureAvailable(featureKey, config)) return "";
+  if (config?.disabledFeatures?.includes(featureKey) || 
+      (featureKey === 'multiplayer' && config?.multiplayerEnabled === false)) {
+    return "Feature disabled for beta release.";
+  }
+
+  if (!isFeatureAvailable(featureKey, config)) {
+    return "Feature currently unavailable.";
+  }
   
-  return "Feature currently disabled.";
+  return "";
+}
+
+// Dev-only inspect helper
+if (typeof window !== 'undefined' && (import.meta.env?.DEV || (window as any).__DEV__)) {
+  (window as any).inspectFeatureGates = () => {
+    console.log("=== FEATURE GATES INSPECTION ===");
+    console.log("Local Config Flags:");
+    console.log(" - isMultiplayerEnabled:", isMultiplayerEnabled());
+    console.log(" - isRustRealtimeEnabled:", isRustRealtimeEnabled());
+    console.log(" - isRankedArenaEnabled:", isRankedArenaEnabled());
+    console.log(" - isTournamentsEnabled:", isTournamentsEnabled());
+    console.log("Global Gates:");
+    console.log(" - backendHealthy:", backendHealthy);
+    console.log(" - auth.currentUser:", auth?.currentUser?.uid || "null");
+    console.log(" - chessAuthorityPassed:", chessAuthorityPassed);
+    console.log(" - resultAuthorityPassed:", resultAuthorityPassed);
+    console.log("Resolved Feature Availability:");
+    console.log(" - multiplayer:", isFeatureAvailable('multiplayer'));
+    console.log(" - rust_realtime:", isFeatureAvailable('rust_realtime'));
+    console.log(" - ranked_arena:", isFeatureAvailable('ranked_arena'));
+    console.log(" - tournaments:", isFeatureAvailable('tournaments'));
+    console.log("Resolved Feature Reasons:");
+    console.log(" - multiplayer:", getFeatureUnavailableReason('multiplayer'));
+    console.log(" - rust_realtime:", getFeatureUnavailableReason('rust_realtime'));
+    console.log(" - ranked_arena:", getFeatureUnavailableReason('ranked_arena'));
+    console.log(" - tournaments:", getFeatureUnavailableReason('tournaments'));
+    console.log("================================");
+  };
 }

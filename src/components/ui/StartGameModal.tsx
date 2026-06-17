@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Monitor, Users, Globe, X, AlertTriangle, Trophy } from 'lucide-react';
-import { isMultiplayerEnabled, getDisabledFeatureMessage } from '../../lib/config/featureFlags';
-import { isFeatureAvailable } from '../../lib/config/featureAvailability';
+import { isFeatureAvailable, getFeatureUnavailableReason } from '../../lib/config/featureAvailability';
 
 interface StartGameModalProps {
   isOpen: boolean;
@@ -14,21 +13,18 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode }: StartG
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const handleMultiplayerClick = () => {
-    if (!isMultiplayerEnabled()) {
-      setToastMsg(getDisabledFeatureMessage('multiplayer'));
-      setTimeout(() => setToastMsg(null), 3000);
+    if (!isFeatureAvailable('multiplayer')) {
+      const reason = getFeatureUnavailableReason('multiplayer') || "Multiplayer is currently unavailable.";
+      setToastMsg(reason);
+      setTimeout(() => setToastMsg(null), 4000);
       return;
     }
     onSelectMode('multiplayer');
   };
 
-  const handleTournamentClick = () => {
-    if (!isFeatureAvailable('tournaments')) {
-      setToastMsg("Tournaments are currently locked or server health check failed.");
-      setTimeout(() => setToastMsg(null), 3000);
-      return;
-    }
-    onSelectMode('tournament');
+  const handleLockedClick = (reason: string) => {
+    setToastMsg(reason);
+    setTimeout(() => setToastMsg(null), 4000);
   };
 
   return (
@@ -47,7 +43,7 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode }: StartG
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className="play-popup relative bg-[#030204] border border-white/10 shadow-2xl"
+            className="play-popup relative bg-[#030204] border border-white/10 shadow-2xl w-full max-w-md p-6 rounded-2xl"
           >
             <button 
               onClick={onClose}
@@ -56,39 +52,61 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode }: StartG
               <X size={20} />
             </button>
 
-            <h2 className="play-popup-title font-bold text-[#d9ad33] font-serif text-center mb-6 tracking-[0.3em] uppercase">
+            <h2 className="play-popup-title font-bold text-[#d9ad33] font-serif text-center mb-6 tracking-[0.3em] uppercase text-lg">
               CHOOSE BATTLE MODE
             </h2>
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-1">
               <ModeButton
-                icon={<Monitor size={20} />}
+                icon={<Monitor size={18} />}
                 label="VERSUS COMPUTER"
-                description="Challenge the AI tiers"
+                description="Challenge the AI tiers locally"
                 onClick={() => onSelectMode('computer')}
                 color="hover:bg-white/5 border-white/10"
               />
               <ModeButton
-                icon={<Users size={20} />}
-                label="VERSUS FRIEND"
+                icon={<Users size={18} />}
+                label="VERSUS FRIEND (LOCAL)"
                 description="Local play on one device"
                 onClick={() => onSelectMode('friend')}
                 color="hover:bg-white/5 border-white/10"
               />
-              {/* MULTIPLAYER_PAUSED_FOR_V1 */}
+              
+              <div className="h-px bg-white/10 my-2" />
+              <div className="text-[9px] text-[#8c7a52] font-black uppercase tracking-[0.2em] pl-2 mb-1">
+                Online Multiplayer
+              </div>
+              
               <ModeButton
-                icon={<Globe size={20} />}
-                label="MULTIPLAYER"
-                description={isMultiplayerEnabled() ? "Online Friend Match" : "Coming Soon"}
+                icon={<Globe size={18} />}
+                label="CASUAL / FRIEND MATCH"
+                description={isFeatureAvailable('multiplayer') ? "Active — Play via Rust Server" : "Inactive — Gates failed"}
                 onClick={handleMultiplayerClick}
-                color={!isMultiplayerEnabled() ? "opacity-50 hover:bg-white/5 border-white/10" : "hover:bg-white/5 border-white/10"}
+                color={!isFeatureAvailable('multiplayer') ? "opacity-60 hover:bg-white/5 border-white/10" : "hover:bg-white/5 border-[#d9ad33]/30"}
               />
+
               <ModeButton
-                icon={<Trophy size={20} />}
+                icon={<Globe size={18} className="opacity-40" />}
+                label="RANKED MATCH"
+                description="Coming Soon / Beta Locked"
+                onClick={() => handleLockedClick("Ranked Match: Coming Soon / Beta Locked for this release.")}
+                color="opacity-50 border-white/5 cursor-pointer"
+              />
+
+              <ModeButton
+                icon={<Trophy size={18} className="opacity-40" />}
+                label="LEADERBOARD"
+                description="Coming Soon until ranked enabled"
+                onClick={() => handleLockedClick("Leaderboard: Coming Soon until Ranked Arena is unlocked.")}
+                color="opacity-50 border-white/5 cursor-pointer"
+              />
+
+              <ModeButton
+                icon={<Trophy size={18} className="opacity-40" />}
                 label="CHAMPIONSHIP TOURNAMENT"
-                description={isFeatureAvailable('tournaments') ? "Join official bracket" : "Locked / Coming Soon"}
-                onClick={handleTournamentClick}
-                color={!isFeatureAvailable('tournaments') ? "opacity-50 hover:bg-white/5 border-white/10" : "hover:bg-white/5 border-white/10"}
+                description="Coming Soon / Locked"
+                onClick={() => handleLockedClick(getFeatureUnavailableReason('tournaments'))}
+                color="opacity-50 border-white/5 cursor-pointer"
               />
             </div>
 
@@ -98,10 +116,10 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode }: StartG
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded flex items-center gap-2"
+                  className="mt-4 p-3 bg-red-950/40 border border-red-500/20 rounded-xl flex items-center gap-2"
                 >
                   <AlertTriangle size={16} className="text-red-400 shrink-0" />
-                  <span className="text-red-200 text-xs text-left leading-tight">{toastMsg}</span>
+                  <span className="text-red-200 text-xs text-left leading-normal font-sans">{toastMsg}</span>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -112,19 +130,18 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode }: StartG
   );
 }
 
-function ModeButton({ icon, label, description, onClick, disabled, color }: any) {
+function ModeButton({ icon, label, description, onClick, color }: any) {
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
-      className={`play-mode-button flex items-center gap-4 border transition-all group ${color}`}
+      className={`play-mode-button flex items-center gap-4 border transition-all group p-3 rounded-xl cursor-pointer ${color}`}
     >
-      <div className="text-[#d9ad33] group-hover:scale-110 transition-transform">
+      <div className="text-[#d9ad33] group-hover:scale-105 transition-transform shrink-0">
         {icon}
       </div>
       <div className="text-left">
-        <div className="font-bold text-white tracking-widest text-sm md:text-base">{label}</div>
-        <div className="play-mode-subtitle text-[#8c7a52] group-hover:text-[#d9ad33] transition-colors uppercase tracking-[0.2em]">{description}</div>
+        <div className="font-bold text-white tracking-widest text-xs md:text-sm">{label}</div>
+        <div className="play-mode-subtitle text-[#8c7a52] group-hover:text-[#d9ad33] transition-colors uppercase tracking-[0.15em] text-[8px] md:text-[9px] mt-0.5">{description}</div>
       </div>
     </button>
   );

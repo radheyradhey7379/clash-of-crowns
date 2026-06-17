@@ -28,6 +28,7 @@ interface ChessBoard3DProps {
   playerColor?: 'w' | 'b';
   lowGraphics?: boolean;
   isAIThinking?: boolean;
+  onLoad?: () => void;
 }
 
 export default function ChessBoard3D({
@@ -54,9 +55,16 @@ export default function ChessBoard3D({
   turn,
   playerColor,
   lowGraphics,
-  isAIThinking
+  isAIThinking,
+  onLoad
 }: ChessBoard3DProps) {
   const squareSize = 1.05;
+
+  useEffect(() => {
+    if (onLoad) {
+      onLoad();
+    }
+  }, []);
 
   // Determine if we should flip the board view (swap sides)
   // In Local VS, we flip based on current turn so active player is always at the bottom

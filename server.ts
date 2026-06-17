@@ -253,12 +253,13 @@ async function startServer() {
       // Step 1: Translate if not English
       if (lang !== 'en') {
         const targetLangLabel = LANGUAGE_LABELS[lang] || lang;
-        const translationPrompt = `Translate to ${targetLangLabel}. ONLY output translation: "${text}"`;
+        const translationPrompt = `You are a professional chess coach. Translate the following chess lesson text into ${targetLangLabel}. Output ONLY the raw translated text in ${targetLangLabel} script. Translate and narrate the content in the selected language only. Do not return English unless selected language is English. No explanations, no introductory phrases, no formatting, and no English text.
+Text to translate: "${text}"`;
         const result = await genAIClient.models.generateContent({
           model: "gemini-2.5-flash",
           contents: [{ role: 'user', parts: [{ text: translationPrompt }] }]
         });
-        textToNarrate = result.text || text;
+        textToNarrate = (result.text || "").trim() || text;
       }
 
       // Step 2: Narrate using the TTS model
@@ -278,7 +279,7 @@ async function startServer() {
       const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       const base64Audio = part?.inlineData?.data;
       if (base64Audio) {
-        return res.json({ audio: base64Audio });
+        return res.json({ audio: base64Audio, translatedText: textToNarrate });
       }
       
       return res.status(500).json({ error: "No audio generated from Gemini" });

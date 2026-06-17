@@ -10,9 +10,11 @@ export function isGenAINarrationAvailable(): boolean {
   return true;
 }
 
-export async function getNarration(text: string, lang: Language): Promise<string | null> {
+import { getApiUrl } from './apiClient';
+
+export async function getNarration(text: string, lang: Language): Promise<{ audioUrl: string; translatedText?: string } | null> {
   try {
-    const response = await fetch("/api/narration", {
+    const response = await fetch(getApiUrl("/api/narration"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -27,6 +29,7 @@ export async function getNarration(text: string, lang: Language): Promise<string
 
     const data = await response.json();
     const base64Audio = data?.audio;
+    const translatedText = data?.translatedText;
 
     if (base64Audio) {
       const binaryString = atob(base64Audio);
@@ -42,7 +45,10 @@ export async function getNarration(text: string, lang: Language): Promise<string
       wavBytes.set(bytes, wavHeader.length);
 
       const blob = new Blob([wavBytes], { type: 'audio/wav' });
-      return URL.createObjectURL(blob);
+      return {
+        audioUrl: URL.createObjectURL(blob),
+        translatedText
+      };
     }
     return null;
   } catch (error) {

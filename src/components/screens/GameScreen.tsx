@@ -37,6 +37,7 @@ import { createDrawOffer, getActiveDrawOffer, subscribeToDrawOffers, acceptDrawO
 import { registerSubscription, cleanupRoomListeners } from '../../game/multiplayer/multiplayerCleanupService';
 import { addMultiplayerHistoryItem } from '../../game/multiplayer/multiplayerHistoryService';
 import { realtimeMultiplayerAdapter } from '../../game/multiplayer/realtimeMultiplayerAdapter';
+import { realtimeClient } from '../../services/realtime/realtimeClient';
 import { useDeviceLayout } from '../../hooks/useDeviceLayout';
 import { getOfflinePackageMetadata } from '../../lib/offline/offlinePackage';
 import { subscribeToNetworkChanges } from '../../lib/offline/networkStatus';
@@ -249,6 +250,11 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const [checkInfo, setCheckInfo] = useState<{ king: string; checker: string } | null>(null);
   const [matchRewards, setMatchRewards] = useState<any>(null);
   const [isAIThinking, setIsAIThinking] = useState(false);
+  const [is3DLoaded, setIs3DLoaded] = useState(false);
+  const [show3DTimeoutPrompt, setShow3DTimeoutPrompt] = useState(false);
+  const [latencyText, setLatencyText] = useState<string>('Waking server...');
+  const [latencyColorClass, setLatencyColorClass] = useState<string>('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
+  const lastPongReceivedTime = useRef<number>(Date.now());
   const [lastMoveLatency, setLastMoveLatency] = useState<number | null>(null);
   const [aiTaunt, setAiTaunt] = useState<string | null>(null);
   const [activeCommentary, setActiveCommentary] = useState<CommentaryReaction | null>(null);
@@ -436,6 +442,21 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     }
     return () => clearInterval(interval);
   }, [turn, gameOver, playerColor, localGameConfig, gameStarted]);
+
+  useEffect(() => {
+    if (playerData.viewMode !== '3d' || is3DLoaded) {
+      setShow3DTimeoutPrompt(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (!is3DLoaded && playerData.viewMode === '3d') {
+        setShow3DTimeoutPrompt(true);
+      }
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [playerData.viewMode, is3DLoaded]);
 
   const activeCharacterId = React.useMemo(() => {
     if (localGameConfig || multiplayerConfig) return null; // Local VS or Multiplayer match, no AI character
@@ -1038,6 +1059,75 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       }
     });
 
+    // RTT WebSocket Latency Indicator Setup
+    lastPongReceivedTime.current = Date.now();
+    const initialStatus = realtimeClient.getRealtimeStatus();
+    if (initialStatus === 'connecting') {
+      setLatencyText('Waking server...');
+      setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
+    } else if (initialStatus === 'reconnecting') {
+      setLatencyText('Reconnecting...');
+      setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
+    } else if (initialStatus === 'failed' || initialStatus === 'closed' || initialStatus === 'idle') {
+      setLatencyText('Offline');
+      setLatencyColorClass('bg-red-500/20 border-red-500/30 text-red-500');
+    } else {
+      setLatencyText('Connected');
+      setLatencyColorClass('bg-green-500/10 border-green-500/20 text-green-500');
+    }
+
+    const checkLatencyInterval = setInterval(() => {
+      const currentStatus = realtimeClient.getRealtimeStatus();
+      if (currentStatus === 'connecting') {
+        setLatencyText('Waking server...');
+        setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
+      } else if (currentStatus === 'reconnecting') {
+        setLatencyText('Reconnecting...');
+        setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
+      } else if (currentStatus === 'failed' || currentStatus === 'closed' || currentStatus === 'idle') {
+        setLatencyText('Offline');
+        setLatencyColorClass('bg-red-500/20 border-red-500/30 text-red-500');
+      } else if (currentStatus === 'connected') {
+        const timeSinceLastPong = Date.now() - lastPongReceivedTime.current;
+        if (timeSinceLastPong > 10000) {
+          setLatencyText('Reconnecting...');
+          setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
+        }
+      }
+    }, 1000);
+
+    realtimeClient.onLatencyCallback = (rtt) => {
+      if (!isMounted) return;
+      if (rtt === null) {
+        setLatencyText('Offline');
+        setLatencyColorClass('bg-red-500/20 border-red-500/30 text-red-500');
+      } else {
+        lastPongReceivedTime.current = Date.now();
+        setLatencyText(`${rtt}ms`);
+        if (rtt > 250) {
+          setLatencyColorClass('bg-red-500/20 border-red-500/30 text-red-500');
+        } else if (rtt > 100) {
+          setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
+        } else {
+          setLatencyColorClass('bg-green-500/10 border-green-500/20 text-green-500');
+        }
+      }
+    };
+
+    realtimeClient.onRealtimeStatus((status) => {
+      if (!isMounted) return;
+      if (status === 'connecting') {
+        setLatencyText('Waking server...');
+        setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
+      } else if (status === 'reconnecting') {
+        setLatencyText('Reconnecting...');
+        setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
+      } else if (status === 'failed' || status === 'closed') {
+        setLatencyText('Offline');
+        setLatencyColorClass('bg-red-500/20 border-red-500/30 text-red-500');
+      }
+    });
+
     // Network status listener
     const unsubscribeNetwork = subscribeToNetworkChanges((online) => {
       if (!online) {
@@ -1049,6 +1139,9 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       isMounted = false;
       realtimeMultiplayerAdapter.dispose();
       unsubscribeNetwork();
+      clearInterval(checkLatencyInterval);
+      realtimeClient.onLatencyCallback = null;
+      realtimeClient.onStatusCallback = null;
     };
   }, [isMultiplayer, multiplayerConfig?.roomId, roomData?.guestUid, roomData?.hostUid, history.length, gameOver]);
 
@@ -1216,7 +1309,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         setIsAIThinking(false);
       };
     }
-  }, [turn, gameOver, activeCharacterId, isLocalVS, playerColor, isAIThinking]);
+  }, [turn, gameOver, activeCharacterId, isLocalVS, playerColor]);
 
   const handleResign = () => {
     if (isMultiplayer && multiplayerConfig && user) {
@@ -1611,14 +1704,12 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                     <div 
                       className={cn(
                         "p-1.5 md:p-2.5 backdrop-blur-xl border rounded-lg md:rounded-xl transition-all shadow-2xl flex flex-col items-center justify-center min-w-[36px] md:min-w-[50px]",
-                        latency > 500 ? "bg-red-500/20 border-red-500/30 text-red-500" : 
-                        latency > 200 ? "bg-yellow-500/20 border-yellow-500/30 text-yellow-500" :
-                        "bg-green-500/10 border-green-500/20 text-green-500"
+                        latencyColorClass
                       )}
-                      title={`Ping: ${latency}ms`}
+                      title={`Ping: ${latencyText}`}
                     >
                       <span className="text-[7px] md:text-[8px] font-bold uppercase tracking-tighter">RTT</span>
-                      <span className="text-[8px] md:text-[10px] font-black">{latency}ms</span>
+                      <span className="text-[8px] md:text-[10px] font-black">{latencyText}</span>
                     </div>
 
                     <motion.button
@@ -1816,6 +1907,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               playerColor={playerColor}
               lowGraphics={playerData.lowGraphics || false}
               isAIThinking={isAIThinking}
+              onLoad={() => setIs3DLoaded(true)}
             />
 
             <Room />
@@ -2377,6 +2469,34 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
             onClose={() => setActiveCommentary(null)}
             characterName={isMultiplayer ? 'Commentator' : (aiCharacter?.name || 'Opponent')}
           />
+          {show3DTimeoutPrompt && playerData.viewMode === '3d' && !is3DLoaded && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="fixed bottom-[140px] left-1/2 -translate-x-1/2 z-[110] bg-[#0c0a0e]/95 backdrop-blur-md border border-[#d9ad33]/40 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-[0_10px_35px_rgba(0,0,0,0.8)] pointer-events-auto"
+            >
+              <span className="text-xs text-white/80 font-sans font-medium">
+                3D board is still loading. Switch to 2D?
+              </span>
+              <button
+                onClick={() => {
+                  playSound('click');
+                  onUpdatePlayerData({ viewMode: '2d' });
+                  setShow3DTimeoutPrompt(false);
+                }}
+                className="px-3 py-1.5 bg-[#d9ad33] hover:bg-[#f5d666] text-black font-sans font-bold text-xs rounded-lg transition-colors cursor-pointer"
+              >
+                Switch to 2D
+              </button>
+              <button
+                onClick={() => setShow3DTimeoutPrompt(false)}
+                className="text-white/40 hover:text-white transition-colors cursor-pointer text-xs font-bold"
+              >
+                Dismiss
+              </button>
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
     </div>

@@ -20,6 +20,7 @@ import { useTranslation } from '../../lib/translations';
 import { playSound } from '../../lib/sounds';
 import { encryptObject } from '../../lib/encryption';
 import { useDeviceLayout } from '../../hooks/useDeviceLayout';
+import { getApiUrl } from '../../services/apiClient';
 
 interface HistoryItem {
   fen: string;
@@ -306,7 +307,7 @@ export default function GameplayReview({
       
       // Real Stripe logic would go here
       /*
-      const response = await fetch("/api/create-checkout-session", {
+      const response = await fetch(getApiUrl("/api/create-checkout-session"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
