@@ -19,8 +19,8 @@ dotenv.config();
 
 const engineAgent = new http.Agent({ keepAlive: true });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const resolvedFilename = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
+const resolvedDirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(resolvedFilename);
 
 // Initialize Firebase Admin
 let db: any = null;
@@ -46,7 +46,7 @@ try {
 
     if (serviceAccount) {
       try {
-        const firebaseConfig = JSON.parse(fs.readFileSync(path.join(__dirname, "firebase-applet-config.json"), "utf-8"));
+        const firebaseConfig = JSON.parse(fs.readFileSync(path.join(resolvedDirname, "firebase-applet-config.json"), "utf-8"));
         
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
@@ -1127,7 +1127,7 @@ async function startServer() {
         return next();
       }
       try {
-        const template = fs.readFileSync(path.resolve(__dirname, "index.html"), "utf-8");
+        const template = fs.readFileSync(path.resolve(resolvedDirname, "index.html"), "utf-8");
         const html = await vite.transformIndexHtml(req.url, template);
         res.status(200).set({ "Content-Type": "text/html" }).end(html);
       } catch (e) {
