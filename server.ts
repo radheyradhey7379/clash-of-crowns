@@ -291,26 +291,34 @@ Text to translate: "${text}"`;
 
   // Session Token Endpoint
   app.post("/api/auth/session-token", async (req, res) => {
-    const { idToken } = req.body;
-    if (!idToken) {
-      return res.status(400).json({ error: "Missing ID token" });
-    }
+    const { idToken, guest, guestUid } = req.body;
     try {
       let uid: string;
       
-      const isProduction = process.env.NODE_ENV === "production";
-      const hasAdmin = admin.apps.length > 0 && db !== null;
-
-      if (!hasAdmin) {
-        if (!isProduction) {
-          // Dev Mock Auth
-          uid = idToken; // in dev, we can use the idToken directly as mock uid
-        } else {
-          return res.status(500).json({ error: "Firebase Admin is not initialized" });
+      if (guest) {
+        if (!guestUid) {
+          return res.status(400).json({ error: "Missing guestUid" });
         }
+        uid = guestUid.startsWith("guest_") ? guestUid : `guest_${guestUid}`;
       } else {
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-        uid = decodedToken.uid;
+        if (!idToken) {
+          return res.status(400).json({ error: "Missing ID token" });
+        }
+        
+        const isProduction = process.env.NODE_ENV === "production";
+        const hasAdmin = admin.apps.length > 0 && db !== null;
+
+        if (!hasAdmin) {
+          if (!isProduction) {
+            // Dev Mock Auth
+            uid = idToken; // in dev, we can use the idToken directly as mock uid
+          } else {
+            return res.status(500).json({ error: "Firebase Admin is not initialized" });
+          }
+        } else {
+          const decodedToken = await admin.auth().verifyIdToken(idToken);
+          uid = decodedToken.uid;
+        }
       }
 
       const expiresAt = Date.now() + 15 * 60 * 1000; // 15 mins validity

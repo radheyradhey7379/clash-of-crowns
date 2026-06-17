@@ -33,13 +33,28 @@ const firebaseConfig = {
   firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || "mock_db_id",
 };
 
+const isRealValue = (val: string | undefined): boolean => {
+  if (!val) return false;
+  const lower = val.toLowerCase();
+  return (
+    lower !== 'your_api_key' &&
+    lower !== 'mock_api_key' &&
+    lower !== 'your_project' &&
+    lower !== 'mock_project_id' &&
+    lower !== 'mock_auth_domain' &&
+    lower !== 'mock_app_id' &&
+    lower !== 'mock_storage_bucket' &&
+    lower !== 'mock_messaging_sender_id' &&
+    !lower.startsWith('your_') &&
+    !lower.startsWith('mock_')
+  );
+};
+
 export const isFirebaseConfigured = !!(
-  import.meta.env.VITE_FIREBASE_API_KEY &&
-  import.meta.env.VITE_FIREBASE_API_KEY !== 'your_api_key' &&
-  import.meta.env.VITE_FIREBASE_API_KEY !== 'mock_api_key' &&
-  import.meta.env.VITE_FIREBASE_PROJECT_ID &&
-  import.meta.env.VITE_FIREBASE_PROJECT_ID !== 'your_project' &&
-  import.meta.env.VITE_FIREBASE_PROJECT_ID !== 'mock_project_id'
+  isRealValue(import.meta.env.VITE_FIREBASE_API_KEY) &&
+  isRealValue(import.meta.env.VITE_FIREBASE_PROJECT_ID) &&
+  isRealValue(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN) &&
+  isRealValue(import.meta.env.VITE_FIREBASE_APP_ID)
 );
 
 // Check for missing required config without crashing completely

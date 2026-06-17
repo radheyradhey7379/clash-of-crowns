@@ -24,6 +24,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
   const [narrationText, setNarrationText] = useState<string | null>(null);
   const [isFallback, setIsFallback] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [voiceAlert, setVoiceAlert] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isMounted = useRef(true);
   const narrationTimeoutRef = useRef<any>(null);
@@ -77,6 +78,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     setIsNarrating(false);
     setNarrationText(null);
     setIsFallback(false);
+    setVoiceAlert(null);
   };
 
   const playSpeechSynthesisFallback = (text: string, lang: Language): boolean => {
@@ -118,6 +120,11 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
       
       if (matchingVoice) {
         utterance.voice = matchingVoice;
+      } else if (lang !== 'en') {
+        setVoiceAlert("Exact voice not available, using default voice.");
+        setTimeout(() => {
+          if (isMounted.current) setVoiceAlert(null);
+        }, 4000);
       }
 
       utterance.onend = () => {
@@ -415,6 +422,11 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
                     <p className="text-[10px] sm:text-xs text-[#e2ddd4] leading-relaxed italic">
                       "{narrationText}"
                     </p>
+                    {voiceAlert && (
+                      <span className="text-[8px] text-amber-500 font-bold block mt-2 animate-pulse">
+                        ⚠️ {voiceAlert}
+                      </span>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

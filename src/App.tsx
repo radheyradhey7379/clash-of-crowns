@@ -23,7 +23,7 @@ import ForceUpdateScreen from './components/screens/ForceUpdateScreen';
 import MaintenanceScreen from './components/screens/MaintenanceScreen';
 import SoftUpdateNotice from './components/ui/SoftUpdateNotice';
 import { useVersionGate } from './lib/version/useVersionGate';
-import { setBackendHealthy } from './lib/config/featureAvailability';
+import { setNodeHealth } from './lib/config/featureAvailability';
 import { getApiUrl } from './services/apiClient';
 
 import { auth, db } from './firebase';
@@ -104,7 +104,7 @@ export default function App() {
       try {
         const response = await fetch(getApiUrl('/api/health')); // Using health endpoint as heartbeat
         if (response.ok) {
-          setBackendHealthy(true);
+          setNodeHealth('healthy');
           const end = Date.now();
           const latency = end - start;
           setRtt(latency);
@@ -116,11 +116,11 @@ export default function App() {
             setPerformanceAlert(false);
           }
         } else {
-          setBackendHealthy(false);
+          setNodeHealth('failed');
         }
       } catch (err) {
         console.warn("Heartbeat failed", err);
-        setBackendHealthy(false);
+        setNodeHealth('failed');
       }
     }, 10000); // Check every 10 seconds
 

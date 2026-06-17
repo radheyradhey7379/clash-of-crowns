@@ -1,6 +1,7 @@
 import { PlayerData } from '../../types';
 import { realtimeClient } from '../../services/realtime/realtimeClient';
 import { isRankedArenaEnabled } from '../../lib/config/featureFlags';
+import { getApiUrl } from '../../services/apiClient';
 
 export interface VerifiedRankedResult {
   room_id: string;
@@ -25,8 +26,7 @@ export function startRankedArenaSession(roomId: string, mode: 'friend' | 'ranked
     return;
   }
 
-  const url = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_REALTIME_WS_URL) || 'ws://localhost:3001/ws';
-  realtimeClient.connectRealtime(url, {
+  realtimeClient.connectRealtime(realtimeClient.url, {
     uid,
     displayName,
     rating,
@@ -54,8 +54,7 @@ export async function submitVerifiedResultToServer(
   idToken: string
 ): Promise<{ success: boolean; newRating?: number; ratingDelta?: number; error?: string }> {
   try {
-    const httpUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_REALTIME_HTTP_URL) || 'http://localhost:3000';
-    const res = await fetch(`${httpUrl}/api/ranked/verify-and-apply`, {
+    const res = await fetch(getApiUrl('/api/ranked/verify-and-apply'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

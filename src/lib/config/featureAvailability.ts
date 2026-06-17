@@ -1,5 +1,6 @@
 import { VersionGateConfig, DisabledFeatureKey } from '../version/versionGateTypes';
-import { auth } from '../firebase';
+import { auth, isFirebaseConfigured } from '../firebase';
+import { getCurrentAppVersion, isVersionBelow } from '../version/appVersion';
 import { 
   isMultiplayerEnabled,
   isRustRealtimeEnabled,
@@ -10,36 +11,64 @@ import {
 } from './featureFlags';
 
 let currentRemoteConfig: VersionGateConfig | null = null;
-let backendHealthy = false;
+let startupTime = Date.now();
 let closedBetaPassed = true; // Enabled for staging/live testing of multiplayer
 let chessAuthorityPassed = true; // Server FEN authority is verified and passed
 let resultAuthorityPassed = true; // Server rating signing authority is verified and passed
+
+export type HealthStatus = 'healthy' | 'failed' | 'unknown';
+let nodeHealthStatus: HealthStatus = 'unknown';
+let rustHealthStatus: HealthStatus = 'unknown';
+
+export function resetStartupTime() {
+  startupTime = Date.now();
+}
 
 export function setRemoteVersionConfig(config: VersionGateConfig) {
   currentRemoteConfig = config;
 }
 
+export function setNodeHealth(status: HealthStatus) {
+  nodeHealthStatus = status;
+}
+
+export function setRustHealth(status: HealthStatus) {
+  rustHealthStatus = status;
+}
+
 export function setBackendHealthy(healthy: boolean) {
-  backendHealthy = healthy;
+  // Backward compatibility for tests/older files
+  setRustHealth(healthy ? 'healthy' : 'failed');
+  setNodeHealth(healthy ? 'healthy' : 'failed');
 }
 
 export function setClosedBetaPassed(passed: boolean) {
   closedBetaPassed = passed;
 }
 
+export function getEffectiveNodeHealth(): HealthStatus {
+  if (nodeHealthStatus === 'unknown' && Date.now() - startupTime > 30000) {
+    return 'failed';
+  }
+  return nodeHealthStatus;
+}
+
+export function getEffectiveRustHealth(): HealthStatus {
+  if (rustHealthStatus === 'unknown' && Date.now() - startupTime > 30000) {
+    return 'failed';
+  }
+  return rustHealthStatus;
+}
+
 /**
  * Resolves feature availability by combining local environment flags, remote configuration,
  * backend health, and authority gates.
- * Rule: Feature is enabled ONLY if local env flag is true AND remote config allows it
- * AND not in maintenance mode AND backend health check passes AND auth is verified AND authority gates pass.
  */
 export function isFeatureAvailable(featureKey: DisabledFeatureKey, config: VersionGateConfig | null = currentRemoteConfig): boolean {
   // Hard-code ranked_arena and tournaments to false in this stage
   if (featureKey === 'ranked_arena' || featureKey === 'tournaments') {
     return false;
   }
-
-  const isTest = typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test';
 
   // 1. Check local environment flag first (hard gate)
   let localAllowed = false;
@@ -72,24 +101,38 @@ export function isFeatureAvailable(featureKey: DisabledFeatureKey, config: Versi
     default: remoteAllowed = false;
   }
 
-  if (!remoteAllowed && !isTest) {
+  if (config === null) {
+    remoteAllowed = true;
+  }
+
+  if (!remoteAllowed) {
     return false;
+  }
+
+  // Check app version supported
+  if (config) {
+    const currentVersion = getCurrentAppVersion();
+    if (config.forceUpdate || isVersionBelow(currentVersion, config.minimumSupportedVersion)) {
+      return false;
+    }
   }
 
   // 3. Backend Health gate
-  if (!backendHealthy && !isTest) {
+  const nodeH = getEffectiveNodeHealth();
+  const rustH = getEffectiveRustHealth();
+  if (nodeH === 'failed' || rustH === 'failed') {
     return false;
   }
 
-  // 4. Authority Gates
-  // Auth verified gate: require authenticated user
-  const authVerified = auth?.currentUser != null;
-  if (!authVerified && !isTest) {
+  // 4. Auth requirement
+  const isAuthRequired = isFirebaseConfigured;
+  const isUserLoggedIn = auth?.currentUser != null;
+  if (isAuthRequired && !isUserLoggedIn) {
     return false;
   }
 
   // Chess authority & Result authority gates
-  if ((!chessAuthorityPassed || !resultAuthorityPassed) && !isTest) {
+  if (!chessAuthorityPassed || !resultAuthorityPassed) {
     return false;
   }
 
@@ -104,31 +147,51 @@ export function getFeatureUnavailableReason(featureKey: DisabledFeatureKey, conf
     return "Coming Soon / Beta Locked";
   }
   if (featureKey === 'tournaments') {
-    return "Coming Soon / Locked until tournament gates pass";
+    return "Coming Soon / Locked";
   }
-
-  const isTest = typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test';
-  if (config?.maintenanceMode) return "System is currently under maintenance.";
   
-  if (!isMultiplayerEnabled()) {
-    return "Multiplayer is disabled in local config.";
+  if (config?.maintenanceMode) {
+    return "Maintenance";
   }
 
-  if (!backendHealthy && !isTest) {
-    return "Realtime server is unreachable. Check connection.";
+  if (config) {
+    const currentVersion = getCurrentAppVersion();
+    if (config.forceUpdate || isVersionBelow(currentVersion, config.minimumSupportedVersion)) {
+      return "Update required";
+    }
   }
 
-  if (auth?.currentUser == null && !isTest) {
-    return "Authentication required. Please sign in.";
+  if (!isMultiplayerEnabled() || !isRustRealtimeEnabled()) {
+    return "Feature disabled for beta";
   }
 
   if (config?.disabledFeatures?.includes(featureKey) || 
       (featureKey === 'multiplayer' && config?.multiplayerEnabled === false)) {
-    return "Feature disabled for beta release.";
+    return "Feature disabled for beta";
+  }
+
+  const isAuthRequired = isFirebaseConfigured;
+  const isUserLoggedIn = auth?.currentUser != null;
+  if (isAuthRequired && !isUserLoggedIn) {
+    return "Login required";
+  }
+
+  const nodeH = getEffectiveNodeHealth();
+  const rustH = getEffectiveRustHealth();
+  const elapsed = Date.now() - startupTime;
+
+  if (nodeH === 'failed' || rustH === 'failed') {
+    return "Backend unavailable";
+  }
+
+  if (nodeH === 'unknown' || rustH === 'unknown') {
+    if (elapsed > 10000) {
+      return "Waking server...";
+    }
   }
 
   if (!isFeatureAvailable(featureKey, config)) {
-    return "Feature currently unavailable.";
+    return "Backend unavailable";
   }
   
   return "";
@@ -144,8 +207,11 @@ if (typeof window !== 'undefined' && (import.meta.env?.DEV || (window as any).__
     console.log(" - isRankedArenaEnabled:", isRankedArenaEnabled());
     console.log(" - isTournamentsEnabled:", isTournamentsEnabled());
     console.log("Global Gates:");
-    console.log(" - backendHealthy:", backendHealthy);
+    console.log(" - nodeHealthStatus:", nodeHealthStatus, "(effective:", getEffectiveNodeHealth(), ")");
+    console.log(" - rustHealthStatus:", rustHealthStatus, "(effective:", getEffectiveRustHealth(), ")");
+    console.log(" - elapsed startup time:", Date.now() - startupTime, "ms");
     console.log(" - auth.currentUser:", auth?.currentUser?.uid || "null");
+    console.log(" - isFirebaseConfigured:", isFirebaseConfigured);
     console.log(" - chessAuthorityPassed:", chessAuthorityPassed);
     console.log(" - resultAuthorityPassed:", resultAuthorityPassed);
     console.log("Resolved Feature Availability:");

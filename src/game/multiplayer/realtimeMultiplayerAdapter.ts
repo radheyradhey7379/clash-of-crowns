@@ -25,7 +25,8 @@ import {
 } from './multiplayerPresenceService';
 import { RealtimeTransport } from './realtimeModeTypes';
 import { isMultiplayerEnabled, isRustRealtimeEnabled } from '../../lib/config/featureFlags';
-import { setBackendHealthy } from '../../lib/config/featureAvailability';
+import { setRustHealth } from '../../lib/config/featureAvailability';
+import { getApiUrl } from '../../services/apiClient';
 import { auth } from '../../firebase';
 
 export interface AdapterConfig {
@@ -79,8 +80,7 @@ class RealtimeMultiplayerAdapter {
     if (auth?.currentUser) {
       try {
         const idToken = await auth.currentUser.getIdToken(true);
-        const httpUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_REALTIME_HTTP_URL) || 'http://localhost:3000';
-        const res = await fetch(`${httpUrl}/api/auth/session-token`, {
+        const res = await fetch(getApiUrl('/api/auth/session-token'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ idToken })
@@ -91,6 +91,25 @@ class RealtimeMultiplayerAdapter {
         }
       } catch (tokenErr) {
         console.warn('[Adapter] Failed to fetch backend session token:', tokenErr);
+      }
+    } else {
+      // Guest session token generation
+      try {
+        let guestUid = localStorage.getItem('deviceId');
+        if (!guestUid) {
+          guestUid = 'temp_' + Math.random().toString(36).substring(7);
+        }
+        const res = await fetch(getApiUrl('/api/auth/session-token'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guest: true, guestUid })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          config.token = data.token;
+        }
+      } catch (guestErr) {
+        console.warn('[Adapter] Failed to fetch guest session token:', guestErr);
       }
     }
 
@@ -124,7 +143,7 @@ class RealtimeMultiplayerAdapter {
       console.warn('[Adapter] Rust health check failed, falling back to Firestore:', err);
     }
 
-    setBackendHealthy(isHealthy);
+    setRustHealth(isHealthy ? 'healthy' : 'failed');
 
     if (!isHealthy) {
       this.initFirestore();

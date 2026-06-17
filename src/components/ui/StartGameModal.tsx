@@ -80,7 +80,11 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode }: StartG
               <ModeButton
                 icon={<Globe size={18} />}
                 label="CASUAL / FRIEND MATCH"
-                description={isFeatureAvailable('multiplayer') ? "Active — Play via Rust Server" : "Inactive — Gates failed"}
+                description={
+                  isFeatureAvailable('multiplayer') 
+                    ? "Casual/Friend Match: online room/link play, no ranked points" 
+                    : `Inactive — ${getFeatureUnavailableReason('multiplayer') || "Gates failed"}`
+                }
                 onClick={handleMultiplayerClick}
                 color={!isFeatureAvailable('multiplayer') ? "opacity-60 hover:bg-white/5 border-white/10" : "hover:bg-white/5 border-[#d9ad33]/30"}
               />
@@ -89,15 +93,7 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode }: StartG
                 icon={<Globe size={18} className="opacity-40" />}
                 label="RANKED MATCH"
                 description="Coming Soon / Beta Locked"
-                onClick={() => handleLockedClick("Ranked Match: Coming Soon / Beta Locked for this release.")}
-                color="opacity-50 border-white/5 cursor-pointer"
-              />
-
-              <ModeButton
-                icon={<Trophy size={18} className="opacity-40" />}
-                label="LEADERBOARD"
-                description="Coming Soon until ranked enabled"
-                onClick={() => handleLockedClick("Leaderboard: Coming Soon until Ranked Arena is unlocked.")}
+                onClick={() => handleLockedClick("Ranked Match: competitive rank points (Bronze, Silver, Gold, Platinum, Diamond, Master, Crown, Conqueror tiers), win/loss ELO adjustments. Coming soon/beta locked.")}
                 color="opacity-50 border-white/5 cursor-pointer"
               />
 
@@ -105,7 +101,7 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode }: StartG
                 icon={<Trophy size={18} className="opacity-40" />}
                 label="CHAMPIONSHIP TOURNAMENT"
                 description="Coming Soon / Locked"
-                onClick={() => handleLockedClick(getFeatureUnavailableReason('tournaments'))}
+                onClick={() => handleLockedClick("Tournament: multi-player bracket event, server-controlled advancement and rewards. Locked.")}
                 color="opacity-50 border-white/5 cursor-pointer"
               />
             </div>

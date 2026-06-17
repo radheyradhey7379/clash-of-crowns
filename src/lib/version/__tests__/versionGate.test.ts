@@ -3,7 +3,28 @@ import { getCurrentAppVersion, compareVersions, isVersionBelow } from '../appVer
 import { evaluateVersionGate, checkVersionGate } from '../versionGateService';
 import { VersionGateConfig } from '../versionGateTypes';
 import { DEFAULT_VERSION_CONFIG } from '../defaultVersionConfig';
-import { isFeatureAvailable, getFeatureUnavailableReason, setRemoteVersionConfig } from '../../config/featureAvailability';
+import { 
+  isFeatureAvailable, 
+  getFeatureUnavailableReason, 
+  setRemoteVersionConfig, 
+  setNodeHealth, 
+  setRustHealth, 
+  resetStartupTime 
+} from '../../config/featureAvailability';
+
+let mockUser: any = { uid: 'user_123' };
+let mockIsFirebaseConfigured = true;
+
+vi.mock('../../firebase', () => ({
+  auth: {
+    get currentUser() {
+      return mockUser;
+    }
+  },
+  get isFirebaseConfigured() {
+    return mockIsFirebaseConfigured;
+  }
+}));
 
 // Mock featureFlags to control local flags in tests
 vi.mock('../../config/featureFlags', () => ({
@@ -78,6 +99,9 @@ describe('Version Gate System (Phase 31B)', () => {
     beforeEach(() => {
       vi.clearAllMocks();
       setRemoteVersionConfig({ ...DEFAULT_VERSION_CONFIG });
+      resetStartupTime();
+      setNodeHealth('healthy');
+      setRustHealth('healthy');
     });
 
     it('disables feature if local env flag is false', () => {
@@ -116,7 +140,85 @@ describe('Version Gate System (Phase 31B)', () => {
       setRemoteVersionConfig(config);
 
       expect(isFeatureAvailable('multiplayer')).toBe(false);
-      expect(getFeatureUnavailableReason('multiplayer')).toBe('System is currently under maintenance.');
+      expect(getFeatureUnavailableReason('multiplayer')).toBe('Maintenance');
+    });
+
+    it('enables Casual/Friend multiplayer when local flags are true and backend is healthy', () => {
+      vi.mocked(featureFlags.isMultiplayerEnabled).mockReturnValue(true);
+      vi.mocked(featureFlags.isRustRealtimeEnabled).mockReturnValue(true);
+      mockUser = { uid: 'user_123' };
+      mockIsFirebaseConfigured = true;
+      setNodeHealth('healthy');
+      setRustHealth('healthy');
+
+      const config = { ...DEFAULT_VERSION_CONFIG, multiplayerEnabled: true, disabledFeatures: [] };
+      setRemoteVersionConfig(config);
+
+      expect(isFeatureAvailable('multiplayer')).toBe(true);
+      expect(getFeatureUnavailableReason('multiplayer')).toBe('');
+    });
+
+    it('does not disable Casual/Friend when ranked or tournament flags are false', () => {
+      vi.mocked(featureFlags.isMultiplayerEnabled).mockReturnValue(true);
+      vi.mocked(featureFlags.isRustRealtimeEnabled).mockReturnValue(true);
+      vi.mocked(featureFlags.isRankedArenaEnabled).mockReturnValue(false);
+      vi.mocked(featureFlags.isTournamentsEnabled).mockReturnValue(false);
+      mockUser = { uid: 'user_123' };
+      mockIsFirebaseConfigured = true;
+      setNodeHealth('healthy');
+      setRustHealth('healthy');
+
+      const config = { ...DEFAULT_VERSION_CONFIG, multiplayerEnabled: true, disabledFeatures: [] };
+      setRemoteVersionConfig(config);
+
+      expect(isFeatureAvailable('multiplayer')).toBe(true);
+      expect(getFeatureUnavailableReason('multiplayer')).toBe('');
+    });
+
+    it('disables multiplayer with Backend unavailable when health checks fail', () => {
+      vi.mocked(featureFlags.isMultiplayerEnabled).mockReturnValue(true);
+      vi.mocked(featureFlags.isRustRealtimeEnabled).mockReturnValue(true);
+      mockUser = { uid: 'user_123' };
+      mockIsFirebaseConfigured = true;
+      setRemoteVersionConfig({ ...DEFAULT_VERSION_CONFIG, multiplayerEnabled: true, disabledFeatures: [] });
+      
+      // Node failed
+      setNodeHealth('failed');
+      setRustHealth('healthy');
+      expect(isFeatureAvailable('multiplayer')).toBe(false);
+      expect(getFeatureUnavailableReason('multiplayer')).toBe('Backend unavailable');
+
+      // Rust failed
+      setNodeHealth('healthy');
+      setRustHealth('failed');
+      expect(isFeatureAvailable('multiplayer')).toBe(false);
+      expect(getFeatureUnavailableReason('multiplayer')).toBe('Backend unavailable');
+    });
+
+    it('disables multiplayer with Login required when auth is missing and Firebase is configured', () => {
+      vi.mocked(featureFlags.isMultiplayerEnabled).mockReturnValue(true);
+      vi.mocked(featureFlags.isRustRealtimeEnabled).mockReturnValue(true);
+      mockUser = null; // Missing auth
+      mockIsFirebaseConfigured = true; // Firebase configured
+      setNodeHealth('healthy');
+      setRustHealth('healthy');
+      setRemoteVersionConfig({ ...DEFAULT_VERSION_CONFIG, multiplayerEnabled: true, disabledFeatures: [] });
+
+      expect(isFeatureAvailable('multiplayer')).toBe(false);
+      expect(getFeatureUnavailableReason('multiplayer')).toBe('Login required');
+    });
+
+    it('allows guest to test Casual/Friend Match when Google login is unavailable (Firebase not configured)', () => {
+      vi.mocked(featureFlags.isMultiplayerEnabled).mockReturnValue(true);
+      vi.mocked(featureFlags.isRustRealtimeEnabled).mockReturnValue(true);
+      mockUser = null; // No user logged in
+      mockIsFirebaseConfigured = false; // Firebase not configured
+      setNodeHealth('healthy');
+      setRustHealth('healthy');
+      setRemoteVersionConfig({ ...DEFAULT_VERSION_CONFIG, multiplayerEnabled: true, disabledFeatures: [] });
+
+      expect(isFeatureAvailable('multiplayer')).toBe(true);
+      expect(getFeatureUnavailableReason('multiplayer')).toBe('');
     });
   });
 });
