@@ -1,0 +1,36 @@
+services:
+  # Node/Express API and Frontend Server
+  - type: web
+    name: clash-of-crowns-node
+    env: docker
+    dockerfilePath: Dockerfile.node
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_TOKEN_SECRET
+        sync: true
+      - key: RANKED_RESULT_HMAC_SECRET
+        sync: true
+      - key: GEMINI_API_KEY
+        sync: true
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: true
+
+  # Rust WebSocket Engine Server
+  - type: web
+    name: clash-of-crowns-rust
+    env: docker
+    dockerfilePath: Dockerfile.rust
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: DEV_MODE
+        value: "false"
+      - key: SESSION_TOKEN_SECRET
+        sync: true
+      - key: RANKED_RESULT_HMAC_SECRET
+        sync: true

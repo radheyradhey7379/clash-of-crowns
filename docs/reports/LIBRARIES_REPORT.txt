@@ -1,0 +1,81 @@
+================================================================================
+CLASH OF CROWNS - FULL STACK LIBRARIES & DEPENDENCY REPORT
+================================================================================
+DATE: 2026-04-17
+STACK: TypeScript (React/Node) + Rust (Actix-web)
+================================================================================
+
+1. RUST BACKEND LIBRARIES (The "Engine Room")
+--------------------------------------------------------------------------------
+A. Web & Core Asynchronous Logic:
+- actix-web (v4.0): A world-class, extremely fast, type-safe web framework.
+- tokio (v1.0): The asynchronous runtime that executes your Rust tasks.
+- tokio-tungstenite: High-performance WebSocket implementation for game sync.
+
+B. Authoritative Chess Logic:
+- shakmaty (v0.26): A state-of-the-art chess library that uses bitboards for 
+  ultra-fast move validation and FEN parsing.
+- chess (v3.2): High-performance move generation used for AI calculations.
+- board-game-traits: Standardizes game state handling for the engine.
+
+C. Persistence Layer:
+- sqlx (v0.7): Type-safe, asynchronous SQL toolkit for PostgreSQL. 
+- redis (v0.24): In-memory data structure store for caching active game sessions.
+
+D. Monitoring & Performance Profiling:
+- sentry (v0.32): SDK for automatic crash reporting and error tracking.
+- dhat (v0.3): Memory profiler used to detect heap allocation issues.
+- tokio-console: Real-time diagnostics for async task scheduling.
+- prometheus: Metrics collection for active player counts and move latency.
+
+E. Security:
+- jsonwebtoken (v9.3): Securely signs and verifies user game tokens.
+- bcrypt (v0.15): Industry-standard password hashing (backend-side).
+
+2. REACT FRONTEND LIBRARIES (The "User Experience")
+--------------------------------------------------------------------------------
+A. Core UI & Styling:
+- react & react-dom (v19.0): The foundation of the user interface.
+- tailwindcss (v4.1): Utility-first CSS framework for Raja-Maharaja styling.
+- motion (v12.2): High-performance animation engine for smooth transitions.
+
+B. Graphics & 3D:
+- three.js: The 3D engine rendering the board and pieces.
+- @react-three/fiber & @react-three/drei: Connects Three.js with React 19.
+- postprocessing: Applied for high-end cinematic bloom and vignettes.
+
+C. Game Logic:
+- chess.js (v1.4): Client-side move validation and FEN state management.
+- socket.io-client: Real-time bi-directional communication with the server.
+
+D. Anti-Cheat & Security:
+
+- @fingerprintjs/fingerprintjs: Generates unique hardware IDs to ban cheaters.
+- dompurify: Sanitizes chat messages to prevent Cross-Site Scripting (XSS).
+- crypto-js: Encrypts local save data before storing in local storage.
+
+3. NODE.JS SERVER LIBRARIES (The "Infrastructure Proxy")
+--------------------------------------------------------------------------------
+A. Server Foundation:
+- express (v4.21): The backend server handling API requests and file serving.
+- helmet (v8.1): Adds 11 security headers (CSP, HSTS, etc.) to the app.
+
+B. Real-time & Scale:
+- socket.io: Server-side engine for multiplayer lobbies and matchmaking.
+- express-rate-limit: Protects the engine from Denial of Service (DoS) attacks.
+
+C. Third-party Integrations:
+- stripe: SDK for secure premium tier payments ($9.99/mo).
+- firebase (v12.11) & firebase-admin: Real-time database and auth management.
+- @google/genai: Powering the Raja AI commentary and tactical hints.
+
+4. BUILD & TOOLING
+--------------------------------------------------------------------------------
+- vite (v6.2): Next-generation frontend build tool (extremely fast).
+- esbuild: Used to bundle the server.ts file for production deployment.
+- tsx: Executes TypeScript files directly in development.
+- typescript (~5.8): Ensures type safety across the entire application.
+
+================================================================================
+REPORT END - ALL LIBRARIES VERIFIED AND LINKED.
+================================================================================

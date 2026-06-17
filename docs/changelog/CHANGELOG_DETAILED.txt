@@ -1,0 +1,80 @@
+================================================================================
+CLASH OF CROWNS - DETAILED ARCHITECTURAL CHANGES REPORT
+================================================================================
+DATE: 2026-04-17
+STATUS: FULL-STACK PROVISIONED & SECURED
+================================================================================
+
+1. BACKEND ARCHITECTURE (RUST ENGINE - /src-rust)
+--------------------------------------------------------------------------------
+- Framework Shift: Replaced the basic Axum setup with 'actix-web' for enterprise-grade 
+  concurrency and performance.
+- Thread Safety: Implemented 'Arc<Mutex<Engine>>' to allow safe asynchronous access 
+  to the chess engine across multiple HTTP worker threads.
+- Logic Integration: 
+    * Integrated 'shakmaty' crate for authoritative bitboard-based chess move validation.
+    * Integrated 'board-game-traits' to ensure the AI follows professional search patterns.
+    * Applied #[inline(always)] attributes to core evaluation functions in 'engine.rs' 
+      to eliminate function-call overhead during deep-ply searches.
+- Monitoring Hooks:
+    * Added 'dhat' (Heap Profiler) to track memory allocations word-for-word in the heap.
+    * Integrated 'tokio-console' to monitor async task scheduling and prevent bottlenecks.
+    * Integrated 'sentry' for automatic backend crash reporting.
+
+2. DATABASE & REAL-TIME INFRASTRUCTURE (FIREBASE / NODE.JS)
+--------------------------------------------------------------------------------
+- Database Provisioning: 
+    * Successfully provisioned Project ID: gen-lang-client-0755336720.
+    * Targeted specific Firestore instance: ai-studio-87029be7-5ea0-4e65-96aa-66354f59b7db.
+- Initialization Consolidation:
+    * Merged 'src/firebase.ts' and 'src/lib/firebase.ts' into a unified utility.
+    * Added Firebase 'setLogLevel(debug)' to ensure full visibility into connection heartbeats.
+    * Added 'getDocFromServer' heartbeat test on app boot to verify cloud connectivity.
+- Server-Side Admin:
+    * Modified 'server.ts' to parse 'firebase-applet-config.json' dynamically.
+    * Updated 'admin.firestore()' to target the non-default database ID, ensuring 
+      Level-Ups and ELO updates are written precisely to your instance.
+
+3. SECURITY RULES (firestore.rules)
+--------------------------------------------------------------------------------
+- Default Deny: Removed the 'allow read, write: if true' and replaced with a 'Default Deny' strategy.
+- Validator Pattern: Created 'isValidUser' and 'isValidGame' helper functions to check 
+  every write request against the technical schema.
+- Data Integrity:
+    * Added '.size()' checks on all string fields (name, fen, bio) to prevent 1MB overflow attacks.
+    * Restricted 'rating' and 'isPremium' updates to Admins or the Server system only.
+- Admin Bootstrap:
+    * Hardcoded 'radheyradhey7379@gmail.com' as the Master Admin with token-verified status.
+
+4. ANTI-CHEAT & MONITORING (CLIENT-SIDE)
+--------------------------------------------------------------------------------
+- Device Fingerprinting: 
+    * Integrated '@fingerprintjs/fingerprintjs' into 'LoginScreen.tsx'.
+    * Every user login now captures a unique hardware device ID, stored in Firestore 
+      to prevent cheaters from re-registering after a ban.
+- Latency Monitoring:
+    * Implemented a Socket.io ping-pong loop in 'GameScreen.tsx'.
+    * Calculates RTT (Round Trip Time) in milliseconds and logs it to the console, 
+      helping identify if the Rust engine move processing is lagging.
+
+5. MIDDLEWARE & ENVIRONMENT (/server.ts & .env)
+--------------------------------------------------------------------------------
+- Body-Parser Fix: Resequenced Express middleware. Placed the Stripe Webhook 
+  'express.raw' call BEFORE 'express.json' to prevent body-parsing corruption.
+- Connectivity: Temporarily disabled 'helmet' (CSP headers) to prevent it from 
+  blocking the development environment's WebSocket and Firebase connections.
+- Proxy Layer: Added a fetch-proxy in Node.js to forward '/api/engine/move' 
+  requests to the Rust process on port 3001.
+
+6. PROGRESSION SYSTEM (LOGIC RESTORATION)
+--------------------------------------------------------------------------------
+- Level Structure: Re-implemented the 3-tier difficulty curve:
+    * Beginner: 15 Characters (Levels).
+    * Intermediate: 11 Characters (Levels).
+    * Grandmaster: 1 Final Stage.
+- ELO Algorithm: Restored the K=32 Elo rating system with persistence in the 
+  'users' collection.
+
+================================================================================
+REPORT END. EVERY CHANGE IS NOW PERSISTED AND LIVE.
+================================================================================

@@ -1,0 +1,40 @@
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies (including devDependencies for compiling)
+RUN npm ci
+
+# Copy application source
+COPY . .
+
+# Build frontend and server bundles
+RUN npm run build
+
+# Copy firebase config to dist for runtime access
+RUN if [ -f firebase-applet-config.json ]; then cp firebase-applet-config.json dist/; fi
+
+# Production runner stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Copy package files
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --only=production
+
+# Copy compiled bundles from builder stage
+COPY --from=builder /app/dist ./dist
+
+EXPOSE 3000
+
+CMD ["node", "dist/server.cjs"]

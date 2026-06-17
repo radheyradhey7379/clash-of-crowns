@@ -1,0 +1,99 @@
+================================================================================
+CLASH OF CROWNS - DETAILED IMPLEMENTATION PLAN
+================================================================================
+This document outlines the systematic implementation roadmap for the 3D 
+Raja-Maharaja Chess Game, categorized by execution domain.
+
+--------------------------------------------------------------------------------
+1. CLIENT / BROWSER (FRONT-END) - User Experience & Client-Side Security
+--------------------------------------------------------------------------------
+[I] UI/UX & BASIC LOGIC
+    - TypeScript Board Engine: Implementation of the 3D board using React Three Fiber.
+    - Piece Interaction: Raycasting for piece selection and drag-drop physics.
+    - raja-Maharaja Theme: Dynamic CSS/Tailwind classes for "Royal Gold" palette.
+    - Animation System: Framer Motion (motion/react) for UI transitions and 
+      captured piece effects.
+    - Sound Engine: Web Audio API integration for chess move 'thud' and royal music.
+    - [NEW - RULE 1] Internationalization (i18n): Translation keys for Hindi, 
+      English, and Urdu.
+    - [NEW - RULE 1] Payment UI: Stripe Elements integration for Premium tier 
+      checkout.
+    - [NEW - RULE 1] Error Boundaries: Custom UI components to catch and 
+      report rendering crashes.
+
+[II] PERFORMANCE MONITORING
+    - RTT Tracker: Heartbeat loop tracking Round Trip Time. 
+      Limit: Alert user if RTT > 200ms for competitive integrity.
+
+[III] CLIENT SECURITY
+    - Device Fingerprinting: FingerprintJS integration to bind Hardware IDs to 
+      Firestore 'users' collection.
+    - Obfuscation: Vite build process to include mangling and minification 
+      (simulating ProGuard/DexGuard for the web).
+    - [NEW - RULE 1] Auth Flow: Google Login popup and guest-to-account 
+      migration UI.
+
+[IV] ASSET MANAGEMENT
+    - Public Assets: Optimized GLB models for chess pieces stored in /public.
+    - Caching: Service Worker implementation for offline asset persistence (PWA).
+
+--------------------------------------------------------------------------------
+2. SERVER (BACK-END - RUST) - Core Logic & Authoritative Processing
+--------------------------------------------------------------------------------
+[I] COMMUNICATION & REAL-TIME
+    - WebSocket Layer: Actix-web/Tokio-tungstenite for ultra-low latency move push.
+    - Session Management: Single Session Enforcement (preventing login cloning).
+    - Rate Limiting: Middleware to prevent API/Engine move spam.
+
+[II] CORE GAME LOGIC (The Heavy Lifting)
+    - Authority: Move validation using 'shakmaty' (Bitboards) and 'chess' crates.
+    - AI Bot: Search tree implementation with iterative deepening and alpha-beta pruning.
+    - Anti-Cheat Logic: Engine Correlation checks. Comparing user moves against 
+      Stockfish suggestions. Flagging users with 95-98% correlation consistency.
+    - Matchmaking: [NEW - RULE 2] Server-side queue for Rank-based and 
+      Skill-based pairing.
+
+[III] CONCURRENCY & MEMORY MANAGEMENT
+    - Runtime: Tokio feature="full" for high-concurrency player handling.
+    - Data Safety: Arc<Mutex> for global state; Atomic operations for stats.
+    - Memory Leak Prevention: Strict RAII (Drop trait) and Weak pointers for 
+      circular references in game state maps.
+
+[IV] ARCHITECTURE & OPTIMIZATION
+    - Worker Pattern: Separation of the API Server and Engine Workers into 
+      distinct containers/processes.
+    - Inline Logic: #[inline(always)] used on hot-path evaluation functions.
+    - Leaver's Policy: Implementation of the "Shadow Pool" (Leavers only play 
+      other leavers).
+
+[V] MONITORING & DIAGNOSTICS
+    - Diagnostics: DHAT for heap usage and tokio-console for async scheduling.
+    - [NEW - RULE 2] Audit Logs: Server-side tracking of all move history for 
+      dispute resolution.
+
+--------------------------------------------------------------------------------
+3. CLOUD (INFRASTRUCTURE & STORAGE) - Reliability & Scalability
+--------------------------------------------------------------------------------
+[I] DATA & CACHING
+    - Persistence: PostgreSQL (via sqlx) for User Profiles and PGN move records.
+    - Live Games: Redis for ephemeral game states (FEN storage).
+    - Performance: Connection Pooling (r2d2) and Read Replicas for leaderboard scaling.
+
+[II] HOSTING & SCALE
+    - Infrastructure: Managed DBs on AWS/DigitalOcean with S3 for storing game 
+      replays.
+    - Auto-scaling: Liveness Probes and CPU-triggered horizontal scaling (80% limit).
+    - Load Balancing: Nginx as entry point with SSL termination.
+
+[III] CLOUD SECURITY
+    - Auth: Firebase MFA (Multi-Factor) and strict Firestore Security Rules.
+    - Protection: WAF (Web Application Firewall) and DDoS mitigation layers.
+
+[IV] OBSERVABILITY & AUTOMATION
+    - Dashboards: Prometheus (Metrics) + Grafana (Visuals) + Sentry (Crashes).
+    - CI/CD: GitHub Actions with Dependabot/Snyk for word-for-word word 
+      dependency vulnerability checks.
+
+================================================================================
+PLAN END. EXECUTION MODE: ACTIVE.
+================================================================================

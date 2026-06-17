@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user profile and statistics",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Display name" },
+        "email": { "type": "string", "format": "email" },
+        "rating": { "type": "number", "description": "Elo rating" },
+        "wins": { "type": "number" },
+        "losses": { "type": "number" },
+        "draws": { "type": "number" },
+        "isPremium": { "type": "boolean" },
+        "tier": { "type": "number" },
+        "char": { "type": "number" },
+        "streak": { "type": "number" },
+        "bestStreak": { "type": "number" },
+        "shadowPool": { "type": "boolean", "description": "Flag for disruptive players" },
+        "leaversCount": { "type": "number", "description": "Number of times player left mid-game" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "rating"]
+    },
+    "Game": {
+      "title": "Chess Game",
+      "description": "Stores current game state and history",
+      "type": "object",
+      "properties": {
+        "gameId": { "type": "string" },
+        "whitePlayerId": { "type": "string" },
+        "blackPlayerId": { "type": "string" },
+        "fen": { "type": "string", "description": "Current FEN string" },
+        "history": { "type": "array", "description": "List of moves" },
+        "status": { "type": "string", "enum": ["active", "completed", "draw"] },
+        "winner": { "type": "string", "description": "UID of the winner or 'draw'" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["gameId", "whitePlayerId", "blackPlayerId", "fen", "status"]
+    },
+    "Payment": {
+      "title": "Payment Record",
+      "description": "Stores payment verification details",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "transactionId", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/games/{gameId}": {
+      "schema": "Game",
+      "description": "Active and past chess games"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Payment records for verification"
+    }
+  }
+}

@@ -1,0 +1,262 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cinzel", ui-serif, Georgia, serif;
+  --font-body: "Crimson Pro", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --ui-scale: 1;
+  --font-title: clamp(20px, 3vw, 48px);
+  --font-heading: clamp(16px, 2vw, 32px);
+  --font-body: clamp(12px, 1.2vw, 18px);
+  --font-small: clamp(9px, 0.9vw, 14px);
+
+  --button-height: clamp(42px, 7vh, 92px);
+  --button-radius: clamp(12px, 2vw, 28px);
+  --icon-size: clamp(22px, 3vw, 44px);
+}
+
+@media (max-width: 950px) and (orientation: landscape) {
+  :root {
+    --ui-scale: 0.72;
+    --font-title: clamp(16px, 2.4vw, 34px);
+    --font-heading: clamp(13px, 1.7vw, 24px);
+    --font-body: clamp(10px, 1.1vw, 15px);
+    --font-small: clamp(8px, 0.85vw, 12px);
+
+    --button-height: clamp(36px, 8vh, 58px);
+    --button-radius: 16px;
+    --icon-size: clamp(18px, 2.4vw, 30px);
+  }
+}
+
+@layer base {
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #030204;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #d9ad33;
+    border-radius: 10px;
+    border: 2px solid #030204;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #f5d666;
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d9ad33 #030204;
+  }
+
+  html, body, #root {
+    background: #000 !important;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    min-width: 100%;
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    @apply text-white antialiased;
+    -webkit-tap-highlight-color: transparent;
+    position: fixed;
+    inset: 0;
+  }
+
+  .app-shell,
+  .screen-root,
+  .auth-screen,
+  .game-screen {
+    width: 100dvw;
+    height: 100dvh;
+    min-width: 100dvw;
+    min-height: 100dvh;
+    background: #000 !important;
+    overflow: hidden;
+  }
+
+  /* Custom Selection */
+  ::selection {
+    background-color: rgba(219, 173, 51, 0.3);
+    color: #f5d666;
+  }
+
+  /* Custom Range Input */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-runnable-track {
+    background: rgba(255, 255, 255, 0.1);
+    height: 6px;
+    border-radius: 3px;
+  }
+
+  input[type="range"]::-moz-range-track {
+    background: rgba(255, 255, 255, 0.1);
+    height: 6px;
+    border-radius: 3px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: -5px; /* Centers thumb on the track */
+    background-color: #d9ad33;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(217, 173, 51, 0.5);
+    transition: all 0.2s;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    border: none;
+    background-color: #d9ad33;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(217, 173, 51, 0.5);
+    transition: all 0.2s;
+  }
+
+  input[type="range"]:hover::-webkit-slider-thumb {
+    background-color: #f5d666;
+    transform: scale(1.2);
+  }
+
+  input[type="range"]:hover::-moz-range-thumb {
+    background-color: #f5d666;
+    transform: scale(1.2);
+  }
+}
+
+/* Central UI Scale Classes */
+.text-title {
+  font-size: var(--font-title) !important;
+}
+.text-heading {
+  font-size: var(--font-heading) !important;
+}
+.text-body {
+  font-size: var(--font-body) !important;
+}
+.text-small {
+  font-size: var(--font-small) !important;
+}
+
+/* Homepage Profile Card Scaling */
+.profile-card {
+  width: clamp(160px, 18vw, 280px) !important;
+  height: clamp(48px, 9vh, 76px) !important;
+  border-radius: clamp(18px, 3vw, 36px) !important;
+  padding: clamp(6px, 1vw, 14px) !important;
+}
+
+.profile-avatar {
+  width: clamp(36px, 6vh, 56px) !important;
+  height: clamp(36px, 6vh, 56px) !important;
+}
+
+.profile-name {
+  font-size: var(--font-body) !important;
+}
+
+.profile-elo {
+  font-size: var(--font-small) !important;
+}
+
+/* Navigation Button Scaling */
+.top-nav-item {
+  font-size: var(--font-small) !important;
+}
+
+.top-nav-icon svg {
+  width: var(--icon-size) !important;
+  height: var(--icon-size) !important;
+}
+
+/* Play Button Scaling */
+.play-button {
+  width: clamp(220px, 32vw, 580px) !important;
+  height: clamp(48px, 10vh, 110px) !important;
+  font-size: clamp(16px, 2.5vw, 42px) !important;
+  border-radius: clamp(12px, 2vw, 28px) !important;
+}
+
+/* Play Popup Mode Selector */
+.play-popup {
+  width: min(92vw, 520px) !important;
+  max-height: 82dvh !important;
+  padding: clamp(14px, 3vw, 28px) !important;
+  border-radius: clamp(16px, 3vw, 30px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.play-popup-title {
+  font-size: clamp(18px, 3vw, 32px) !important;
+}
+
+.play-mode-button {
+  height: clamp(44px, 9vh, 70px) !important;
+  font-size: clamp(13px, 2vw, 20px) !important;
+  border-radius: clamp(12px, 2vw, 20px) !important;
+  padding: clamp(8px, 2vw, 20px) !important;
+}
+
+.play-mode-subtitle {
+  font-size: clamp(9px, 1.2vw, 14px) !important;
+}
+
+@media (max-height: 430px) and (orientation: landscape) {
+  .play-popup {
+    max-height: 88dvh !important;
+    overflow-y: auto !important;
+  }
+
+  .play-mode-button {
+    height: 42px !important;
+    padding: 6px 12px !important;
+  }
+}
+
+/* Layout Background Fixes */
+.home-screen,
+.main-menu-screen,
+.screen-root {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100dvw !important;
+  height: 100dvh !important;
+  overflow: hidden !important;
+  background: #000 !important;
+}
+
+.home-background {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+

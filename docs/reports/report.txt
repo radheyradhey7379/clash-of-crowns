@@ -1,0 +1,91 @@
+# Clash of Crowns - Technical Report & System Overview
+
+## 1. System Architecture: Server vs. Client Data
+
+### Client-Side (User Side)
+The application is a high-performance React Single Page Application (SPA). Most of the heavy lifting, including 3D rendering and AI move generation, happens directly on the user's device to ensure low latency.
+- **Game State**: Current board position, move history, and captured pieces are managed locally in the React state.
+- **3D Rendering**: Handled by Three.js (via React Three Fiber), utilizing the user's GPU.
+- **AI Engines**: 
+  - **Internal Engine**: A custom Negamax-based engine running in the main thread for instant responses at lower levels.
+  - **Stockfish WASM**: A full Stockfish engine running in a Web Worker for high-level play.
+- **Local Storage**: Used to persist game state between sessions (Resume feature).
+
+### Server-Side (Firebase)
+- **Authentication**: Firebase Auth manages user identities and secure login.
+- **User Profiles**: Firestore stores persistent user data:
+  - Elo Rating
+  - Win/Loss/Draw statistics
+  - Unlocked Tiers and Characters (Progress)
+  - Customization preferences (Piece sets, board themes, home animations)
+- **Leaderboard**: Global rankings are calculated and served from Firestore.
+
+---
+
+## 2. Libraries and APIs
+
+### Core Frameworks
+- **React 18**: UI component architecture.
+- **Vite**: Build tool and development server.
+- **TypeScript**: Ensures type safety across the entire codebase.
+
+### 3.D & UI
+- **Three.js / React Three Fiber**: 3D graphics engine.
+- **React Three Drei**: Helper components for 3D (OrbitControls, Environment, etc.).
+- **Framer Motion**: Smooth UI transitions and animations.
+- **Lucide React**: High-quality vector icons.
+- **Tailwind CSS**: Utility-first styling.
+
+### Chess Logic & AI
+- **Chess.js**: Core chess move validation and FEN handling.
+- **Stockfish WASM**: Industry-standard chess engine compiled to WebAssembly.
+- **Canvas-Confetti**: Visual celebration effects.
+
+### Backend & Infrastructure
+- **Firebase SDK**: For Auth and Firestore.
+- **Socket.io Client**: Prepared for real-time multiplayer capabilities.
+
+---
+
+## 3. The AI Brain: Logic & Depth Levels
+
+The AI system uses a hybrid approach to balance speed and difficulty.
+
+### Internal Engine (Tiers 0-1)
+For the first two tiers, the game uses a custom-built engine optimized for **instant response**.
+- **Algorithm**: Negamax with Alpha-Beta Pruning.
+- **Optimizations**: Transposition Tables (Zobrist Hashing), Move Ordering (MVV-LVA), Principal Variation Search (PVS), and Iterative Deepening.
+- **Response Time**: Near-instant (target < 100ms).
+
+### Stockfish WASM (Tiers 2-5)
+For intermediate and master levels, the game utilizes Stockfish for professional-grade play.
+- **Communication**: Asynchronous Web Worker to prevent UI freezing.
+- **Skill Levels**: Dynamically adjusted (0-20) based on the specific character.
+
+### Depth Level Mapping
+| Tier | Tier Name | Depth Levels | Elo Range |
+| :--- | :--- | :--- | :--- |
+| 0 | Beginner | 1 - 2 | 300 - 690 |
+| 1 | Learner | 3 - 4 | 725 - 1000 |
+| 2 | Intermediate | 5 - 8 | 1100 - 1490 |
+| 3 | Hard | 10 - 14 | 1511 - 1995 |
+| 4 | Master | 16 - 20 | 2100 - 2500 |
+| 5 | Grandmaster | 22 | 2800+ |
+
+---
+
+## 4. Feature Verification Status
+
+- **AI Speed**: Optimized. Tier 0-1 respond instantly via internal engine. Tier 2+ optimized via Stockfish worker.
+- **Music Logic**: 
+  - Starts automatically on Splash screen.
+  - Pauses automatically in Game and Academy (Learn) screens.
+  - Resumes automatically when returning to Home/Menu.
+- **Splash Screen**: Streamlined. Removed loading bars; kept Crown and Credits animations.
+- **Level Progression**: "Stair Mode" fully implemented. Winning unlocks the next character/tier correctly using TIER_SIZE mapping.
+- **Rating System**: Elo updates (+25 for win, -15 for loss, +5 for draw) and reflects in Profile and Ranks.
+- **Stability**: No crashes detected on button interactions. Error boundaries implemented for safety.
+- **Assets**: `bgm.mp3` and `homeanimation2.mp4` fully integrated.
+
+---
+*Report generated on 2026-04-14*

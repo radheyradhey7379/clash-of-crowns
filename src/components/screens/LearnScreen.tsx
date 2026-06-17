@@ -1,0 +1,100 @@
+import React, { useState } from 'react';
+import ScreenBackground from '../ui/ScreenBackground';
+import { motion, AnimatePresence } from 'motion/react';
+import { AppScreen, PlayerData } from '../../types';
+import { ChevronLeft, BookOpen } from 'lucide-react';
+import { LESSON_DATA, LessonContent } from '../../lib/lessons';
+import LearnDetailScreen from './LearnDetailScreen';
+
+interface LearnScreenProps {
+  onNavigate: (screen: AppScreen) => void;
+  playerData: PlayerData;
+}
+
+export default function LearnScreen({ onNavigate, playerData }: LearnScreenProps) {
+  const [selectedLesson, setSelectedLesson] = useState<LessonContent | null>(null);
+
+  const lessons = [
+    {
+      section: "THE CHESS PIECES",
+      items: ["PAWN", "KNIGHT", "BISHOP", "ROOK", "QUEEN", "KING"]
+    },
+    {
+      section: "BASIC COMBAT",
+      items: ["CHESS NOTATION", "CAPTURING", "CHECK", "OUT OF CHECK"]
+    },
+    {
+      section: "MATCH RESOLUTION",
+      items: ["CHECKMATE", "STALEMATE", "PROMOTION"]
+    },
+    {
+      section: "SPECIAL MANEUVERS",
+      items: ["CASTLING K-SIDE", "CASTLING Q-SIDE", "EN PASSANT"]
+    }
+  ];
+
+  if (selectedLesson) {
+    return <LearnDetailScreen lesson={selectedLesson} onBack={() => setSelectedLesson(null)} />;
+  }
+
+  return (
+    <div className="screen-root w-full h-full relative flex flex-col bg-[#000] overflow-hidden">
+      <ScreenBackground playerData={playerData} opacity={0.3} />
+
+      {/* Top Bar */}
+      <div className="h-20 flex items-center justify-between px-8 z-10">
+        <motion.button
+          whileHover={{ scale: 1.05, x: -5 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => onNavigate('Home')}
+          className="flex items-center justify-center p-2 rounded-lg bg-black/30 border border-[#d9ad33]/20 text-[#d9ad33] hover:bg-[#d9ad33]/10 transition-colors"
+        >
+          <ChevronLeft size={20} />
+        </motion.button>
+        <div className="flex items-center gap-3">
+          <BookOpen size={24} className="text-[#d9ad33]" />
+          <h1 className="text-2xl font-bold text-[#d9ad33] tracking-[0.3em] font-serif uppercase">CROWNS ACADEMY</h1>
+        </div>
+        <div className="w-32" />
+      </div>
+
+      <div className="flex-1 p-6 md:p-10 overflow-y-auto z-10">
+        <div className="max-w-6xl mx-auto flex flex-col gap-12">
+          {lessons.map((section, si) => (
+            <div key={section.section}>
+              <div className="flex items-center gap-4 mb-6">
+                <h2 className="text-[#8c7a52] text-xs font-bold tracking-[0.4em] whitespace-nowrap uppercase">{section.section}</h2>
+                <div className="h-px bg-white/10 w-full" />
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {section.items.map((item, ii) => (
+                  <motion.button
+                    key={item}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: (si * 0.1) + (ii * 0.05) }}
+                    whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.05)", borderColor: "rgba(217, 173, 51, 0.3)" }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      const data = LESSON_DATA[item];
+                      if (data) {
+                        setSelectedLesson(data);
+                      } else {
+                        alert(`Interactive lesson for [${item}] coming soon!`);
+                      }
+                    }}
+                    className="h-20 bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-center p-4 group transition-all shadow-2xl"
+                  >
+                    <span className="text-white text-[10px] font-bold tracking-[0.2em] group-hover:text-[#d9ad33] transition-colors uppercase">{item}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+

@@ -1,0 +1,5 @@
+{
+  "name": "Clash of Crowns",
+  "description": "A high-performance 3D chess progression game with a Rust engine and real-time latency monitoring. Rise from Cadet to Grandmaster.",
+  "requestFramePermissions": ["camera"]
+}

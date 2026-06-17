@@ -1,0 +1,341 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Document ID: userId (Auth UID)
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - name: string (required) - Display name
+    //   - email: string (optional) - Email address
+    //   - rating: number (required) - Elo rating
+    //   - wins: number (optional) - Win count
+    //   - losses: number (optional) - Loss count
+    //   - draws: number (optional) - Draw count
+    //   - isPremium: boolean (optional) - Subscription status
+    //   - tier: number (optional) - Progression tier
+    //   - char: number (optional) - Progression sub-level
+    //   - streak: number (optional) - Current win streak
+    //   - bestStreak: number (optional) - Highest win streak
+    //   - createdAt: string (optional) - ISO 8601 timestamp
+    //
+    // Collection: /games/{gameId}
+    // Document ID: gameId (generated)
+    // Fields:
+    //   - gameId: string (required) - Unique game ID
+    //   - whitePlayerId: string (required) - UID of white player
+    //   - blackPlayerId: string (required) - UID of black player
+    //   - fen: string (required) - Current FEN
+    //   - history: list (optional) - Move history
+    //   - status: string (required, enum) - active, completed, draw
+    //   - winner: string (optional) - Winner UID or 'draw'
+    //   - createdAt: string (optional) - ISO 8601 timestamp
+    //   - updatedAt: string (optional) - ISO 8601 timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Domain Validators
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('email' in data) || isValidEmail(data.email)) &&
+             data.rating is number &&
+             (!('tier' in data) || data.tier is number) &&
+             (!('char' in data) || data.char is number);
+    }
+
+    function isValidGame(data) {
+      return data.gameId is string &&
+             data.whitePlayerId is string &&
+             data.blackPlayerId is string &&
+             data.fen is string &&
+             data.status in ['active', 'completed', 'draw'];
+    }
+
+    function isUnchanged(field) {
+      return (!(field in resource.data) && !(field in request.resource.data)) ||
+             (field in resource.data && field in request.resource.data && request.resource.data[field] == resource.data[field]);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Users collection
+    match /users/{userId} {
+      // Owners can read their own private data, others can only read public bits? 
+      // For now, allow reading public profiles if authenticated. 
+      // CRITICAL: If this collection contains PII (email), we MUST restrict.
+      // Assuming 'email' is private.
+      allow read: if isAuthenticated();
+      
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data);
+      
+      allow update: if isAuthenticated() && (
+        (isOwner(userId) && isValidUser(request.resource.data) && 
+         isUnchanged('rating') &&
+         isUnchanged('arenaRating') &&
+         isUnchanged('tier') &&
+         isUnchanged('char') &&
+         isUnchanged('wins') &&
+         isUnchanged('losses') &&
+         isUnchanged('draws') &&
+         isUnchanged('streak') &&
+         isUnchanged('bestStreak') &&
+         isUnchanged('appliedArenaResultIds') &&
+         isUnchanged('tournamentWins')
+        ) ||
+        isAdmin()
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // Games collection
+    match /games/{gameId} {
+      allow read: if isAuthenticated(); // Allow spectating
+      
+      allow create: if isAuthenticated() && isValidGame(request.resource.data) && 
+                      (request.auth.uid == request.resource.data.whitePlayerId || 
+                       request.auth.uid == request.resource.data.blackPlayerId);
+      
+      allow update: if isAuthenticated() && isValidGame(request.resource.data) &&
+                      (request.auth.uid == resource.data.whitePlayerId || 
+                       request.auth.uid == resource.data.blackPlayerId || 
+                       isAdmin());
+                       
+      allow delete: if isAdmin();
+    }
+
+    // Payments collection (Internal/Admin only)
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow write: if isAdmin(); // Only server/admin can record payments
+    }
+
+    // Cloud Saves collection
+    match /cloudSaves/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Leaderboards collection
+    match /leaderboards/{mode}/entries/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && mode == 'comp_kings' &&
+                   request.resource.data.score is number && 
+                   request.resource.data.score >= 0 && 
+                   request.resource.data.score <= 10000000;
+    }
+
+    // Challenge Requests collection
+    match /challengeRequests/{challengeId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.fromUid && request.resource.data.fromUid != request.resource.data.toUid;
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == resource.data.toUid && (
+          request.resource.data.status == 'seen' || 
+          request.resource.data.status == 'declined' || 
+          (request.resource.data.status == 'accepted' && 
+           request.resource.data.roomId is string && 
+           request.resource.data.roomId != "")
+        )) ||
+        ((request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid) && request.resource.data.status == 'expired')
+      ) && request.resource.data.id == resource.data.id
+        && request.resource.data.fromUid == resource.data.fromUid
+        && request.resource.data.toUid == resource.data.toUid;
+    }
+
+    // User Notifications collection
+    match /users/{userId}/notifications/{notificationId} {
+      allow read, update, create: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && 
+                    request.resource.data.type == 'challenge_request' &&
+                    request.resource.data.fromUid == request.auth.uid &&
+                    request.resource.data.toUid == userId &&
+                    request.resource.data.read == false &&
+                    request.resource.data.challengeRequestId is string &&
+                    request.resource.data.challengeRequestId != "" &&
+                    request.resource.data.createdAt is number;
+    }
+
+    // User Chat Inbox collection
+    match /users/{userId}/chatInbox/{messageId} {
+      allow read, update, create: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && 
+                    request.resource.data.type == 'challenge_request' &&
+                    request.resource.data.challengerUid == request.auth.uid &&
+                    request.resource.data.toUid == userId &&
+                    request.resource.data.read == false &&
+                    request.resource.data.challengeRequestId is string &&
+                    request.resource.data.challengeRequestId != "" &&
+                    request.resource.data.createdAt is number;
+    }
+
+    // Multiplayer Rooms collection
+    match /multiplayerRooms/{roomId} {
+      // Allow read if user is the host or the guest
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.hostUid || 
+        request.auth.uid == resource.data.guestUid
+      );
+      
+      // Allow host to create room, or guest to create challenge room if host/guest match challenge fromUid/toUid
+      allow create: if isAuthenticated() && (
+        request.auth.uid == request.resource.data.hostUid ||
+        (
+          request.resource.data.source == 'challenge' &&
+          request.resource.data.guestUid == request.auth.uid &&
+          request.resource.data.challengeRequestId is string &&
+          request.resource.data.challengeRequestId != "" &&
+          get(/databases/$(database)/documents/challengeRequests/$(request.resource.data.challengeRequestId)).data.fromUid == request.resource.data.hostUid &&
+          get(/databases/$(database)/documents/challengeRequests/$(request.resource.data.challengeRequestId)).data.toUid == request.resource.data.guestUid
+        )
+      );
+      
+      // Allow updates from host, guest, or a guest joining
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.hostUid || 
+        request.auth.uid == resource.data.guestUid ||
+        (resource.data.status == 'waiting' && request.resource.data.guestUid == request.auth.uid)
+      );
+
+      // Subcollection: moves
+      match /moves/{moveNumber} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.hostUid ||
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.guestUid
+        );
+        allow create, update: if isAuthenticated() && (
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.hostUid ||
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.guestUid
+        ) && request.auth.uid == request.resource.data.playerUid;
+      }
+
+      // Subcollection: presence
+      match /presence/{userId} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.hostUid ||
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.guestUid
+        );
+        allow write: if isOwner(userId) && (
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.hostUid ||
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.guestUid
+        );
+      }
+
+      // Subcollection: drawOffers
+      match /drawOffers/{offerId} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.hostUid ||
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.guestUid
+        );
+        allow create: if isAuthenticated() && (
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.hostUid ||
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.guestUid
+        ) && request.resource.data.fromUid == request.auth.uid;
+        
+        allow update: if isAuthenticated() && (
+          (request.auth.uid == resource.data.toUid && (request.resource.data.status == 'accepted' || request.resource.data.status == 'declined')) ||
+          ((request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid) && request.resource.data.status == 'expired')
+        ) && request.resource.data.offerId == resource.data.offerId
+          && request.resource.data.roomId == resource.data.roomId
+          && request.resource.data.fromUid == resource.data.fromUid
+          && request.resource.data.toUid == resource.data.toUid;
+      }
+
+      // Subcollection: results
+      match /results/{resultId} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.hostUid ||
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.guestUid
+        );
+        allow write: if isAuthenticated() && (
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.hostUid ||
+          request.auth.uid == get(/databases/$(database)/documents/multiplayerRooms/$(roomId)).data.guestUid
+        );
+      }
+    }
+
+    // Friend Requests collection
+    match /friendRequests/{requestId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.senderUid || 
+        request.auth.uid == resource.data.receiverUid
+      );
+      allow create: if isAuthenticated() && 
+                    request.resource.data.senderUid == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.senderUid || 
+        request.auth.uid == resource.data.receiverUid
+      );
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.senderUid || 
+        request.auth.uid == resource.data.receiverUid
+      );
+    }
+
+    // Chats collection
+    match /chats/{chatId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.user1 || 
+        request.auth.uid == resource.data.user2
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.user1 == request.auth.uid || 
+        request.resource.data.user2 == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.user1 || 
+        request.auth.uid == resource.data.user2
+      );
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.user1 ||
+          request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.user2
+        );
+        allow create: if isAuthenticated() && (
+          request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.user1 ||
+          request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.user2
+        ) && request.resource.data.senderUid == request.auth.uid;
+      }
+    }
+
+    // Tournaments collection
+    match /tournaments/{tournamentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

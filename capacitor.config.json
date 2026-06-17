@@ -1,0 +1,6 @@
+{
+  "appId": "com.clashofcrowns.game",
+  "appName": "Clash of Crowns",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

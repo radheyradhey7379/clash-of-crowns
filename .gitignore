@@ -1,0 +1,32 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Rust targets
+target/
+src-rust/target/
+
+# Android targets
+.gradle/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/key.properties
+
+# Secrets, configs, keys
+firebase-applet-config.json
+service-account.json
+firebase-key.json
+*.keystore
+*.jks
+
+# Cache & AI files
+.system_generated/
+.gemini/
+logs/
+
