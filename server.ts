@@ -39,6 +39,16 @@ try {
     try {
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
         serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      } else {
+        const localSaPath = path.join(resolvedDirname, "..", "service-account.json");
+        const rootSaPath = path.join(resolvedDirname, "service-account.json");
+        if (fs.existsSync(localSaPath)) {
+          serviceAccount = JSON.parse(fs.readFileSync(localSaPath, "utf-8"));
+          console.log("Loaded Firebase credentials from service-account.json (relative parent)");
+        } else if (fs.existsSync(rootSaPath)) {
+          serviceAccount = JSON.parse(fs.readFileSync(rootSaPath, "utf-8"));
+          console.log("Loaded Firebase credentials from service-account.json");
+        }
       }
     } catch (parseError) {
       console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT. Ensure it is valid JSON.");
@@ -46,7 +56,17 @@ try {
 
     if (serviceAccount) {
       try {
-        const firebaseConfig = JSON.parse(fs.readFileSync(path.join(resolvedDirname, "firebase-applet-config.json"), "utf-8"));
+        let firebaseConfig: any = { firestoreDatabaseId: '(default)' };
+        const configPath = path.join(resolvedDirname, "firebase-applet-config.json");
+        if (fs.existsSync(configPath)) {
+          try {
+            firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+          } catch (err) {
+            console.error("Failed to parse firebase-applet-config.json:", err);
+          }
+        } else {
+          console.log("firebase-applet-config.json not found, using default database.");
+        }
         
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
