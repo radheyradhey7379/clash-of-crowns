@@ -100,7 +100,8 @@ service cloud.firestore {
       // Assuming 'email' is private.
       allow read: if isAuthenticated();
       
-      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data);
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) &&
+                    (!('entitlements' in request.resource.data));
       
       allow update: if isAuthenticated() && (
         (isOwner(userId) && isValidUser(request.resource.data) && 
@@ -114,7 +115,8 @@ service cloud.firestore {
          isUnchanged('streak') &&
          isUnchanged('bestStreak') &&
          isUnchanged('appliedArenaResultIds') &&
-         isUnchanged('tournamentWins')
+         isUnchanged('tournamentWins') &&
+         isUnchanged('entitlements')
         ) ||
         isAdmin()
       );

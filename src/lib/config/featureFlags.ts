@@ -20,6 +20,7 @@ export const isRankedArenaEnabled = (): boolean => getBooleanEnv('VITE_ENABLE_RA
 export const isSocialPokeEnabled = (): boolean => getBooleanEnv('VITE_ENABLE_SOCIAL_POKE', true);
 export const isChallengeMatchEnabled = (): boolean => getBooleanEnv('VITE_ENABLE_CHALLENGE_MATCH', false);
 export const isTournamentsEnabled = (): boolean => getBooleanEnv('VITE_ENABLE_TOURNAMENTS', false);
+export const isOnlineBetaEnabled = (): boolean => getBooleanEnv('VITE_ENABLE_ONLINE_BETA', false);
 
 export const getDisabledFeatureMessage = (feature: 'multiplayer' | 'ranked' | 'tournament' | 'challenge'): string => {
   switch (feature) {

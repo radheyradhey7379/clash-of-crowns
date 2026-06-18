@@ -7,7 +7,8 @@ import {
   isRankedArenaEnabled,
   isSocialPokeEnabled,
   isChallengeMatchEnabled,
-  isTournamentsEnabled
+  isTournamentsEnabled,
+  isOnlineBetaEnabled
 } from './featureFlags';
 
 let currentRemoteConfig: VersionGateConfig | null = null;
@@ -127,7 +128,8 @@ export function isFeatureAvailable(featureKey: DisabledFeatureKey, config: Versi
   // 4. Auth requirement
   const isAuthRequired = isFirebaseConfigured;
   const isUserLoggedIn = auth?.currentUser != null;
-  if (isAuthRequired && !isUserLoggedIn) {
+  const isBeta = isOnlineBetaEnabled();
+  if (isAuthRequired && !isUserLoggedIn && !isBeta) {
     return false;
   }
 
@@ -172,7 +174,8 @@ export function getFeatureUnavailableReason(featureKey: DisabledFeatureKey, conf
 
   const isAuthRequired = isFirebaseConfigured;
   const isUserLoggedIn = auth?.currentUser != null;
-  if (isAuthRequired && !isUserLoggedIn) {
+  const isBeta = isOnlineBetaEnabled();
+  if (isAuthRequired && !isUserLoggedIn && !isBeta) {
     return "Login required";
   }
 

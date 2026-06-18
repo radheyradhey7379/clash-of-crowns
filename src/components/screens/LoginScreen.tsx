@@ -68,7 +68,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       await handleLoginLogic(result.user);
     } catch (err: any) {
       console.error("Google login failed:", err);
-      if (err.message && err.message.includes("popups are unsupported")) {
+      if (err.code === 'auth/unauthorized-domain' || (err.message && err.message.includes('unauthorized-domain'))) {
+        setError("Google login needs Firebase Authorized Domain setup.");
+      } else if (err.message && err.message.includes("popups are unsupported")) {
         setError(err.message);
       } else {
         setError("Google login unavailable in this build. Guest mode only.");

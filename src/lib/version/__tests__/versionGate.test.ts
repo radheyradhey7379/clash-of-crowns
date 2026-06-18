@@ -34,6 +34,7 @@ vi.mock('../../config/featureFlags', () => ({
   isSocialPokeEnabled: vi.fn().mockReturnValue(true),
   isChallengeMatchEnabled: vi.fn().mockReturnValue(true),
   isTournamentsEnabled: vi.fn().mockReturnValue(true),
+  isOnlineBetaEnabled: vi.fn().mockReturnValue(false),
 }));
 
 import * as featureFlags from '../../config/featureFlags';

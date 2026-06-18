@@ -23,7 +23,7 @@ import ForceUpdateScreen from './components/screens/ForceUpdateScreen';
 import MaintenanceScreen from './components/screens/MaintenanceScreen';
 import SoftUpdateNotice from './components/ui/SoftUpdateNotice';
 import { useVersionGate } from './lib/version/useVersionGate';
-import { setNodeHealth } from './lib/config/featureAvailability';
+import { setNodeHealth, setRustHealth } from './lib/config/featureAvailability';
 import { getApiUrl } from './services/apiClient';
 
 import { auth, db } from './firebase';
@@ -101,6 +101,8 @@ export default function App() {
 
     const interval = setInterval(async () => {
       const start = Date.now();
+      
+      // Node Health
       try {
         const response = await fetch(getApiUrl('/api/health')); // Using health endpoint as heartbeat
         if (response.ok) {
@@ -119,8 +121,27 @@ export default function App() {
           setNodeHealth('failed');
         }
       } catch (err) {
-        console.warn("Heartbeat failed", err);
+        console.warn("Node heartbeat failed", err);
         setNodeHealth('failed');
+      }
+
+      // Rust Health
+      try {
+        const rustUrl = import.meta.env?.VITE_REALTIME_HTTP_URL || 'http://localhost:3001';
+        const response = await fetch(`${rustUrl}/health`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.status === 'ok') {
+            setRustHealth('healthy');
+          } else {
+            setRustHealth('failed');
+          }
+        } else {
+          setRustHealth('failed');
+        }
+      } catch (err) {
+        console.warn("Rust heartbeat failed", err);
+        setRustHealth('failed');
       }
     }, 10000); // Check every 10 seconds
 

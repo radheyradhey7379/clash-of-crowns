@@ -265,7 +265,7 @@ Text to translate: "${text}"`;
       // Step 2: Narrate using the TTS model
       const response = await genAIClient.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: [{ role: 'user', parts: [{ text: textToNarrate }] }],
+        contents: [{ role: 'user', parts: [{ text: `Translate and narrate only in selected language. Do not return English unless selected language is English. Here is the text to speak: ${textToNarrate}` }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {

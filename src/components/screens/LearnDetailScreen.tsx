@@ -81,7 +81,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     setVoiceAlert(null);
   };
 
-  const playSpeechSynthesisFallback = (text: string, lang: Language): boolean => {
+  const playSpeechSynthesisFallback = (text: string, lang: Language, alternativeTranslatedText?: string): boolean => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
       console.warn("SpeechSynthesis not supported in this browser.");
       return false;
@@ -98,7 +98,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
       }
       
       const localTransText = lang !== 'en' ? getLocalLessonText(lesson.id, lang) : '';
-      const speechText = localTransText || text;
+      const speechText = alternativeTranslatedText || localTransText || text;
       
       setNarrationText(speechText);
       setIsFallback(true);
@@ -108,20 +108,21 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
 
       // Select matching voice
       const voices = window.speechSynthesis.getVoices();
-      let matchingVoice = voices.find(v => 
-        v.lang.toLowerCase() === targetLang.toLowerCase() || 
-        v.lang.toLowerCase().startsWith(targetLang.split('-')[0].toLowerCase())
-      );
-      
-      if (!matchingVoice && lang !== 'en') {
-        const langPrefix = targetLang.split('-')[0].toLowerCase();
-        matchingVoice = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix));
-      }
+      let matchingVoice = voices.find(v => {
+        const vLang = v.lang.toLowerCase();
+        if (lang === 'hi') {
+          return vLang.startsWith('hi');
+        }
+        if (lang === 'ar') {
+          return vLang.startsWith('ar');
+        }
+        return vLang === targetLang.toLowerCase() || vLang.startsWith(targetLang.split('-')[0].toLowerCase());
+      });
       
       if (matchingVoice) {
         utterance.voice = matchingVoice;
       } else if (lang !== 'en') {
-        setVoiceAlert("Exact voice not available, using default voice.");
+        setVoiceAlert("Exact Hindi/Arabic voice not available, using default voice.");
         setTimeout(() => {
           if (isMounted.current) setVoiceAlert(null);
         }, 4000);
@@ -195,11 +196,14 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     audio.play().catch(() => {}); // silent catch to unlock audio element
     audioRef.current = audio;
     
+    let serverTranslatedText: string | undefined = undefined;
+    
     try {
       const response = await getNarration(fullText, lang);
 
       if (response && isMounted.current) {
         const { audioUrl, translatedText } = response;
+        serverTranslatedText = translatedText;
         if (translatedText) {
           setNarrationText(translatedText);
         }
@@ -214,7 +218,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
         audio.play().catch(e => {
           console.error("Audio playback failed even after unlocking:", e);
           if (isMounted.current) {
-            const success = playSpeechSynthesisFallback(fullText, lang);
+            const success = playSpeechSynthesisFallback(fullText, lang, serverTranslatedText);
             if (!success) {
               stopNarration();
               URL.revokeObjectURL(audioUrl);
@@ -232,7 +236,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     } catch (error) {
       console.error("Narration failed:", error);
       if (isMounted.current) {
-        const success = playSpeechSynthesisFallback(fullText, lang);
+        const success = playSpeechSynthesisFallback(fullText, lang, serverTranslatedText);
         if (!success) {
           stopNarration();
         }

@@ -220,6 +220,7 @@ export default function HomeScreen({ onNavigate, playerData }: HomeScreenProps) 
           setIsStartModalOpen(false);
         }} 
         onSelectMode={handleSelectMode}
+        playerData={playerData}
       />
       <LocalGameSetupModal
         isOpen={isLocalSetupOpen}
