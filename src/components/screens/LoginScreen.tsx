@@ -84,8 +84,18 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setIsLoading(true);
     setError(null);
     try {
-      // Bypass Firebase Auth for Guest Mode to support offline play instantly and avoid config errors.
-      // Guest mode in this game is fully local-first (stored in localStorage) anyway.
+      if (isFirebaseConfigured) {
+        try {
+          console.log("Attempting Firebase Anonymous Auth for Guest session...");
+          const result = await signInAnonymously(auth);
+          await handleLoginLogic(result.user);
+          return;
+        } catch (authErr: any) {
+          console.warn("Firebase Anonymous Auth failed, falling back to local-only guest session:", authErr);
+        }
+      }
+      
+      // Fallback: Bypass Firebase Auth for offline Guest Mode
       onLoginSuccess();
     } catch (err: any) {
       console.error("Guest login failed:", err);

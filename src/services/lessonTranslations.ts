@@ -360,7 +360,8 @@ export const LESSON_TRANSLATIONS: Record<string, Record<'hi' | 'ar', { title: st
 export function getLocalLessonText(lessonId: string, lang: 'hi' | 'ar'): string {
   const trans = LESSON_TRANSLATIONS[lessonId]?.[lang];
   if (!trans) return "";
-  return `${trans.title}. ${trans.description}. Rules: ${trans.rules.join('. ')}`;
+  const rulesPrefix = lang === 'hi' ? 'नियम' : 'القواعد';
+  return `${trans.title}. ${trans.description}. ${rulesPrefix}: ${trans.rules.join('. ')}`;
 }
 
 export function getLocalLessonObj(lessonId: string, lang: 'hi' | 'ar') {

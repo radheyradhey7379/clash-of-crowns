@@ -56,16 +56,18 @@ try {
 
     if (serviceAccount) {
       try {
-        let firebaseConfig: any = { firestoreDatabaseId: '(default)' };
+        let databaseId = process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || "ai-studio-87029be7-5ea0-46e5-96aa-66354f59b7db";
+        
         const configPath = path.join(resolvedDirname, "firebase-applet-config.json");
         if (fs.existsSync(configPath)) {
           try {
-            firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+            const fileConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+            if (fileConfig.firestoreDatabaseId && fileConfig.firestoreDatabaseId !== 'YOUR_FIRESTORE_DB_ID') {
+              databaseId = fileConfig.firestoreDatabaseId;
+            }
           } catch (err) {
             console.error("Failed to parse firebase-applet-config.json:", err);
           }
-        } else {
-          console.log("firebase-applet-config.json not found, using default database.");
         }
         
         admin.initializeApp({
@@ -73,9 +75,8 @@ try {
           databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
         });
         
-        // Use the specific database ID if provided (Module 3.1)
-        db = admin.firestore(firebaseConfig.firestoreDatabaseId || '(default)');
-        console.log(`Firebase Admin initialized with database: ${firebaseConfig.firestoreDatabaseId || '(default)'}`);
+        db = admin.firestore(databaseId);
+        console.log(`Firebase Admin initialized with database: ${databaseId}`);
       } catch (initError) {
         console.error("Firebase Admin initializeApp failed:", initError);
       }
@@ -240,7 +241,7 @@ async function startServer() {
     }
 
     try {
-      const { GoogleGenAI, Modality } = await import("@google/genai");
+      const { GoogleGenAI } = await import("@google/genai");
       const genAIClient = new GoogleGenAI({ apiKey });
 
       let textToNarrate = text;
@@ -253,7 +254,7 @@ async function startServer() {
       // Step 1: Translate if not English
       if (lang !== 'en') {
         const targetLangLabel = LANGUAGE_LABELS[lang] || lang;
-        const translationPrompt = `You are a professional chess coach. Translate the following chess lesson text into ${targetLangLabel}. You must translate every single detail, including the title, description, and every rule completely. Do not summarize, shorten, or omit any details. Output ONLY the raw translated text in ${targetLangLabel} script. Translate and narrate the content in the selected language only. Do not return English unless selected language is English. No explanations, no introductory phrases, no formatting, and no English text.
+        const translationPrompt = `You are a professional chess coach. Translate the following chess lesson text into ${targetLangLabel}. You must translate every single detail, including the title, description, and every rule completely. Do not summarize, shorten, or omit any details. Make sure to translate the word 'Rules:' or 'Rules' to the native word ('नियम:' for Hindi, 'القواعد:' for Arabic). Do not output the word 'Rules' in English. Output ONLY the raw translated text in ${targetLangLabel} script. Translate and narrate the content in the selected language only. Do not return English unless selected language is English. No explanations, no introductory phrases, no formatting, and no English text.
 Text to translate: "${text}"`;
         const result = await genAIClient.models.generateContent({
           model: "gemini-2.5-flash",
@@ -262,39 +263,81 @@ Text to translate: "${text}"`;
         textToNarrate = (result.text || "").trim() || text;
       }
 
-      // Step 2: Narrate using the TTS model with a target-language-specific prompt to ensure fluent native speech
-      let speechPrompt = "";
-      if (lang === 'hi') {
-        speechPrompt = `कृपया निम्नलिखित शतरंज के पाठ को स्पष्ट, धाराप्रवाह और प्राकृतिक हिंदी आवाज में बोलें। केवल हिंदी स्क्रिप्ट का उच्चारण करें। कोई अंग्रेजी शब्द न बोलें।
-पाठ: "${textToNarrate}"`;
-      } else if (lang === 'ar') {
-        speechPrompt = `يرجى نطق درس الشطرنج التالي بصوت شطرنجي واضح وطبيعي وطلاقة باللغة العربية. انطق النص العربي فقط ولا تنطق أي كلمات إنجليزية.
-النص: "${textToNarrate}"`;
-      } else {
-        speechPrompt = `Please read the following chess lesson text clearly and fluently in a professional English voice.
-Text: "${textToNarrate}"`;
+      // Step 2: Narrate using Google Translate TTS API for native fluency and no API key limits
+      // Split text into chunks under 180 chars to respect Google Translate TTS limit
+      const splitTextIntoChunks = (str: string, maxLen: number = 180): string[] => {
+        const sentences = str.match(/[^.!?]+[.!?]*/g) || [str];
+        const chunks: string[] = [];
+        let currentChunk = "";
+
+        for (let sentence of sentences) {
+          sentence = sentence.trim();
+          if (!sentence) continue;
+
+          if (currentChunk.length + sentence.length + 1 <= maxLen) {
+            currentChunk = currentChunk ? `${currentChunk} ${sentence}` : sentence;
+          } else {
+            if (currentChunk) {
+              chunks.push(currentChunk);
+            }
+            if (sentence.length > maxLen) {
+              const subSentences = sentence.split(/[,;]/);
+              for (let sub of subSentences) {
+                sub = sub.trim();
+                if (!sub) continue;
+                if (sub.length <= maxLen) {
+                  chunks.push(sub);
+                } else {
+                  const words = sub.split(' ');
+                  let wordChunk = "";
+                  for (const word of words) {
+                    if (wordChunk.length + word.length + 1 <= maxLen) {
+                      wordChunk = wordChunk ? `${wordChunk} ${word}` : word;
+                    } else {
+                      if (wordChunk) chunks.push(wordChunk);
+                      wordChunk = word;
+                    }
+                  }
+                  if (wordChunk) chunks.push(wordChunk);
+                }
+              }
+            } else {
+              currentChunk = sentence;
+            }
+          }
+        }
+        if (currentChunk) {
+          chunks.push(currentChunk);
+        }
+        return chunks;
+      };
+
+      const chunks = splitTextIntoChunks(textToNarrate, 180);
+      const audioBuffers: Buffer[] = [];
+
+      for (const chunk of chunks) {
+        const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${lang}&client=tw-ob`;
+        const ttsRes = await fetch(ttsUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
+        if (!ttsRes.ok) {
+          throw new Error(`Google Translate TTS failed with status ${ttsRes.status}`);
+        }
+        const arrayBuffer = await ttsRes.arrayBuffer();
+        audioBuffers.push(Buffer.from(arrayBuffer));
       }
 
-      const response = await genAIClient.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{ role: 'user', parts: [{ text: speechPrompt }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Kore' },
-            },
-          },
-        },
-      });
-
-      const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-      const base64Audio = part?.inlineData?.data;
-      if (base64Audio) {
-        return res.json({ audio: base64Audio, translatedText: textToNarrate });
-      }
+      const combinedBuffer = Buffer.concat(audioBuffers);
+      const base64Audio = combinedBuffer.toString('base64');
       
-      return res.status(500).json({ error: "No audio generated from Gemini" });
+      return res.json({ 
+        audio: base64Audio, 
+        translatedText: textToNarrate,
+        mimeType: 'audio/mpeg',
+        format: 'mp3'
+      });
     } catch (err: any) {
       console.error("Server narration generation failed:", err);
       return res.status(500).json({ error: "Narration failed", details: err.message });

@@ -5,46 +5,7 @@ import { AI_CHARACTERS } from './aiCharacters';
  * Returns true if a character ID is unlocked for the user's progress.
  */
 export function isCharacterUnlocked(characterId: string, progress: AIProgress): boolean {
-  const char = AI_CHARACTERS.find(c => c.id === characterId);
-  if (!char) return false;
-
-  // Grandmaster special cases
-  if (char.tier === 'grandmaster') {
-    if (char.id === 'grandmaster_2' || char.id === 'grandmaster_3') {
-      return !!progress.grandmaster.bossDefeated;
-    }
-    return !!progress.unlockedTiers.includes('grandmaster');
-  }
-
-  // Master Cup special cases
-  if (char.tier === 'master') {
-    if (!progress.unlockedTiers.includes('master')) return false;
-    // You can play any character in a cup you have completed, 
-    // or characters up to your current match in your current cup.
-    if (progress.masterCup.completedCups.includes(char.cup as 1 | 2 | 3)) return true;
-    if (char.cup === progress.masterCup.currentCup) {
-       return char.level <= ((char.cup - 1) * 4 + progress.masterCup.currentMatch);
-    }
-    return false;
-  }
-
-  // Hard Tier lock rule
-  if (char.tier === 'hard' && progress.hard.locked) {
-    return false;
-  }
-
-  // General tier unlocking
-  if (!progress.unlockedTiers.includes(char.tier)) {
-    return false;
-  }
-
-  // Within an unlocked tier, you can only play up to your current level
-  if (char.tier === progress.tier) {
-    return char.level <= progress.level;
-  }
-
-  // If the tier is unlocked and it's not your current tier (meaning you've surpassed it),
-  // all characters in it are unlocked.
+  // Pre-release test mode: unlock all career levels so they are all working and testable
   return true;
 }
 

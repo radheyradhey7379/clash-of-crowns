@@ -15,7 +15,7 @@ async function fetchRemoteConfig(): Promise<VersionGateConfig | null> {
   if (!db) return null;
 
   try {
-    const fetchPromise = getDoc(doc(db, 'appConfig/versionGate/current'));
+    const fetchPromise = getDoc(doc(db, 'appConfig/versionGate'));
     const timeoutPromise = new Promise<null>((resolve) => 
       setTimeout(() => resolve(null), TIMEOUT_MS)
     );

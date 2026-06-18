@@ -97,15 +97,6 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
         targetLang = 'ar-SA';
       }
       
-      const localTransText = lang !== 'en' ? getLocalLessonText(lesson.id, lang) : '';
-      const speechText = alternativeTranslatedText || localTransText || text;
-      
-      setNarrationText(speechText);
-      setIsFallback(true);
-
-      const utterance = new SpeechSynthesisUtterance(speechText);
-      utterance.lang = targetLang;
-
       // Select matching voice
       const voices = window.speechSynthesis.getVoices();
       let matchingVoice = voices.find(v => {
@@ -119,13 +110,30 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
         return vLang === targetLang.toLowerCase() || vLang.startsWith(targetLang.split('-')[0].toLowerCase());
       });
       
+      let speechText = "";
+      if (matchingVoice) {
+        const localTransText = lang !== 'en' ? getLocalLessonText(lesson.id, lang) : '';
+        speechText = alternativeTranslatedText || localTransText || text;
+      } else {
+        // Fallback: If no native voice is installed on user's system, read English text in English
+        speechText = text;
+        targetLang = 'en-US';
+        if (lang !== 'en') {
+          setVoiceAlert("Native Hindi/Arabic voice not found on this device. Narrating in English.");
+          setTimeout(() => {
+            if (isMounted.current) setVoiceAlert(null);
+          }, 5000);
+        }
+      }
+
+      setNarrationText(speechText);
+      setIsFallback(true);
+
+      const utterance = new SpeechSynthesisUtterance(speechText);
+      utterance.lang = targetLang;
+
       if (matchingVoice) {
         utterance.voice = matchingVoice;
-      } else if (lang !== 'en') {
-        setVoiceAlert("Exact Hindi/Arabic voice not available, using default voice.");
-        setTimeout(() => {
-          if (isMounted.current) setVoiceAlert(null);
-        }, 4000);
       }
 
       utterance.onend = () => {
@@ -165,7 +173,8 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     setNarrationLang(lang);
     setIsFallback(false);
     
-    const fullText = `${lesson.title}. ${lesson.description}. Rules: ${lesson.rules.join('. ')}`;
+    const rulesPrefix = lang === 'hi' ? 'नियम' : lang === 'ar' ? 'القواعد' : 'Rules';
+    const fullText = `${lesson.title}. ${lesson.description}. ${rulesPrefix}: ${lesson.rules.join('. ')}`;
     const localText = lang !== 'en' ? getLocalLessonText(lesson.id, lang) : fullText;
     setNarrationText(localText);
     setIsNarrating(true);

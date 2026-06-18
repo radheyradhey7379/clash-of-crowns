@@ -21,15 +21,12 @@ export const DEFAULT_VERSION_CONFIG: VersionGateConfig = {
   message: "Failed to fetch latest version data. Offline mode active.",
   playStoreUrl: "market://details?id=com.clashofcrowns.game",
   disabledFeatures: [
-    "multiplayer", 
-    "rust_realtime", 
     "ranked_arena", 
-    "challenge_match", 
     "tournaments"
   ],
-  multiplayerEnabled: false,
-  rustRealtimeEnabled: false,
+  multiplayerEnabled: true,
+  rustRealtimeEnabled: true,
   rankedArenaEnabled: false,
-  challengeMatchEnabled: false,
+  challengeMatchEnabled: true,
   tournamentsEnabled: false,
 };

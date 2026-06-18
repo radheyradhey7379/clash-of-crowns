@@ -30,6 +30,8 @@ export async function getNarration(text: string, lang: Language): Promise<{ audi
     const data = await response.json();
     const base64Audio = data?.audio;
     const translatedText = data?.translatedText;
+    const format = data?.format;
+    const mimeType = data?.mimeType;
 
     if (base64Audio) {
       const binaryString = atob(base64Audio);
@@ -39,12 +41,17 @@ export async function getNarration(text: string, lang: Language): Promise<{ audi
         bytes[i] = binaryString.charCodeAt(i);
       }
 
-      const wavHeader = createWavHeader(len, 24000);
-      const wavBytes = new Uint8Array(wavHeader.length + len);
-      wavBytes.set(wavHeader, 0);
-      wavBytes.set(bytes, wavHeader.length);
+      let blob: Blob;
+      if (format === 'mp3' || mimeType === 'audio/mpeg') {
+        blob = new Blob([bytes], { type: 'audio/mpeg' });
+      } else {
+        const wavHeader = createWavHeader(len, 24000);
+        const wavBytes = new Uint8Array(wavHeader.length + len);
+        wavBytes.set(wavHeader, 0);
+        wavBytes.set(bytes, wavHeader.length);
+        blob = new Blob([wavBytes], { type: 'audio/wav' });
+      }
 
-      const blob = new Blob([wavBytes], { type: 'audio/wav' });
       return {
         audioUrl: URL.createObjectURL(blob),
         translatedText

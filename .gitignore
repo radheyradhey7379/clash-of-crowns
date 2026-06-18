@@ -29,4 +29,7 @@ firebase-key.json
 .system_generated/
 .gemini/
 logs/
+scratch/
+scripts/seed-firestore*.ts
+
 

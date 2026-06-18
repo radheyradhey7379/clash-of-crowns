@@ -345,5 +345,11 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
+
+    // App Config collection (Public Read, Admin Write)
+    match /appConfig/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }
