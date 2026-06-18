@@ -253,7 +253,7 @@ async function startServer() {
       // Step 1: Translate if not English
       if (lang !== 'en') {
         const targetLangLabel = LANGUAGE_LABELS[lang] || lang;
-        const translationPrompt = `You are a professional chess coach. Translate the following chess lesson text into ${targetLangLabel}. Output ONLY the raw translated text in ${targetLangLabel} script. Translate and narrate the content in the selected language only. Do not return English unless selected language is English. No explanations, no introductory phrases, no formatting, and no English text.
+        const translationPrompt = `You are a professional chess coach. Translate the following chess lesson text into ${targetLangLabel}. You must translate every single detail, including the title, description, and every rule completely. Do not summarize, shorten, or omit any details. Output ONLY the raw translated text in ${targetLangLabel} script. Translate and narrate the content in the selected language only. Do not return English unless selected language is English. No explanations, no introductory phrases, no formatting, and no English text.
 Text to translate: "${text}"`;
         const result = await genAIClient.models.generateContent({
           model: "gemini-2.5-flash",
@@ -262,10 +262,22 @@ Text to translate: "${text}"`;
         textToNarrate = (result.text || "").trim() || text;
       }
 
-      // Step 2: Narrate using the TTS model
+      // Step 2: Narrate using the TTS model with a target-language-specific prompt to ensure fluent native speech
+      let speechPrompt = "";
+      if (lang === 'hi') {
+        speechPrompt = `कृपया निम्नलिखित शतरंज के पाठ को स्पष्ट, धाराप्रवाह और प्राकृतिक हिंदी आवाज में बोलें। केवल हिंदी स्क्रिप्ट का उच्चारण करें। कोई अंग्रेजी शब्द न बोलें।
+पाठ: "${textToNarrate}"`;
+      } else if (lang === 'ar') {
+        speechPrompt = `يرجى نطق درس الشطرنج التالي بصوت شطرنجي واضح وطبيعي وطلاقة باللغة العربية. انطق النص العربي فقط ولا تنطق أي كلمات إنجليزية.
+النص: "${textToNarrate}"`;
+      } else {
+        speechPrompt = `Please read the following chess lesson text clearly and fluently in a professional English voice.
+Text: "${textToNarrate}"`;
+      }
+
       const response = await genAIClient.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: [{ role: 'user', parts: [{ text: `Translate and narrate only in selected language. Do not return English unless selected language is English. Here is the text to speak: ${textToNarrate}` }] }],
+        contents: [{ role: 'user', parts: [{ text: speechPrompt }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
