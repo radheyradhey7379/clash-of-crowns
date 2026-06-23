@@ -22,17 +22,6 @@ import {
   runTransaction,
   writeBatch
 } from 'firebase/firestore';
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "mock_api_key",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mock_auth_domain",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "mock_project_id",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "mock_bucket",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "mock_sender",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "mock_app_id",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "mock_measurement_id",
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || "mock_db_id",
-};
-
 const isRealValue = (val: string | undefined): boolean => {
   if (!val) return false;
   const lower = val.toLowerCase();
@@ -48,6 +37,17 @@ const isRealValue = (val: string | undefined): boolean => {
     !lower.startsWith('your_') &&
     !lower.startsWith('mock_')
   );
+};
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "mock_api_key",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mock_auth_domain",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "mock_project_id",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "mock_bucket",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "mock_sender",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "mock_app_id",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "mock_measurement_id",
+  firestoreDatabaseId: isRealValue(import.meta.env.VITE_FIREBASE_DATABASE_ID) ? import.meta.env.VITE_FIREBASE_DATABASE_ID : undefined,
 };
 
 export const isFirebaseConfigured = !!(

@@ -11,6 +11,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { Chess } from "chess.js";
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 import cors from "cors";
 import { spawn } from "child_process";
 import http from "http";
@@ -56,7 +57,7 @@ try {
 
     if (serviceAccount) {
       try {
-        let databaseId = process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || "ai-studio-87029be7-5ea0-46e5-96aa-66354f59b7db";
+        let databaseId = process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || "(default)";
         
         const configPath = path.join(resolvedDirname, "firebase-applet-config.json");
         if (fs.existsSync(configPath)) {
@@ -70,12 +71,12 @@ try {
           }
         }
         
-        admin.initializeApp({
+        const app = admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
           databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
         });
         
-        db = admin.firestore(databaseId);
+        db = getFirestore(app, databaseId);
         console.log(`Firebase Admin initialized with database: ${databaseId}`);
       } catch (initError) {
         console.error("Firebase Admin initializeApp failed:", initError);

@@ -80,6 +80,10 @@ export interface PlayerData {
   integrityLevel?: "legacy" | "validated" | "suspicious_repaired";
   suspiciousFlags?: string[];
   clientBuildVersion?: string;
+  entitlements?: {
+    multiplayerPass: boolean;
+    championshipPass: boolean;
+  };
 }
 
 export interface SecurityFlag {

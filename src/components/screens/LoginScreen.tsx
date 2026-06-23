@@ -91,7 +91,29 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           await handleLoginLogic(result.user);
           return;
         } catch (authErr: any) {
-          console.warn("Firebase Anonymous Auth failed, falling back to local-only guest session:", authErr);
+          console.warn("Firebase Anonymous Auth failed, falling back to direct Firestore guest creation:", authErr);
+          
+          if (visitorId) {
+            try {
+              const guestUid = `guest_${visitorId}`;
+              const userRef = doc(db, 'users', guestUid);
+              await setDoc(userRef, {
+                uid: guestUid,
+                name: "Guest Player",
+                createdAt: serverTimestamp(),
+                deviceId: visitorId,
+                lastLogin: serverTimestamp(),
+                rating: 300,
+                wins: 0,
+                losses: 0,
+                draws: 0,
+                isPremium: false,
+              }, { merge: true });
+              console.log("Direct Firestore guest document created successfully!");
+            } catch (fsErr) {
+              console.warn("Direct Firestore guest creation failed:", fsErr);
+            }
+          }
         }
       }
       

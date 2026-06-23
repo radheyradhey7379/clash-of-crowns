@@ -19,6 +19,6 @@
   },
   "firestore": {
     "rules": "firebase/firestore.rules",
-    "database": "ai-studio-87029be7-5ea0-46e5-96aa-66354f59b7db"
+    "database": "(default)"
   }
 }

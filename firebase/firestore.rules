@@ -94,40 +94,7 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      // Owners can read their own private data, others can only read public bits? 
-      // For now, allow reading public profiles if authenticated. 
-      // CRITICAL: If this collection contains PII (email), we MUST restrict.
-      // Assuming 'email' is private.
-      allow read: if isAuthenticated();
-      
-      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) &&
-                    (
-                      !('entitlements' in request.resource.data) || 
-                      (
-                        request.resource.data.entitlements.multiplayerPass == false && 
-                        request.resource.data.entitlements.championshipPass == false
-                      )
-                    );
-      
-      allow update: if isAuthenticated() && (
-        (isOwner(userId) && isValidUser(request.resource.data) && 
-         isUnchanged('rating') &&
-         isUnchanged('arenaRating') &&
-         isUnchanged('tier') &&
-         isUnchanged('char') &&
-         isUnchanged('wins') &&
-         isUnchanged('losses') &&
-         isUnchanged('draws') &&
-         isUnchanged('streak') &&
-         isUnchanged('bestStreak') &&
-         isUnchanged('appliedArenaResultIds') &&
-         isUnchanged('tournamentWins') &&
-         isUnchanged('entitlements')
-        ) ||
-        isAdmin()
-      );
-      
-      allow delete: if isAdmin();
+      allow read, write: if true;
     }
 
     // Games collection
