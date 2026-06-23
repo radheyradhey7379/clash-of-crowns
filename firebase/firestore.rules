@@ -313,6 +313,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // World Chat collection
+    match /worldChat/{messageId} {
+      allow read, create: if isAuthenticated();
+    }
+
+    // Gameplay Sessions collection
+    match /gameplaySessions/{sessionId} {
+      allow read, write: if isAuthenticated();
+    }
+
     // App Config collection (Public Read, Admin Write)
     match /appConfig/{document=**} {
       allow read: if true;
