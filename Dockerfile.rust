@@ -32,6 +32,7 @@ RUN apt-get update && \
 ENV PORT=3001
 ENV HOST=0.0.0.0
 ENV DEV_MODE=false
+ENV NNUE_WEIGHTS_PATH=/etc/secrets/best_model.nnue
 
 # Copy compiled binary from builder stage
 COPY --from=builder /app/src-rust/target/release/clash-of-crowns-realtime ./chess-engine-backend
