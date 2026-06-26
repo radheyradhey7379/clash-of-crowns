@@ -94,9 +94,25 @@ async fn health_handler() -> Json<serde_json::Value> {
 }
 
 async fn version_handler() -> Json<serde_json::Value> {
+    let path = std::env::var("NNUE_WEIGHTS_PATH").unwrap_or_default();
+    let file_exists = if !path.is_empty() {
+        std::path::Path::new(&path).exists()
+    } else {
+        false
+    };
+    let weights_status = crate::engine::nnue::EVALUATOR
+        .model
+        .weights
+        .status
+        .as_str()
+        .to_string();
+
     Json(serde_json::json!({
         "service": "clash-realtime",
         "version": "0.1.0",
-        "protocolVersion": "1.0.0"
+        "protocolVersion": "1.0.0",
+        "nnue_weights_path": path,
+        "nnue_weights_file_exists": file_exists,
+        "nnue_weights_status": weights_status
     }))
 }
