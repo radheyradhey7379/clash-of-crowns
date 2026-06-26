@@ -107,12 +107,22 @@ async fn version_handler() -> Json<serde_json::Value> {
         .as_str()
         .to_string();
 
+    let mut secrets_files = Vec::new();
+    if let Ok(entries) = std::fs::read_dir("/etc/secrets") {
+        for entry in entries.flatten() {
+            if let Ok(name) = entry.file_name().into_string() {
+                secrets_files.push(name);
+            }
+        }
+    }
+
     Json(serde_json::json!({
         "service": "clash-realtime",
         "version": "0.1.0",
         "protocolVersion": "1.0.0",
         "nnue_weights_path": path,
         "nnue_weights_file_exists": file_exists,
-        "nnue_weights_status": weights_status
+        "nnue_weights_status": weights_status,
+        "secrets_files": secrets_files
     }))
 }
