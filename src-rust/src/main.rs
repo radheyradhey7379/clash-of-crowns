@@ -111,7 +111,15 @@ async fn version_handler() -> Json<serde_json::Value> {
     if let Ok(entries) = std::fs::read_dir("/etc/secrets") {
         for entry in entries.flatten() {
             if let Ok(name) = entry.file_name().into_string() {
-                secrets_files.push(name);
+                secrets_files.push(name.clone());
+                let subpath = format!("/etc/secrets/{}", name);
+                if let Ok(sub_entries) = std::fs::read_dir(&subpath) {
+                    for sub_entry in sub_entries.flatten() {
+                        if let Ok(sub_name) = sub_entry.file_name().into_string() {
+                            secrets_files.push(format!("{}/{}", name, sub_name));
+                        }
+                    }
+                }
             }
         }
     }
