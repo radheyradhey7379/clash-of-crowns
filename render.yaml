@@ -34,3 +34,5 @@ services:
         sync: true
       - key: RANKED_RESULT_HMAC_SECRET
         sync: true
+      - key: NNUE_WEIGHTS_PATH
+        value: "/etc/secrets/best_model.nnue"
