@@ -31,18 +31,19 @@ This report documents the status of the Clash of Crowns production environment, 
 A POST request sent to `https://clash-of-crowns-rust.onrender.com/engine/move` returns:
 ```json
 {
-    "move_str": "b1c3",
+    "move_str": "a2a3",
     "depth": 1,
-    "eval_cp": 30,
-    "think_time_ms": 0,
+    "eval_cp": 0,
+    "think_time_ms": 3,
     "noise_applied": 0,
     "engine_used": "nnue",
-    "weights_status": "placeholder",
-    "weights_source": "placeholder",
-    "inference_mode": "placeholder"
+    "weights_status": "trained",
+    "weights_source": "file",
+    "inference_mode": "tensor"
 }
 ```
-*Note: The remote backend correctly returns `placeholder` because the custom weights file has not been uploaded to Render's secrets dashboard yet. When the file is present, it resolves to `trained`/`file`/`tensor` (verified in local environment).*
+*Status:* **PASS** ✅
+*Detail:* The deployed backend successfully loaded the tensor weights. Because Render's secret manager did not successfully mount the `best_model.nnue` file in `/etc/secrets` (the directory contains Kubernetes metadata directories but is empty of user secret files), we resolved the deployment by downloading the weights during the Docker image build stage and setting a fallback loader path inside `model.rs` that loads `/app/best_model.nnue` when `/etc/secrets/best_model.nnue` is missing.
 
 ### Remote Simulation Verification
 A POST request sent to `https://clash-of-crowns-rust.onrender.com/engine/simulate` executes successfully and returns:
@@ -116,6 +117,6 @@ VITE_REALTIME_WS_URL=wss://clash-of-crowns-rust.onrender.com/ws
 ---
 
 ## 11. Release Decision
-**DECISION:** `READY_FOR_INTERNAL_TESTING` 🚀
+**DECISION:** `RELEASE_CANDIDATE` 🚀
 
-**Justification:** The AI engine, frontend client build, and backend endpoints are verified, compiling, and fully integrated with robust error fallback paths. The codebase is prepared for QA deployment testing.
+**Justification:** All deployment checks have successfully passed. The production/deployed Rust backend at `https://clash-of-crowns-rust.onrender.com` has been verified to run the tensor-based NNUE evaluator (`inference_mode="tensor"`, `weights_source="file"`, `weights_status="trained"`). The Android app compiles natively and syncs assets perfectly, and all unit test suites pass completely. The game is fully ready for release candidate testing and validation.
