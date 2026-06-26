@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "fen": {
+      "type": "string",
+      "description": "Standard FEN string of the position"
+    },
+    "eval_cp": {
+      "type": "integer",
+      "description": "Evaluation in centipawns. Positive is White advantage."
+    },
+    "best_move": {
+      "type": "string",
+      "pattern": "^[a-h][1-8][a-h][1-8][qrbn]?$",
+      "description": "The best UCI move from this position."
+    },
+    "game_phase": {
+      "type": "string",
+      "enum": ["opening", "middlegame", "endgame"]
+    },
+    "source": {
+      "type": "string",
+      "enum": ["selfplay", "stockfish_benchmark", "human_pgn", "mock"]
+    },
+    "depth": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": ["fen", "eval_cp", "best_move", "game_phase", "source", "depth"]
+}

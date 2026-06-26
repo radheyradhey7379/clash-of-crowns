@@ -5,8 +5,85 @@ import { AI_CHARACTERS } from './aiCharacters';
  * Returns true if a character ID is unlocked for the user's progress.
  */
 export function isCharacterUnlocked(characterId: string, progress: AIProgress): boolean {
-  // Pre-release test mode: unlock all career levels so they are all working and testable
-  return true;
+  const char = AI_CHARACTERS.find(c => c.id === characterId);
+  if (!char) return false;
+
+  const TIER_ORDER: Record<string, number> = {
+    'core': 1,
+    'beginner': 2,
+    'learner': 3,
+    'promotion_trial': 4,
+    'intermediate': 5,
+    'hard': 6,
+    'master': 7,
+    'grandmaster': 8
+  };
+
+  const charTierVal = TIER_ORDER[char.tier] || 0;
+  const progressTierVal = TIER_ORDER[progress.tier] || 0;
+
+  // If the character's tier is lower than the player's current tier, it's completely unlocked.
+  if (charTierVal < progressTierVal) {
+    return true;
+  }
+
+  // If the character is in the current tier, we check if its level is less than or equal to the player's current level.
+  if (charTierVal === progressTierVal) {
+    if (char.tier === 'master') {
+      const targetLevel = (progress.masterCup.currentCup - 1) * 4 + progress.masterCup.currentMatch;
+      return char.level <= targetLevel;
+    }
+    if (char.tier === 'grandmaster') {
+      if (char.level === 1) return true;
+      if (char.level === 2) return progress.grandmaster.bossDefeated;
+    }
+    return char.level <= progress.level;
+  }
+
+  // If the character's tier is higher than the player's current tier, it's locked.
+  return false;
+}
+
+export interface GameResultCTA {
+  label: "NEXT LEVEL" | "NEXT CHALLENGE" | "PLAY AGAIN" | "RETRY" | "REMATCH" | "BACK TO LEVELS";
+  nextCharacterId: string | null;
+}
+
+export function getGameResultCTA(
+  result: 'win' | 'loss' | 'draw',
+  characterId: string | null,
+  progress: AIProgress
+): GameResultCTA {
+  if (result === 'draw') {
+    return { label: 'REMATCH', nextCharacterId: null };
+  }
+
+  if (result === 'loss') {
+    return { label: 'PLAY AGAIN', nextCharacterId: null };
+  }
+
+  // result === 'win'
+  if (!characterId) {
+    return { label: 'PLAY AGAIN', nextCharacterId: null };
+  }
+
+  const idx = AI_CHARACTERS.findIndex(c => c.id === characterId);
+  if (idx === -1 || idx === AI_CHARACTERS.length - 1) {
+    return { label: 'BACK TO LEVELS', nextCharacterId: null };
+  }
+
+  const nextChar = AI_CHARACTERS[idx + 1];
+  // If the next character is unlocked, it is the next challenge!
+  if (isCharacterUnlocked(nextChar.id, progress)) {
+    const char = AI_CHARACTERS.find(c => c.id === characterId);
+    const isNewTier = char && nextChar.tier !== char.tier;
+    return {
+      label: isNewTier ? 'NEXT CHALLENGE' : 'NEXT LEVEL',
+      nextCharacterId: nextChar.id
+    };
+  }
+
+  return { label: 'BACK TO LEVELS', nextCharacterId: null };
 }
 
 /**

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Crown, Package, Database, Shield, Zap, Globe, Cpu } from 'lucide-react';
 
@@ -13,6 +13,11 @@ const LOADING_STEPS = [
 
 export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
   const [phase, setPhase] = useState<'crown' | 'credits'>('crown');
+  const onFinishRef = useRef(onFinish);
+
+  useEffect(() => {
+    onFinishRef.current = onFinish;
+  }, [onFinish]);
 
   useEffect(() => {
     // Phase 1: Crown Animation
@@ -26,11 +31,11 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
   useEffect(() => {
     if (phase === 'credits') {
       const timer = setTimeout(() => {
-        onFinish();
+        onFinishRef.current();
       }, 4000);
       return () => clearTimeout(timer);
     }
-  }, [phase, onFinish]);
+  }, [phase]);
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-[#030204] relative overflow-hidden">

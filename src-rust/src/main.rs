@@ -7,6 +7,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod auth;
 mod chess;
 mod config;
+mod engine;
 mod presence;
 mod ranked;
 mod rooms;
@@ -47,8 +48,7 @@ async fn main() {
     });
 
     // 5. Configure Router
-    use axum::http::{HeaderValue, Method};
-    use tower_http::cors::Any;
+    use axum::http::HeaderValue;
 
     let cors = if config.dev_mode {
         CorsLayer::permissive()
@@ -61,14 +61,20 @@ async fn main() {
         }
         CorsLayer::new()
             .allow_origin(allowed)
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers(Any)
+            .allow_methods(tower_http::cors::Any)
+            .allow_headers(tower_http::cors::Any)
     };
 
     let app = Router::new()
         .route("/health", get(health_handler))
         .route("/version", get(version_handler))
         .route("/ws", get(ws::handler::ws_handler))
+        .route("/engine/move", axum::routing::post(engine::move_handler))
+        .route("/engine/eval", axum::routing::post(engine::eval_handler))
+        .route(
+            "/engine/simulate",
+            axum::routing::post(engine::simulate_handler),
+        )
         .with_state(state)
         .layer(cors);
 

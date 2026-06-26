@@ -6,11 +6,12 @@ import { OrbitControls, PerspectiveCamera, Environment, ContactShadows, Float, T
 import * as THREE from 'three';
 import { AppScreen, PlayerData, TIER_LABELS } from '../../types';
 import { ChessLogic } from '../../lib/chess-logic';
-import { stockfishService } from '../../services/stockfishService';
+import { EngineBrain } from '../../game/engine/engineBrain';
+import { getBotProfile } from '../../game/engine/campaign/botProfiles';
 import { getLevelElo } from '../../lib/elo-system';
 import { AI_CHARACTERS } from '../../game/ai/aiCharacters';
 import { matchFlowService } from '../../game/ai/matchFlowService';
-import { getCurrentPlayableCharacterId } from '../../game/ai/progressionEngine';
+import { getCurrentPlayableCharacterId, getGameResultCTA, isCharacterUnlocked } from '../../game/ai/progressionEngine';
 import { getAIDifficultySettings } from '../../game/ai/aiDifficulty';
 import { createMatchSession } from '../../game/security/matchSessionGuard';
 import { playSound } from '../../lib/sounds';
@@ -363,7 +364,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       socket.off('invalidMove');
       socket.off('pong_server');
       clearInterval(latencyInterval);
-      stockfishService.terminate();
+
     };
   }, []);
 
@@ -1171,25 +1172,13 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   }, [opponentOnline, isMultiplayer, gameOver]);
 
   useEffect(() => {
-    return () => {
-      stockfishService.terminate();
-      if (tauntTimeoutRef.current) {
-        clearTimeout(tauntTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     if (!gameOver && !isLocalVS && playerColor && turn !== playerColor) {
       if (isAIThinking) return;
-
       setIsAIThinking(true);
+
       const character = AI_CHARACTERS.find(c => c.id === activeCharacterId) || AI_CHARACTERS[0];
-      const difficulty = getAIDifficultySettings(character);
-      const charDepth = difficulty.depth;
-      const charBlunder = difficulty.blunderRate;
-      const maxThinkTimeMs = difficulty.maxThinkTimeMs;
-      const moveDelayMs = difficulty.moveDelayMs;
+      const brain = EngineBrain.create(character, chess);
+      const { moveDelayMs } = getBotProfile(character);
 
       // Select random taunt only during AI thinking, max once every 4 moves, 25% chance
       movesSinceLastTaunt.current++;
@@ -1205,109 +1194,34 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         }, 3000);
       }
 
-      console.log(`AI Thinking: character=${character?.name}, engine=${character?.engine}, depth=${charDepth}, blunder=${charBlunder}, maxThinkTimeMs=${maxThinkTimeMs}, moveDelayMs=${moveDelayMs}`);
-      
-      const aiStartTime = performance.now();
       const timer = setTimeout(async () => {
-        let move = null;
         try {
-          try {
-            const contempt = Math.round(((character?.aggression || 0.5) - (character?.defense || 0.5)) * 100);
-            
-            // Use internal JS engine for 'simple' characters, Stockfish Web Worker for others
-            if (!character || character.engine === 'simple') {
-              console.log(`Using internal AI for ${character?.name || 'Unknown'}`);
-              chess.setAIStyle({
-                aggression: character?.aggression ?? 0.5,
-                defense: character?.defense ?? 0.5,
-                openingKnowledge: character?.openingKnowledge ?? 0.5,
-                endgameSkill: character?.endgameSkill ?? 0.5
-              });
-              const internalMove = chess.getBestMove(charDepth, charBlunder);
-              if (internalMove) {
-                move = chess.makeMove(internalMove);
-              }
-            } else {
-              console.log(`Requesting Stockfish move: depth=${charDepth}, skill=${difficulty.skillLevel}, contempt=${contempt}, maxThinkTimeMs=${maxThinkTimeMs}`);
-              const bestMoveStr = await stockfishService.getBestMove(chess.getFen(), charDepth, difficulty.skillLevel, contempt, maxThinkTimeMs);
-              console.log(`Stockfish response: ${bestMoveStr}`);
-              
-              if (bestMoveStr) {
-                // Apply blunder rate for Stockfish: randomly play a random move instead
-                if (charBlunder > 0 && Math.random() < charBlunder) {
-                  console.log(`AI blundered! Playing random move.`);
-                  const allMoves = chess.getMoves();
-                  if (allMoves.length > 0) {
-                    const randomMove = allMoves[Math.floor(Math.random() * allMoves.length)];
-                    move = chess.makeMove(randomMove);
-                  }
-                }
-                
-                if (!move) {
-                  move = chess.makeMove({
-                    from: bestMoveStr.substring(0, 2),
-                    to: bestMoveStr.substring(2, 4),
-                    promotion: bestMoveStr.length > 4 ? bestMoveStr[4] : undefined
-                  });
-                }
-              }
-            }
-          } catch (err) {
-            console.error("AI Move Generation failed:", err);
-          }
-   
-          // Final fallback to internal AI if anything failed
-          if (!move) {
-            console.log("Fallback to internal AI search...");
-            chess.setAIStyle({
-              aggression: character?.aggression ?? 0.5,
-              defense: character?.defense ?? 0.5,
-              openingKnowledge: character?.openingKnowledge ?? 0.5,
-              endgameSkill: character?.endgameSkill ?? 0.5
-            });
-            const internalMove = chess.getBestMove(charDepth, charBlunder);
-            if (internalMove) {
-              move = chess.makeMove(internalMove);
-            }
-          }
+          const result = await brain.computeMove();
+          setAiCalcTime(result.thinkTimeMs);
+          setLastMoveLatency(result.thinkTimeMs);
 
-          // Absolute fallback if everything else failed
-          if (!move) {
-            console.log("Absolute fallback: Playing first available legal move...");
-            const allMoves = chess.getMoves();
-            if (allMoves.length > 0) {
-              move = chess.makeMove(allMoves[0]);
+          if (result.move) {
+            const move = chess.makeMove(result.move);
+            if (move) {
+              setBoard(chess.getBoard());
+              setTurn(chess.getTurn());
+              setLastMove({ from: move.from, to: move.to });
+              updateCheckInfo();
+              recordMove(move);
+              playSound('move');
             }
           }
-   
-          const duration = Math.round(performance.now() - aiStartTime);
-          setAiCalcTime(duration);
-          setLastMoveLatency(duration);
-   
-          if (move) {
-            setBoard(chess.getBoard());
-            setTurn(chess.getTurn());
-            setLastMove({ from: move.from, to: move.to });
-            updateCheckInfo();
-            recordMove(move);
-            playSound('move');
-            checkGameOver();
-          } else {
-            console.error("AI CRITICAL ERROR: No move found!");
-            checkGameOver();
-          }
-        } catch (outerErr) {
-          console.error("Critical error in AI move timer:", outerErr);
+          checkGameOver();
+        } catch (err) {
+          console.error("EngineBrain error:", err);
           checkGameOver();
         } finally {
+          brain.dispose();
           setIsAIThinking(false);
         }
       }, moveDelayMs);
- 
-      return () => {
-        clearTimeout(timer);
-        setIsAIThinking(false);
-      };
+
+      return () => { clearTimeout(timer); brain.cancel(); brain.dispose(); setIsAIThinking(false); };
     }
   }, [turn, gameOver, activeCharacterId, isLocalVS, playerColor]);
 
@@ -1325,7 +1239,6 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       });
     }
     setIsMenuOpen(false);
-    stockfishService.terminate();
     if (tauntTimeoutRef.current) {
       clearTimeout(tauntTimeoutRef.current);
       tauntTimeoutRef.current = null;
@@ -1399,7 +1312,6 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       }
 
       setGameOver(`${winner.toUpperCase()} ${t.victory} - ${t.checkmate}`);
-      stockfishService.terminate();
       if (tauntTimeoutRef.current) {
         clearTimeout(tauntTimeoutRef.current);
         tauntTimeoutRef.current = null;
@@ -1441,7 +1353,6 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       }
       
       setGameOver(reason);
-      stockfishService.terminate();
       if (tauntTimeoutRef.current) {
         clearTimeout(tauntTimeoutRef.current);
         tauntTimeoutRef.current = null;
@@ -1484,7 +1395,6 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   };
 
   const resetGame = () => {
-    stockfishService.terminate();
     if (tauntTimeoutRef.current) {
       clearTimeout(tauntTimeoutRef.current);
       tauntTimeoutRef.current = null;
@@ -1552,7 +1462,6 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         blackTime: !isWhite ? playerData.blackTime + duration : playerData.blackTime,
       });
     }
-    stockfishService.terminate();
     if (tauntTimeoutRef.current) {
       clearTimeout(tauntTimeoutRef.current);
       tauntTimeoutRef.current = null;
@@ -1573,11 +1482,15 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     await realtimeMultiplayerAdapter.respondDraw(false).catch(console.error);
     setDrawOfferReceived(false);
     setDrawOfferSent(false);
+    if (tauntTimeoutRef.current) {
+      clearTimeout(tauntTimeoutRef.current);
+      tauntTimeoutRef.current = null;
+    }
+    setAiTaunt(null);
   };
 
 
   const navigateWithCleanup = (screen: AppScreen) => {
-    stockfishService.terminate();
     if (tauntTimeoutRef.current) {
       clearTimeout(tauntTimeoutRef.current);
       tauntTimeoutRef.current = null;
@@ -2187,21 +2100,57 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      playSound('click');
-                      if (isMultiplayer) {
-                        navigateWithCleanup('Home');
-                      } else {
-                        resetGame();
-                      }
-                    }}
-                    className="play-mode-button h-10 bg-[#d9ad33] text-black font-bold tracking-[0.2em] rounded-xl shadow-lg uppercase text-[9px] cursor-pointer pointer-events-auto"
-                  >
-                    {isMultiplayer ? 'Exit to Court' : t.playAgain}
-                  </motion.button>
+                  {(() => {
+                    if (isMultiplayer) {
+                      return (
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            playSound('click');
+                            navigateWithCleanup('Home');
+                          }}
+                          className="play-mode-button h-10 bg-[#d9ad33] text-black font-bold tracking-[0.2em] rounded-xl shadow-lg uppercase text-[9px] cursor-pointer pointer-events-auto"
+                        >
+                          Exit to Court
+                        </motion.button>
+                      );
+                    }
+
+                    const outcome = gameOver
+                      ? (gameOver.includes(t.victory)
+                        ? 'win'
+                        : (chess.isDraw() || gameOver.includes(t.draw) || gameOver.toLowerCase().includes('draw') || gameOver.toLowerCase().includes('stalemate')
+                          ? 'draw'
+                          : 'loss'))
+                      : 'loss';
+
+                    const cta = getGameResultCTA(
+                      outcome,
+                      activeCharacterId,
+                      playerData.aiProgress || { tier: 'core', level: 1, elo: 100, consecutiveLosses: 0, unlockedTiers: ['core'], lockedTiers: [], promotionTrial: { unlocked: false, completed: false }, hard: { locked: true }, masterCup: { currentCup: 1, currentMatch: 1, winsInCup: 0, lossesInCup: 0, completedCups: [] }, grandmaster: { unlocked: false, bossDefeated: false, bossSeriesWins: 0, bossSeriesLosses: 0, seasonPoints: 0 } }
+                    );
+
+                    return (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          playSound('click');
+                          if (cta.nextCharacterId) {
+                            onNavigate('Game', cta.nextCharacterId);
+                          } else if (cta.label === 'BACK TO LEVELS') {
+                            navigateWithCleanup('LevelSelect');
+                          } else {
+                            resetGame();
+                          }
+                        }}
+                        className="play-mode-button h-10 bg-[#d9ad33] text-black font-bold tracking-[0.2em] rounded-xl shadow-lg uppercase text-[9px] cursor-pointer pointer-events-auto flex items-center justify-center"
+                      >
+                        {cta.label}
+                      </motion.button>
+                    );
+                  })()}
                   {!isMultiplayer && (
                     <motion.button
                       whileHover={{ scale: 1.02 }}

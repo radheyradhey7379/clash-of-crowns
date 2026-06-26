@@ -1,0 +1,26 @@
+{
+  "project": "clash-of-crowns-nnue",
+  "version": "v2_medium",
+  "dataset": {
+    "train_path": "data/nnue/processed/train.jsonl",
+    "val_path": "data/nnue/processed/val.jsonl"
+  },
+  "architecture": {
+    "input_features": 768,
+    "hidden_size_1": 256,
+    "hidden_size_2": 32,
+    "output_size": 1
+  },
+  "training": {
+    "epochs": 10,
+    "batch_size": 2048,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-4,
+    "eval_weight": 1.0,
+    "wdl_weight": 0.0
+  },
+  "export": {
+    "checkpoint_dir": "data/nnue/checkpoints",
+    "final_model_path": "data/nnue/exports/clash-of-crowns-v2-medium.nnue"
+  }
+}

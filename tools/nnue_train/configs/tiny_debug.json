@@ -1,0 +1,8 @@
+{
+  "dataset_train": "tools/nnue_dataset/mock_positions.jsonl",
+  "dataset_val": "",
+  "epochs": 1,
+  "batch_size": 2,
+  "lr": 0.001,
+  "out_dir": "data/nnue/exports"
+}

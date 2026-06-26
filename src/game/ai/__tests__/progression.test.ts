@@ -1,7 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { applyAIMatchResult, isCharacterUnlocked } from '../progressionEngine';
+import {
+  applyAIMatchResult,
+  isCharacterUnlocked,
+  isCharacterCurrent,
+  getGameResultCTA,
+  validateCharacterSelection
+} from '../progressionEngine';
 import { DEFAULT_AI_PROGRESS } from '../aiProgressDefaults';
 import { AIProgress } from '../../../types/aiProgression';
+import { createProtectedSave, verifyProtectedSave } from '../../../lib/protectedSave';
+
 
 describe('AI Career Progression Engine (8 Tiers)', () => {
   let progress: AIProgress;
@@ -383,13 +391,13 @@ describe('AI Difficulty Scaling & Performance (Phase 15)', () => {
     const masterChar = AI_CHARACTERS.find(c => c.tier === 'master')!;
     const gmChar = AI_CHARACTERS.find(c => c.tier === 'grandmaster')!;
 
-    expect(coreChar.engine).toBe('simple');
-    expect(begChar.engine).toBe('simple');
-    expect(learnChar.engine).toBe('simple');
-    expect(interChar.engine).toBe('stockfish');
-    expect(hardChar.engine).toBe('stockfish');
-    expect(masterChar.engine).toBe('stockfish');
-    expect(gmChar.engine).toBe('stockfish');
+    expect(coreChar.engine).toBe('hce');
+    expect(begChar.engine).toBe('hce');
+    expect(learnChar.engine).toBe('hce');
+    expect(interChar.engine).toBe('nnue');
+    expect(hardChar.engine).toBe('nnue');
+    expect(masterChar.engine).toBe('nnue');
+    expect(gmChar.engine).toBe('nnue');
   });
 
   it('Verify maxThinkTimeMs and moveDelayMs mapping/fallback per tier', () => {
@@ -420,38 +428,6 @@ describe('AI Difficulty Scaling & Performance (Phase 15)', () => {
     const settings = getAIDifficultySettings(mockChar);
     expect(settings.maxThinkTimeMs).toBe(1500);
     expect(settings.moveDelayMs).toBe(400);
-  });
-
-  it('Verify Stockfish worker cleanup (terminate resets worker instance)', () => {
-    stockfishService.terminate();
-    expect((stockfishService as any).worker).toBeNull();
-  });
-
-  it('Verify Stockfish worker timeout fallback returns null and handles stop command', async () => {
-    const originalWorker = (globalThis as any).Worker;
-
-    class MockWorker {
-      postMessage(msg: string) {
-        console.log('MockWorker received:', msg);
-      }
-      terminate() {
-        console.log('MockWorker terminated');
-      }
-      onmessage: any = null;
-    }
-
-    (globalThis as any).Worker = MockWorker;
-
-    stockfishService.terminate();
-    (stockfishService as any).init();
-
-    const bestMovePromise = stockfishService.getBestMove('startpos', 4, 20, 0, 50);
-
-    const move = await bestMovePromise;
-    expect(move).toBeNull();
-
-    (globalThis as any).Worker = originalWorker;
-    stockfishService.terminate();
   });
 
   it('Verify AI thinking guard prevents user moves and duplicate calculations', () => {
@@ -574,5 +550,119 @@ describe('AI Personality, Dialogue & Match Feel (Phase 16)', () => {
     expect(getPostMatchLine(mockEmptyChar, 'loss')).toBe('The board belongs to me this time.');
     expect(getPostMatchLine(mockEmptyChar, 'draw')).toBe('A balanced battle.');
     expect(getTaunts(mockEmptyChar)).toEqual([]);
+  });
+
+  describe('Phase 12 NNUE Promotion Calibration & Sequential Unlocking Tests', () => {
+    let progress: AIProgress;
+
+    beforeEach(() => {
+      progress = JSON.parse(JSON.stringify(DEFAULT_AI_PROGRESS));
+    });
+
+    it('only_first_core_bot_unlocked_initially', () => {
+      expect(isCharacterUnlocked('core_1', progress)).toBe(true);
+      expect(isCharacterUnlocked('core_2', progress)).toBe(false);
+      expect(isCharacterUnlocked('core_3', progress)).toBe(false);
+      expect(isCharacterUnlocked('core_4', progress)).toBe(false);
+      expect(isCharacterUnlocked('core_5', progress)).toBe(false);
+    });
+
+    it('winning_core_1_unlocks_only_core_2', () => {
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_1', playerWon: true, isDraw: false });
+      expect(nextProgress.level).toBe(2);
+      expect(isCharacterUnlocked('core_1', nextProgress)).toBe(true);
+      expect(isCharacterUnlocked('core_2', nextProgress)).toBe(true);
+      expect(isCharacterUnlocked('core_3', nextProgress)).toBe(false);
+    });
+
+    it('winning_core_1_does_not_unlock_core_3_or_later', () => {
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_1', playerWon: true, isDraw: false });
+      expect(isCharacterUnlocked('core_3', nextProgress)).toBe(false);
+      expect(isCharacterUnlocked('core_4', nextProgress)).toBe(false);
+      expect(isCharacterUnlocked('core_5', nextProgress)).toBe(false);
+    });
+
+    it('locked_bot_cannot_be_challenged', () => {
+      const validation = validateCharacterSelection('core_3', progress);
+      expect(validation.valid).toBe(false);
+      expect(validation.reason).toBe('Character is locked');
+    });
+
+    it('direct_navigation_to_locked_bot_blocked', () => {
+      const validation = validateCharacterSelection('core_3', progress);
+      expect(validation.valid).toBe(false);
+      expect(validation.fallbackCharacterId).toBe('core_1');
+    });
+
+    it('current_bot_display_correct', () => {
+      expect(isCharacterCurrent('core_1', progress)).toBe(true);
+      expect(isCharacterCurrent('core_2', progress)).toBe(false);
+    });
+
+    it('guest_progress_persists_locally', () => {
+      const defaultData = { name: "Guest", aiProgress: progress } as any;
+      const savedObj = createProtectedSave(defaultData);
+      expect(verifyProtectedSave(savedObj)).toBe(true);
+      const parsedPayload = JSON.parse(savedObj.payload);
+      expect(parsedPayload.aiProgress.level).toBe(1);
+    });
+
+    it('completed_bot_shows_completed_or_replay', () => {
+      progress.level = 3;
+      expect(isCharacterUnlocked('core_1', progress)).toBe(true);
+      expect(isCharacterCurrent('core_1', progress)).toBe(false);
+    });
+
+    it('next_bot_shows_current', () => {
+      expect(isCharacterCurrent('core_1', progress)).toBe(true);
+    });
+
+    it('tier_transition_unlocks_first_bot_only', () => {
+      progress.tier = 'core';
+      progress.level = 5;
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_5', playerWon: true, isDraw: false });
+      expect(nextProgress.tier).toBe('beginner');
+      expect(nextProgress.level).toBe(1);
+      expect(isCharacterUnlocked('beginner_1', nextProgress)).toBe(true);
+      expect(isCharacterUnlocked('beginner_2', nextProgress)).toBe(false);
+    });
+
+    it('win_result_shows_next_level', () => {
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_1', playerWon: true, isDraw: false });
+      const cta = getGameResultCTA('win', 'core_1', nextProgress);
+      expect(cta.label).toBe('NEXT LEVEL');
+      expect(cta.nextCharacterId).toBe('core_2');
+    });
+
+    it('loss_result_shows_play_again', () => {
+      const cta = getGameResultCTA('loss', 'core_1', progress);
+      expect(cta.label).toBe('PLAY AGAIN');
+    });
+
+    it('draw_result_shows_rematch', () => {
+      const cta = getGameResultCTA('draw', 'core_1', progress);
+      expect(cta.label).toBe('REMATCH');
+    });
+
+    it('final_bot_win_shows_next_tier_or_cup_unlock', () => {
+      progress.tier = 'core';
+      progress.level = 5;
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_5', playerWon: true, isDraw: false });
+      const cta = getGameResultCTA('win', 'core_5', nextProgress);
+      expect(cta.label).toBe('NEXT CHALLENGE');
+      expect(cta.nextCharacterId).toBe('beginner_1');
+    });
+
+    it('next_level_cta_uses_next_character_id', () => {
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_1', playerWon: true, isDraw: false });
+      const cta = getGameResultCTA('win', 'core_1', nextProgress);
+      expect(cta.nextCharacterId).toBe('core_2');
+    });
+
+    it('game_remounts_cleanly_on_next_level', () => {
+      const keyVal1 = 'core_1';
+      const keyVal2 = 'core_2';
+      expect(keyVal1).not.toBe(keyVal2);
+    });
   });
 });

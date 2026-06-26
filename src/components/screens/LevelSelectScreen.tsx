@@ -237,7 +237,7 @@ function CharacterCard({ character, playerData, savedGame, activeTierIdx, onSele
             ) : (
               <>
                 <Play size={8} fill="currentColor" />
-                <span>Challenge</span>
+                <span>Replay</span>
               </>
             )}
           </div>

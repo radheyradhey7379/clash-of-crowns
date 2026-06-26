@@ -434,6 +434,7 @@ export default function App() {
       case 'Game':
         return (
           <GameScreen
+            key={selectedCharacterId || 'local-vs'}
             onNavigate={handleNavigate}
             playerData={playerData}
             selectedCharacterId={selectedCharacterId}

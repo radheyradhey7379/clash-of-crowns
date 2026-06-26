@@ -1,0 +1,8 @@
+{
+  "dataset_train": "data/nnue/processed/train.jsonl",
+  "dataset_val": "data/nnue/processed/val.jsonl",
+  "epochs": 10,
+  "batch_size": 64,
+  "lr": 0.001,
+  "out_dir": "data/nnue/exports"
+}

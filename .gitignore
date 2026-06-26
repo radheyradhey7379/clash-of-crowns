@@ -23,6 +23,21 @@ firebase-applet-config.json
 service-account.json
 firebase-key.json
 *.keystore
+firebase-applet-config.vite
+test-results
+coverage
+report.html
+firebase-debug.log*
+.firebase/
+
+# Clash of Crowns NNUE Training Dataset & Weights
+data/nnue/
+*.nnue
+*.pt
+*.pth
+*.ckpt
+*.bin.tmp
+
 *.jks
 
 # Cache & AI files

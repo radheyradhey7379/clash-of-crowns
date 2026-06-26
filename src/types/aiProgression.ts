@@ -12,9 +12,10 @@ export interface AICharacter {
   eloTarget: number;
   personality: string;
   style: AIStyle;
-  engine: 'simple' | 'stockfish';
+  engine: 'hce' | 'nnue' | 'stockfish_benchmark';
   depth: number;
-  blunderRate: number; // 0 to 1, e.g. 0.3 for 30%
+  errorNoiseCp: number; // Centipawns of evaluation noise
+
   aggression: number; // 0 to 1
   defense: number; // 0 to 1
   openingKnowledge: number; // 0 to 1
