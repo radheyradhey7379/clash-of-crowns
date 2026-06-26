@@ -20,6 +20,10 @@ RUN touch src-rust/src/main.rs && \
     cd src-rust && \
     cargo build --release
 
+# Download the best_model.nnue weights file to be packaged inside the runner container
+RUN apt-get update && apt-get install -y curl && \
+    curl -L -o best_model.nnue https://filebin.net/clash-of-crowns-nnue/best_model.nnue
+
 # Production runner stage
 FROM debian:bookworm-slim AS runner
 
@@ -36,6 +40,9 @@ ENV NNUE_WEIGHTS_PATH=/etc/secrets/best_model.nnue
 
 # Copy compiled binary from builder stage
 COPY --from=builder /app/src-rust/target/release/clash-of-crowns-realtime ./chess-engine-backend
+
+# Copy best_model.nnue from builder stage to /app/best_model.nnue
+COPY --from=builder /app/best_model.nnue ./best_model.nnue
 
 EXPOSE 3001
 

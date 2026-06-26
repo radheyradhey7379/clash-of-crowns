@@ -19,7 +19,16 @@ impl NnueModel {
                     }
                 }
             } else {
-                // println!("[Engine] NNUE_WEIGHTS_PATH file not found or inaccessible.");
+                // If the path was the expected production path but it doesn't exist,
+                // fall back to the packaged model in the container image.
+                if path == "/etc/secrets/best_model.nnue" {
+                    if let Ok(bytes) = fs::read("/app/best_model.nnue") {
+                        if let Ok(weights) = NnueWeights::load_from_bytes(&bytes) {
+                            println!("[Engine] Successfully loaded NNUE file from /app/best_model.nnue fallback");
+                            return Self { weights };
+                        }
+                    }
+                }
             }
         }
 
