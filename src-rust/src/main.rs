@@ -108,16 +108,23 @@ async fn version_handler() -> Json<serde_json::Value> {
         .to_string();
 
     let mut secrets_files = Vec::new();
+    let mut read_errors = serde_json::Map::new();
+
     if let Ok(entries) = std::fs::read_dir("/etc/secrets") {
         for entry in entries.flatten() {
             if let Ok(name) = entry.file_name().into_string() {
                 secrets_files.push(name.clone());
                 let subpath = format!("/etc/secrets/{}", name);
-                if let Ok(sub_entries) = std::fs::read_dir(&subpath) {
-                    for sub_entry in sub_entries.flatten() {
-                        if let Ok(sub_name) = sub_entry.file_name().into_string() {
-                            secrets_files.push(format!("{}/{}", name, sub_name));
+                match std::fs::read_dir(&subpath) {
+                    Ok(sub_entries) => {
+                        for sub_entry in sub_entries.flatten() {
+                            if let Ok(sub_name) = sub_entry.file_name().into_string() {
+                                secrets_files.push(format!("{}/{}", name, sub_name));
+                            }
                         }
+                    }
+                    Err(e) => {
+                        read_errors.insert(subpath, serde_json::Value::String(e.to_string()));
                     }
                 }
             }
@@ -131,6 +138,7 @@ async fn version_handler() -> Json<serde_json::Value> {
         "nnue_weights_path": path,
         "nnue_weights_file_exists": file_exists,
         "nnue_weights_status": weights_status,
-        "secrets_files": secrets_files
+        "secrets_files": secrets_files,
+        "secrets_read_errors": read_errors
     }))
 }
