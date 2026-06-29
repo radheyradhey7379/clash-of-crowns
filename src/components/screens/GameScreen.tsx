@@ -15,7 +15,7 @@ import { getCurrentPlayableCharacterId, getGameResultCTA, isCharacterUnlocked } 
 import { getAIDifficultySettings } from '../../game/ai/aiDifficulty';
 import { createMatchSession } from '../../game/security/matchSessionGuard';
 import { playSound } from '../../lib/sounds';
-import { ChevronLeft, RotateCcw, Home, Layout, BarChart2, Undo2, Menu, X, Box, Square, Crown, Shield, Loader2 } from 'lucide-react';
+import { ChevronLeft, RotateCcw, Home, Layout, BarChart2, Undo2, Menu, X, Box, Square, Crown, Shield, Loader2, AlertTriangle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../lib/translations';
@@ -207,8 +207,12 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const [playerColor, setPlayerColor] = useState<'w' | 'b'>(() => {
     if (multiplayerConfig) return multiplayerConfig.color;
     if (localGameConfig) return localGameConfig.player1Color;
-    if (selectedCharacterId) {
-      const char = AI_CHARACTERS.find(c => c.id === selectedCharacterId);
+    
+    // AI match - determine color
+    const validation = matchFlowService.validateCharacter(selectedCharacterId, playerData.aiProgress);
+    const charId = selectedCharacterId || validation.fallbackCharacterId;
+    if (charId) {
+      const char = AI_CHARACTERS.find(c => c.id === charId);
       if (char && char.tier === 'master') {
         const matchIdx = playerData.aiProgress?.masterCup?.currentMatch || 1;
         return matchIdx === 2 ? 'b' : 'w';
@@ -349,6 +353,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       result,
       reason,
       eloBefore: playerData.aiProgress.elo,
+      playerColor,
       cupCleared
     } as any, playerData);
 
@@ -388,6 +393,8 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const [show3DTimeoutPrompt, setShow3DTimeoutPrompt] = useState(false);
   const [latencyText, setLatencyText] = useState<string>('Ping...');
   const [showNetworkWarning, setShowNetworkWarning] = useState(true);
+  const [freeUndosUsed, setFreeUndosUsed] = useState(0);
+  const [showUndoPackModal, setShowUndoPackModal] = useState(false);
   const [latencyColorClass, setLatencyColorClass] = useState<string>('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
   const lastPongReceivedTime = useRef<number>(Date.now());
   const [lastMoveLatency, setLastMoveLatency] = useState<number | null>(null);
@@ -1488,34 +1495,70 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
 
   const handleUndo = () => {
     if (gameOver || isMultiplayer) return;
-    
-    // Premium logic for Undo
-    if (!playerData.undoEnabled) {
-      const today = new Date().toDateString();
-      let count = playerData.dailyUndoCount || 0;
-      
-      if (playerData.lastUndoDate !== today) {
-        count = 0;
+    if (history.length < 2) return;
+    if (isAIThinking) return; // Block undo while AI is actively thinking to avoid race conditions!
+
+    if (isLocalVS) {
+      playSound('click');
+      chess.undo();
+      chess.undo();
+      setBoard(chess.getBoard());
+      setTurn(chess.getTurn());
+      setLastMove(null);
+      setSelectedSquare(null);
+      setValidMoves([]);
+      setHistory(prev => prev.slice(0, -2));
+      updateCheckInfo();
+      return;
+    }
+
+    // AI Match Undo Economy
+    const character = AI_CHARACTERS.find(c => c.id === activeCharacterId) || AI_CHARACTERS[0];
+    const tier = character?.tier || 'beginner';
+
+    if (tier === 'master' || tier === 'grandmaster') {
+      // Cup/Tournament/Ranked: undo disabled
+      alert("Undo is disabled in Cup/Ranked matches.");
+      return;
+    }
+
+    let requiresToken = false;
+    let newFreeUndosUsed = freeUndosUsed;
+
+    if (tier === 'beginner' || tier === 'learner') {
+      if (freeUndosUsed < 1) {
+        newFreeUndosUsed = 1;
+      } else {
+        requiresToken = true;
       }
-      
-      if (count >= 2) {
-        playSound('click');
-        alert("Free tier limit reached: 2 undos per day. Buy Unlimited Undo Pass or Premium with Undo Add-on!");
+    } else if (tier === 'intermediate' || tier === 'hard') {
+      requiresToken = true;
+    }
+
+    if (requiresToken) {
+      const currentTokens = playerData.undoTokens !== undefined ? playerData.undoTokens : 0;
+      if (currentTokens <= 0) {
+        setShowUndoPackModal(true);
         return;
       }
-      
+      // Decrement token
       onUpdatePlayerData({
-        dailyUndoCount: count + 1,
-        lastUndoDate: today
+        undoTokens: currentTokens - 1
       });
     }
 
+    setFreeUndosUsed(newFreeUndosUsed);
+
     playSound('click');
     chess.undo();
-    chess.undo(); // Undo both AI and player move
+    chess.undo(); // Revert both player move and AI response
     setBoard(chess.getBoard());
     setTurn(chess.getTurn());
     setLastMove(null);
+    setSelectedSquare(null);
+    setValidMoves([]);
+    setHistory(prev => prev.slice(0, -2));
+    setIsAIThinking(false);
     updateCheckInfo();
   };
 
@@ -1532,6 +1575,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     setSelectedSquare(null);
     setValidMoves([]);
     setGameOver(null);
+    setFreeUndosUsed(0);
     setLastMove(null);
     setHistory([]);
     setCapturedPieces({ w: [], b: [] });
@@ -1681,11 +1725,11 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       {/* Top Header Bar */}
       {!showReview && (
         <div 
-          className="absolute top-0 left-0 w-full p-2 md:p-4 flex justify-between items-start z-30 pointer-events-none"
+          className="absolute top-0 left-0 w-full flex justify-between items-start z-30 pointer-events-none"
           style={{
-            paddingLeft: 'env(safe-area-inset-left)',
-            paddingRight: 'env(safe-area-inset-right)',
-            paddingTop: 'env(safe-area-inset-top)'
+            paddingLeft: 'calc(1.5rem + env(safe-area-inset-left))',
+            paddingRight: 'calc(1.5rem + env(safe-area-inset-right))',
+            paddingTop: 'calc(1.5rem + env(safe-area-inset-top))'
           }}
         >
         {/* Left Side Actions */}
@@ -1805,7 +1849,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               </motion.button>
             )}
 
-            {playerData.undoEnabled && (
+            {!isMultiplayer && (!activeCharacterId || (AI_CHARACTERS.find(c => c.id === activeCharacterId)?.tier !== 'master' && AI_CHARACTERS.find(c => c.id === activeCharacterId)?.tier !== 'grandmaster')) && (
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
@@ -2567,6 +2611,55 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                 Dismiss
               </button>
             </motion.div>
+          )}
+          {showUndoPackModal && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowUndoPackModal(false)}
+                className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-sm bg-[#131118]/95 backdrop-blur-xl border border-red-500/30 rounded-3xl p-6 md:p-8 shadow-2xl text-center flex flex-col items-center gap-6"
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-red-500/50" />
+                <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
+                  <AlertTriangle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-2 font-serif uppercase tracking-wider">Undo Pack Required</h3>
+                  <p className="text-gray-400 text-xs leading-relaxed font-sans">
+                    You have run out of Undo Tokens. You can buy Undo Packs or purchase Premium to enable unlimited undos!
+                  </p>
+                </div>
+                <div className="flex flex-col w-full gap-2 font-sans">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setShowUndoPackModal(false);
+                      onNavigate('Premium');
+                    }}
+                    className="w-full py-3 bg-[#d9ad33] hover:bg-[#f5d666] text-black rounded-xl font-bold tracking-widest uppercase text-[10px] transition-colors shadow-lg cursor-pointer"
+                  >
+                    Go to Shop
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowUndoPackModal(false)}
+                    className="w-full py-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl font-bold tracking-widest uppercase text-[10px] transition-colors cursor-pointer"
+                  >
+                    Close
+                  </motion.button>
+                </div>
+              </motion.div>
+            </div>
           )}
         </AnimatePresence>
       </div>

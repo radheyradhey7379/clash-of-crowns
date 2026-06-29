@@ -299,59 +299,65 @@ pub struct ValidateMoveResponse {
     pub is_repetition: bool,
 }
 
-pub async fn validate_handler(
-    Json(req): Json<ValidateMoveRequest>,
-) -> Json<ValidateMoveResponse> {
+pub async fn validate_handler(Json(req): Json<ValidateMoveRequest>) -> Json<ValidateMoveResponse> {
     let setup = match Fen::from_str(&req.fen) {
         Ok(s) => s,
-        Err(_) => return Json(ValidateMoveResponse {
-            valid: false,
-            next_fen: req.fen.clone(),
-            is_checkmate: false,
-            is_stalemate: false,
-            is_draw: false,
-            is_fifty_moves: false,
-            is_repetition: false,
-        }),
+        Err(_) => {
+            return Json(ValidateMoveResponse {
+                valid: false,
+                next_fen: req.fen.clone(),
+                is_checkmate: false,
+                is_stalemate: false,
+                is_draw: false,
+                is_fifty_moves: false,
+                is_repetition: false,
+            })
+        }
     };
 
     let pos: Chess = match setup.into_position(CastlingMode::Standard) {
         Ok(p) => p,
-        Err(_) => return Json(ValidateMoveResponse {
-            valid: false,
-            next_fen: req.fen.clone(),
-            is_checkmate: false,
-            is_stalemate: false,
-            is_draw: false,
-            is_fifty_moves: false,
-            is_repetition: false,
-        }),
+        Err(_) => {
+            return Json(ValidateMoveResponse {
+                valid: false,
+                next_fen: req.fen.clone(),
+                is_checkmate: false,
+                is_stalemate: false,
+                is_draw: false,
+                is_fifty_moves: false,
+                is_repetition: false,
+            })
+        }
     };
 
     let from_sq = match Square::from_ascii(req.from.as_bytes()) {
         Ok(s) => s,
-        Err(_) => return Json(ValidateMoveResponse {
-            valid: false,
-            next_fen: req.fen.clone(),
-            is_checkmate: false,
-            is_stalemate: false,
-            is_draw: false,
-            is_fifty_moves: false,
-            is_repetition: false,
-        }),
+        Err(_) => {
+            return Json(ValidateMoveResponse {
+                valid: false,
+                next_fen: req.fen.clone(),
+                is_checkmate: false,
+                is_stalemate: false,
+                is_draw: false,
+                is_fifty_moves: false,
+                is_repetition: false,
+            })
+        }
     };
 
     let to_sq = match Square::from_ascii(req.to.as_bytes()) {
         Ok(s) => s,
-        Err(_) => return Json(ValidateMoveResponse {
-            valid: false,
-            next_fen: req.fen.clone(),
-            is_checkmate: false,
-            is_stalemate: false,
-            is_draw: false,
-            is_fifty_moves: false,
-            is_repetition: false,
-        }),
+        Err(_) => {
+            return Json(ValidateMoveResponse {
+                valid: false,
+                next_fen: req.fen.clone(),
+                is_checkmate: false,
+                is_stalemate: false,
+                is_draw: false,
+                is_fifty_moves: false,
+                is_repetition: false,
+            })
+        }
     };
 
     let mut promotion_role = None;
@@ -393,7 +399,7 @@ pub async fn validate_handler(
                     let is_stalemate = p2.is_stalemate();
                     let is_fifty = p2.halfmoves() >= 100;
                     let is_insufficient = p2.is_insufficient_material();
-                    
+
                     let is_repetition = if let Some(ref fens) = req.recent_fens {
                         is_threefold_repetition(&next_fen, fens)
                     } else {
@@ -419,7 +425,7 @@ pub async fn validate_handler(
                     is_draw: false,
                     is_fifty_moves: false,
                     is_repetition: false,
-                })
+                }),
             }
         }
         None => Json(ValidateMoveResponse {

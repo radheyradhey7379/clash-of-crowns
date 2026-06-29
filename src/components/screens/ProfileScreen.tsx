@@ -277,11 +277,11 @@ export default function ProfileScreen({
       </div>
 
       <div 
-        className="h-20 flex items-center justify-between px-8 z-10"
+        className="h-20 flex items-center justify-between z-10"
         style={{
-          paddingLeft: 'env(safe-area-inset-left)',
-          paddingRight: 'env(safe-area-inset-right)',
-          paddingTop: 'env(safe-area-inset-top)'
+          paddingLeft: 'calc(2rem + env(safe-area-inset-left))',
+          paddingRight: 'calc(2rem + env(safe-area-inset-right))',
+          paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
         }}
       >
         <motion.button

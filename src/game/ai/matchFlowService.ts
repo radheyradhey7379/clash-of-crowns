@@ -145,6 +145,44 @@ export const matchFlowService = {
     const losses = matchResult.result === 'loss' ? (currentPlayerData.losses || 0) + 1 : (currentPlayerData.losses || 0);
     const draws = matchResult.result === 'draw' ? (currentPlayerData.draws || 0) + 1 : (currentPlayerData.draws || 0);
 
+    const totalGames = (currentPlayerData.totalGames || 0) + 1;
+    const totalWins = wins;
+    const totalLosses = losses;
+    const totalDraws = draws;
+
+    // Streaks
+    let streak = currentPlayerData.streak || 0;
+    if (matchResult.result === 'win') {
+      streak += 1;
+    } else {
+      streak = 0;
+    }
+    const bestStreak = Math.max(streak, currentPlayerData.bestStreak || 0);
+
+    // Color/Side specific stats
+    const side = (matchResult as any).playerColor || 'w';
+    let whiteGames = currentPlayerData.whiteGames || 0;
+    let whiteWins = currentPlayerData.whiteWins || 0;
+    let whiteLosses = currentPlayerData.whiteLosses || 0;
+    let whiteDraws = currentPlayerData.whiteDraws || 0;
+
+    let blackGames = currentPlayerData.blackGames || 0;
+    let blackWins = currentPlayerData.blackWins || 0;
+    let blackLosses = currentPlayerData.blackLosses || 0;
+    let blackDraws = currentPlayerData.blackDraws || 0;
+
+    if (side === 'w') {
+      whiteGames += 1;
+      if (matchResult.result === 'win') whiteWins += 1;
+      else if (matchResult.result === 'loss') whiteLosses += 1;
+      else if (matchResult.result === 'draw') whiteDraws += 1;
+    } else {
+      blackGames += 1;
+      if (matchResult.result === 'win') blackWins += 1;
+      else if (matchResult.result === 'loss') blackLosses += 1;
+      else if (matchResult.result === 'draw') blackDraws += 1;
+    }
+
     const eloChange = newProgress.elo - oldProgress.elo;
 
     // 7. Anti-Cheat: Validate impossible ELO, Coin, or XP jumps
@@ -190,6 +228,21 @@ export const matchFlowService = {
       wins,
       losses,
       draws,
+      totalGames,
+      totalWins,
+      totalLosses,
+      totalDraws,
+      whiteGames,
+      whiteWins,
+      whiteLosses,
+      whiteDraws,
+      blackGames,
+      blackWins,
+      blackLosses,
+      blackDraws,
+      streak,
+      bestStreak,
+      currentStreak: streak,
       aiProgress: finalProgress,
       rating: finalProgress.elo, // Sync overall rating with career progression ELO
       coins: (finalPlayerData.coins || 0) + verifiedRewards.coins,

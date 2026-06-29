@@ -46,8 +46,18 @@ export interface PlayerData {
   language: Language;
   whiteWins: number;
   whiteLosses: number;
+  whiteDraws?: number;
+  whiteGames?: number;
   blackWins: number;
   blackLosses: number;
+  blackDraws?: number;
+  blackGames?: number;
+  totalWins?: number;
+  totalLosses?: number;
+  totalDraws?: number;
+  totalGames?: number;
+  currentStreak?: number;
+  undoTokens?: number;
   whiteTime: number;
   blackTime: number;
   viewMode: '2d' | '3d';

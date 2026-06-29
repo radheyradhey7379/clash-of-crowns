@@ -22,6 +22,10 @@ export class RustEngineAdapter implements IEngineAdapter {
     // We use the URL from env, default to local if not set
     const RUST_URL = import.meta.env.VITE_RUST_ENGINE_URL || 'http://localhost:3001';
 
+    const timeoutId = setTimeout(() => {
+      this.abortController?.abort();
+    }, 5000); // 5 seconds timeout
+
     try {
       const response = await fetch(`${RUST_URL}/engine/move`, {
         method: 'POST',
@@ -39,6 +43,8 @@ export class RustEngineAdapter implements IEngineAdapter {
           recent_fens: request.recentFens,
         }),
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`Rust NNUE engine error: ${response.status} ${response.statusText}`);
@@ -67,6 +73,7 @@ export class RustEngineAdapter implements IEngineAdapter {
         wasFallback: false,
       };
     } catch (err) {
+      clearTimeout(timeoutId);
       if (err instanceof Error && err.name === 'AbortError') {
         throw err;
       }

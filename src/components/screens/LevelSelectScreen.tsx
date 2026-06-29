@@ -36,11 +36,11 @@ export default function LevelSelectScreen({ onNavigate, playerData, onSelectLeve
 
       {/* Top Bar */}
       <div 
-        className="h-20 flex items-center justify-between px-8 z-10"
+        className="h-20 flex items-center justify-between z-10"
         style={{
-          paddingLeft: 'env(safe-area-inset-left)',
-          paddingRight: 'env(safe-area-inset-right)',
-          paddingTop: 'env(safe-area-inset-top)'
+          paddingLeft: 'calc(2rem + env(safe-area-inset-left))',
+          paddingRight: 'calc(2rem + env(safe-area-inset-right))',
+          paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
         }}
       >
         <motion.button
@@ -63,8 +63,8 @@ export default function LevelSelectScreen({ onNavigate, playerData, onSelectLeve
       <div 
         className="flex w-full h-14 bg-black/60 backdrop-blur-xl border-b border-white/5 z-10 overflow-x-auto hide-scrollbar scroll-smooth whitespace-nowrap"
         style={{
-          paddingLeft: 'env(safe-area-inset-left)',
-          paddingRight: 'env(safe-area-inset-right)'
+          paddingLeft: 'calc(1.5rem + env(safe-area-inset-left))',
+          paddingRight: 'calc(1.5rem + env(safe-area-inset-right))'
         }}
       >
         <div className="flex min-w-full md:justify-center px-4 h-full">
@@ -74,7 +74,7 @@ export default function LevelSelectScreen({ onNavigate, playerData, onSelectLeve
                 key={label}
                 onClick={() => setActiveTierIdx(i)}
                 className={cn(
-                  "inline-flex flex-col items-center justify-center min-w-[80px] px-4 text-[10px] font-bold tracking-[0.2em] transition-all relative uppercase flex-shrink-0 h-full",
+                  "inline-flex flex-col items-center justify-center min-w-[90px] md:min-w-[130px] lg:min-w-[160px] px-3 md:px-6 text-[10px] md:text-xs font-bold tracking-[0.2em] transition-all relative uppercase flex-shrink-0 h-full",
                   activeTierIdx === i 
                     ? "text-[#d9ad33]" 
                     : "text-white/20 hover:text-white/40"

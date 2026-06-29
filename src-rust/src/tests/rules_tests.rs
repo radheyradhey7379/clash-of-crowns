@@ -1,6 +1,6 @@
 use crate::chess::move_validator::validate_and_execute_move;
-use shakmaty::{Chess, Position};
 use shakmaty::fen::Fen;
+use shakmaty::{Chess, Position};
 
 #[test]
 fn test_legal_pawn_moves() {
@@ -10,7 +10,7 @@ fn test_legal_pawn_moves() {
     assert!(res1.is_ok());
     let res2 = validate_and_execute_move(fen, "e2", "e4", None);
     assert!(res2.is_ok());
-    
+
     // Pawn cannot move backward
     let res3 = validate_and_execute_move(fen, "e2", "e1", None);
     assert!(res3.is_err());
@@ -35,7 +35,7 @@ fn test_legal_bishop_moves() {
     let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     let res1 = validate_and_execute_move(fen, "c1", "d2", None);
     assert!(res1.is_err());
-    
+
     // Bishop on e5 can move diagonally
     let fen2 = "k7/8/8/4b3/8/8/8/7K b - - 0 1"; // White king on h1 to avoid check restrictions
     let res2 = validate_and_execute_move(fen2, "e5", "b2", None);
@@ -66,7 +66,7 @@ fn test_legal_king_moves() {
     let fen = "k7/8/8/4K3/8/8/8/8 w - - 0 1";
     let res1 = validate_and_execute_move(fen, "e5", "e6", None);
     assert!(res1.is_ok());
-    
+
     // Move to f6 when rook is on f7 (attacks f6) -> illegal!
     let fen3 = "k7/5r2/8/4K3/8/8/8/8 w - - 0 1";
     let res2 = validate_and_execute_move(fen3, "e5", "f6", None);
@@ -87,7 +87,7 @@ fn test_en_passant_valid_only_immediately() {
     let fen = "k7/8/8/3pP3/8/8/8/7K w - d6 0 1";
     let res = validate_and_execute_move(fen, "e5", "d6", None);
     assert!(res.is_ok());
-    
+
     // If it's not immediately, en passant is invalid (en passant square is none '-')
     let fen_no_ep = "k7/8/8/3pP3/8/8/8/7K w - - 0 1";
     let res_no = validate_and_execute_move(fen_no_ep, "e5", "d6", None);
@@ -118,7 +118,9 @@ fn test_stalemate_detected() {
     // Simple stalemate setup (Black king on h8, White queen on g6, White king on h1)
     let fen_stalemate = "7k/8/6Q1/8/8/8/8/7K b - - 0 1";
     let setup: Fen = fen_stalemate.parse().unwrap();
-    let pos: Chess = setup.into_position(shakmaty::CastlingMode::Standard).unwrap();
+    let pos: Chess = setup
+        .into_position(shakmaty::CastlingMode::Standard)
+        .unwrap();
     assert!(pos.is_stalemate());
 }
 
@@ -128,7 +130,9 @@ fn test_fifty_move_draw() {
     let res = validate_and_execute_move(fen, "a1", "b1", None);
     assert!(res.is_ok());
     let setup: Fen = fen.parse().unwrap();
-    let pos: Chess = setup.into_position(shakmaty::CastlingMode::Standard).unwrap();
+    let pos: Chess = setup
+        .into_position(shakmaty::CastlingMode::Standard)
+        .unwrap();
     let legal = pos.legal_moves();
     let m = legal.first().unwrap();
     let next = pos.play(m).unwrap();
@@ -138,13 +142,13 @@ fn test_fifty_move_draw() {
 #[test]
 fn test_repetition_draw() {
     use crate::engine::handlers::is_threefold_repetition;
-    
+
     let fen1 = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string();
     let fen2 = "rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".to_string();
     let fen3 = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 2".to_string();
     let fen4 = "rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 2".to_string();
     let fen5 = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 3".to_string();
-    
+
     let history = vec![fen1, fen2, fen3, fen4];
     assert!(is_threefold_repetition(&fen5, &history));
 }

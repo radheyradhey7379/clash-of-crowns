@@ -115,7 +115,7 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
                 initial_extension_budget,
             );
             nodes += n;
-            
+
             // Negamax returns the score from child's perspective, so negate it
             let mut eval = -score;
 
@@ -136,13 +136,23 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
                         eval -= 1000;
                     }
                 }
-                let prev_move = if len >= 2 { &options.recent_moves[len - 2] } else { "" };
-                let prev_prev_move = if len >= 4 { &options.recent_moves[len - 4] } else { "" };
+                let prev_move = if len >= 2 {
+                    &options.recent_moves[len - 2]
+                } else {
+                    ""
+                };
+                let prev_prev_move = if len >= 4 {
+                    &options.recent_moves[len - 4]
+                } else {
+                    ""
+                };
                 if is_same_piece(&m_uci, prev_move, prev_prev_move) {
                     eval -= 500;
                 }
                 if options.recent_fens.len() >= 2 {
-                    let clean_curr = clean_fen(&Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string());
+                    let clean_curr = clean_fen(
+                        &Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string(),
+                    );
                     for past_fen in &options.recent_fens {
                         if clean_fen(past_fen) == clean_curr {
                             eval -= 1000;
@@ -336,7 +346,9 @@ fn negamax(
 
                 // Rule 3: Penalize repeating a board state that occurred recently
                 if options.recent_fens.len() >= 2 {
-                    let clean_curr = clean_fen(&Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string());
+                    let clean_curr = clean_fen(
+                        &Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string(),
+                    );
                     for past_fen in &options.recent_fens {
                         if clean_fen(past_fen) == clean_curr {
                             eval -= 1000;

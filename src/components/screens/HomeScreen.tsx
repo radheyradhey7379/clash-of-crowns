@@ -78,13 +78,12 @@ export default function HomeScreen({ onNavigate, playerData }: HomeScreenProps) 
     >
       <ScreenBackground playerData={playerData} opacity={0.6} />
 
-      {/* Top Bar */}
       <div 
-        className="absolute top-0 left-0 w-full h-24 flex items-center justify-between px-4 md:px-8 z-20"
+        className="absolute top-0 left-0 w-full h-24 flex items-center justify-between z-20"
         style={{
-          paddingLeft: 'env(safe-area-inset-left)',
-          paddingRight: 'env(safe-area-inset-right)',
-          paddingTop: 'env(safe-area-inset-top)'
+          paddingLeft: 'calc(2rem + env(safe-area-inset-left))',
+          paddingRight: 'calc(2rem + env(safe-area-inset-right))',
+          paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
         }}
       >
         {/* Top Left Profile Button */}

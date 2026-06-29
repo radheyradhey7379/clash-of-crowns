@@ -2,7 +2,6 @@ import { AICharacter } from '../../types/aiProgression';
 import { ChessLogic } from '../../lib/chess-logic';
 import { EngineResult, IEngineAdapter } from './types';
 import { RustEngineAdapter } from './adapters/rustEngineAdapter';
-import { StockfishBenchmarkAdapter } from './adapters/stockfishBenchmarkAdapter';
 import { getEngineForCharacter } from './campaign/progressionRules';
 import { resolveEngine, getBotProfile as resolveBotProfile } from './campaign/botProfiles';
 import { Chess } from 'chess.js';
@@ -70,35 +69,27 @@ export class EngineBrain {
 
     try {
       const result = await this.adapter.computeMove(request);
+      if (!result || !result.move) {
+        throw new Error("Primary engine returned no move");
+      }
       return result;
     } catch (err) {
       if (err instanceof Error && err.message === 'AbortError') throw err;
       
-      console.warn("Primary engine failed. Falling back to local Stockfish...", err);
-      try {
-        const fallbackAdapter = new StockfishBenchmarkAdapter();
-        const result = await fallbackAdapter.computeMove(request);
-        fallbackAdapter.dispose();
-        return {
-          ...result,
-          wasFallback: true
-        };
-      } catch (fallbackErr) {
-        console.error("Local Stockfish fallback failed. Playing first legal move as emergency fallback.", fallbackErr);
-        const moves = this.chess.getAllLegalMoves();
-        if (moves.length === 0) {
-          return { move: null, engineUsed: 'hce', thinkTimeMs: 0, searchDepth: 0, evalCp: 0, noiseApplied: 0, wasFallback: true };
-        }
-        return {
-          move: { from: moves[0].from, to: moves[0].to, promotion: moves[0].promotion },
-          engineUsed: 'hce',
-          thinkTimeMs: 0,
-          searchDepth: 1,
-          evalCp: 0,
-          noiseApplied: 0,
-          wasFallback: true
-        };
+      console.warn("Primary engine failed or returned no move. Playing first legal move as emergency fallback.", err);
+      const moves = this.chess.getAllLegalMoves();
+      if (moves.length === 0) {
+        return { move: null, engineUsed: 'hce', thinkTimeMs: 0, searchDepth: 0, evalCp: 0, noiseApplied: 0, wasFallback: true };
       }
+      return {
+        move: { from: moves[0].from, to: moves[0].to, promotion: moves[0].promotion },
+        engineUsed: 'hce',
+        thinkTimeMs: 0,
+        searchDepth: 1,
+        evalCp: 0,
+        noiseApplied: 0,
+        wasFallback: true
+      };
     }
   }
 

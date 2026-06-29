@@ -10,8 +10,8 @@ pub mod quiescence;
 pub use handlers::eval_handler;
 pub use handlers::move_handler;
 pub use handlers::simulate_handler;
-pub use handlers::validate_handler;
 pub use handlers::status_handler;
+pub use handlers::validate_handler;
 
 #[cfg(test)]
 mod tests;

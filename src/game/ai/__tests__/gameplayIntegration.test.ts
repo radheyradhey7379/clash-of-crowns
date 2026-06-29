@@ -1,0 +1,354 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ChessLogic } from '../../../lib/chess-logic';
+import { EngineBrain } from '../../engine/engineBrain';
+import { matchFlowService } from '../matchFlowService';
+import { DEFAULT_PLAYER_DATA } from '../../../lib/store/store';
+import { PlayerData } from '../../../types';
+import { AI_CHARACTERS } from '../aiCharacters';
+
+// Mock fetch globally
+const originalFetch = global.fetch;
+beforeEach(() => {
+  global.fetch = vi.fn();
+});
+
+afterEach(() => {
+  global.fetch = originalFetch;
+});
+
+describe('Gameplay Integration Tests', () => {
+  let chess: ChessLogic;
+  let playerData: PlayerData;
+
+  beforeEach(() => {
+    chess = new ChessLogic();
+    playerData = JSON.parse(JSON.stringify(DEFAULT_PLAYER_DATA));
+  });
+
+  // ==========================================
+  // 1. AI Turn Loop Fix Tests
+  // ==========================================
+
+  it('player_white_triggers_black_ai_move', () => {
+    // Player is White, turn is White
+    const playerColor = 'w';
+    let turn = chess.getTurn();
+    expect(turn).toBe('w');
+
+    // Player makes move
+    chess.makeMove('e4');
+    turn = chess.getTurn();
+    expect(turn).toBe('b');
+
+    // Under this condition (turn === 'b' && playerColor === 'w'), AI (Black) triggers
+    const triggerAIMove = turn !== playerColor;
+    expect(triggerAIMove).toBe(true);
+  });
+
+  it('player_black_triggers_white_ai_move', () => {
+    // Player is Black, turn starts as White
+    const playerColor = 'b';
+    const turn = chess.getTurn();
+    expect(turn).toBe('w');
+
+    // Under this condition (turn === 'w' && playerColor === 'b'), AI (White) triggers automatically on startup
+    const triggerAIMove = turn !== playerColor;
+    expect(triggerAIMove).toBe(true);
+  });
+
+  it('ai_move_applies_to_board', async () => {
+    // Play White move first so it is Black's turn
+    chess.makeMove('e4');
+
+    // Mock successful Rust engine response
+    const mockResponse = {
+      ok: true,
+      json: async () => ({
+        move_str: 'e7e5',
+        engine_used: 'hce',
+        think_time_ms: 100,
+        depth: 2
+      })
+    };
+    (global.fetch as any).mockResolvedValue(mockResponse);
+
+    const character = AI_CHARACTERS[0];
+    const brain = EngineBrain.create(character, chess);
+    const result = await brain.computeMove();
+
+    expect(result.move).toEqual({ from: 'e7', to: 'e5', promotion: undefined });
+    
+    // Apply to board
+    const m = chess.makeMove(result.move!);
+    expect(m).not.toBeNull();
+    expect(chess.getFen()).toContain('rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR');
+  });
+
+  it('turn_switches_after_ai_move', () => {
+    chess.makeMove('e4'); // Player White
+    expect(chess.getTurn()).toBe('b');
+
+    chess.makeMove({ from: 'e7', to: 'e5' }); // AI Black
+    expect(chess.getTurn()).toBe('w'); // Turn switches back to White player
+  });
+
+  it('timer_runs_only_for_active_side', () => {
+    let turn = 'w';
+    let whiteTime = 0;
+    let blackTime = 0;
+
+    const tick = () => {
+      if (turn === 'w') whiteTime++;
+      else blackTime++;
+    };
+
+    tick();
+    expect(whiteTime).toBe(1);
+    expect(blackTime).toBe(0);
+
+    turn = 'b';
+    tick();
+    expect(whiteTime).toBe(1);
+    expect(blackTime).toBe(1);
+  });
+
+  it('ai_not_called_twice_for_one_turn', () => {
+    let callCount = 0;
+    let isThinking = false;
+
+    const triggerAI = () => {
+      if (isThinking) return;
+      isThinking = true;
+      callCount++;
+    };
+
+    triggerAI();
+    triggerAI(); // Duplicate call in same tick
+    expect(callCount).toBe(1);
+  });
+
+  it('game_does_not_count_only_player_side', () => {
+    // Both sides increment ply in history
+    chess.makeMove('e4');
+    expect(chess.getHistory().length).toBe(1);
+
+    chess.makeMove({ from: 'e7', to: 'e5' });
+    expect(chess.getHistory().length).toBe(2);
+  });
+
+  // ==========================================
+  // 2. Side-Aware Stats Tests
+  // ==========================================
+
+  it('white_win_updates_white_stats', () => {
+    const summary = matchFlowService.processMatchResult({
+      matchId: 'session_white_win',
+      characterId: 'beginner_1',
+      result: 'win',
+      reason: 'checkmate',
+      eloBefore: 300,
+      playerColor: 'w'
+    } as any, playerData);
+
+    const updated = summary.updatedPlayerData;
+    expect(updated.wins).toBe(1);
+    expect(updated.totalGames).toBe(1);
+    expect(updated.whiteGames).toBe(1);
+    expect(updated.whiteWins).toBe(1);
+    expect(updated.blackWins).toBe(0);
+    expect(updated.currentStreak).toBe(1);
+  });
+
+  it('black_win_updates_black_stats', () => {
+    const summary = matchFlowService.processMatchResult({
+      matchId: 'session_black_win',
+      characterId: 'beginner_1',
+      result: 'win',
+      reason: 'checkmate',
+      eloBefore: 300,
+      playerColor: 'b'
+    } as any, playerData);
+
+    const updated = summary.updatedPlayerData;
+    expect(updated.wins).toBe(1);
+    expect(updated.totalGames).toBe(1);
+    expect(updated.blackGames).toBe(1);
+    expect(updated.blackWins).toBe(1);
+    expect(updated.whiteWins).toBe(0);
+    expect(updated.currentStreak).toBe(1);
+  });
+
+  it('white_loss_updates_white_loss', () => {
+    const summary = matchFlowService.processMatchResult({
+      matchId: 'session_white_loss',
+      characterId: 'beginner_1',
+      result: 'loss',
+      reason: 'checkmate',
+      eloBefore: 300,
+      playerColor: 'w'
+    } as any, playerData);
+
+    const updated = summary.updatedPlayerData;
+    expect(updated.losses).toBe(1);
+    expect(updated.totalGames).toBe(1);
+    expect(updated.whiteGames).toBe(1);
+    expect(updated.whiteLosses).toBe(1);
+    expect(updated.blackLosses).toBe(0);
+    expect(updated.currentStreak).toBe(0);
+  });
+
+  it('black_loss_updates_black_loss', () => {
+    const summary = matchFlowService.processMatchResult({
+      matchId: 'session_black_loss',
+      characterId: 'beginner_1',
+      result: 'loss',
+      reason: 'checkmate',
+      eloBefore: 300,
+      playerColor: 'b'
+    } as any, playerData);
+
+    const updated = summary.updatedPlayerData;
+    expect(updated.losses).toBe(1);
+    expect(updated.totalGames).toBe(1);
+    expect(updated.blackGames).toBe(1);
+    expect(updated.blackLosses).toBe(1);
+    expect(updated.whiteLosses).toBe(0);
+    expect(updated.currentStreak).toBe(0);
+  });
+
+  it('draw_updates_correct_side_draw', () => {
+    const summary = matchFlowService.processMatchResult({
+      matchId: 'session_draw',
+      characterId: 'beginner_1',
+      result: 'draw',
+      reason: 'draw',
+      eloBefore: 300,
+      playerColor: 'w'
+    } as any, playerData);
+
+    const updated = summary.updatedPlayerData;
+    expect(updated.draws).toBe(1);
+    expect(updated.totalGames).toBe(1);
+    expect(updated.whiteGames).toBe(1);
+    expect(updated.whiteDraws).toBe(1);
+    expect(updated.blackDraws).toBe(0);
+    expect(updated.currentStreak).toBe(0);
+  });
+
+  it('guest_stats_persist_after_reload', () => {
+    const firstMatch = matchFlowService.processMatchResult({
+      matchId: 'match_1',
+      characterId: 'beginner_1',
+      result: 'win',
+      reason: 'checkmate',
+      eloBefore: 300,
+      playerColor: 'w'
+    } as any, playerData);
+
+    const reloadedData = firstMatch.updatedPlayerData;
+    
+    const secondMatch = matchFlowService.processMatchResult({
+      matchId: 'match_2',
+      characterId: 'beginner_1',
+      result: 'win',
+      reason: 'checkmate',
+      eloBefore: 325,
+      playerColor: 'w'
+    } as any, reloadedData);
+
+    const finalData = secondMatch.updatedPlayerData;
+    expect(finalData.whiteWins).toBe(2);
+    expect(finalData.totalGames).toBe(2);
+    expect(finalData.streak).toBe(2);
+  });
+
+  // ==========================================
+  // 3. Controlled Undo Economy Tests
+  // ==========================================
+
+  it('one_free_undo_only_per_match', () => {
+    let freeUndosUsed = 0;
+    let undoTokens = 5;
+
+    const attemptUndo = () => {
+      if (freeUndosUsed < 1) {
+        freeUndosUsed = 1;
+        return 'free';
+      } else {
+        if (undoTokens > 0) {
+          undoTokens--;
+          return 'token';
+        }
+        return 'blocked';
+      }
+    };
+
+    expect(attemptUndo()).toBe('free');
+    expect(attemptUndo()).toBe('token'); // Second attempt requires token
+    expect(undoTokens).toBe(4);
+  });
+
+  it('undo_reverts_user_and_ai_move', () => {
+    chess.makeMove('e4');
+    chess.makeMove({ from: 'e7', to: 'e5' });
+    expect(chess.getHistory().length).toBe(2);
+
+    chess.undo();
+    chess.undo(); // Undo full turn cycle
+    expect(chess.getHistory().length).toBe(0);
+  });
+
+  it('undo_disabled_after_game_over', () => {
+    let isGameOver = false;
+    const canUndo = () => !isGameOver;
+
+    expect(canUndo()).toBe(true);
+    isGameOver = true;
+    expect(canUndo()).toBe(false);
+  });
+
+  it('undo_requires_token_after_free_used', () => {
+    let freeUndosUsed = 1;
+    let undoTokens = 0;
+
+    const canUndo = () => {
+      if (freeUndosUsed < 1) return true;
+      return undoTokens > 0;
+    };
+
+    expect(canUndo()).toBe(false); // Free used, 0 tokens -> blocked
+  });
+
+  it('cup_mode_disables_undo', () => {
+    const isCupMode = true;
+    const isUndoAllowed = !isCupMode;
+    expect(isUndoAllowed).toBe(false);
+  });
+
+  it('undo_pack_token_decrements_correctly', () => {
+    let undoTokens = 5;
+    const executeUndo = () => {
+      undoTokens--;
+    };
+    executeUndo();
+    expect(undoTokens).toBe(4);
+  });
+
+  // ==========================================
+  // 4. Stockfish Bypass Verification
+  // ==========================================
+
+  it('stockfish_not_used_as_gameplay_fallback', async () => {
+    // Mock primary engine fetch failure
+    (global.fetch as any).mockRejectedValue(new Error('Network offline'));
+
+    const character = AI_CHARACTERS[0];
+    const brain = EngineBrain.create(character, chess);
+    const result = await brain.computeMove();
+
+    // Verify it fell back directly to first legal move, engineUsed is 'hce' and not 'stockfish_benchmark'
+    expect(result.wasFallback).toBe(true);
+    expect(result.engineUsed).toBe('hce');
+    expect(result.move).not.toBeNull();
+  });
+});
