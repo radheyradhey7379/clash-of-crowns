@@ -74,8 +74,17 @@ export class EngineBrain {
     } catch (err) {
       if (err instanceof Error && err.message === 'AbortError') throw err;
       
-      if (import.meta.env.DEV) {
-        console.warn("Primary engine failed, DEV fallback taking first legal move.", err);
+      console.warn("Primary engine failed. Falling back to local Stockfish...", err);
+      try {
+        const fallbackAdapter = new StockfishBenchmarkAdapter();
+        const result = await fallbackAdapter.computeMove(request);
+        fallbackAdapter.dispose();
+        return {
+          ...result,
+          wasFallback: true
+        };
+      } catch (fallbackErr) {
+        console.error("Local Stockfish fallback failed. Playing first legal move as emergency fallback.", fallbackErr);
         const moves = this.chess.getAllLegalMoves();
         if (moves.length === 0) {
           return { move: null, engineUsed: 'hce', thinkTimeMs: 0, searchDepth: 0, evalCp: 0, noiseApplied: 0, wasFallback: true };
@@ -90,8 +99,6 @@ export class EngineBrain {
           wasFallback: true
         };
       }
-      
-      throw err; // Production must not silently fake it.
     }
   }
 
