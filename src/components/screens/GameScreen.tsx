@@ -2613,19 +2613,22 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
             </motion.div>
           )}
           {showUndoPackModal && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-6 pointer-events-auto">
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                onClick={() => setShowUndoPackModal(false)}
-                className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                onClick={() => {
+                  playSound('click');
+                  setShowUndoPackModal(false);
+                }}
+                className="absolute inset-0 bg-black/80 backdrop-blur-sm pointer-events-auto"
               />
               <motion.div
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="relative w-full max-w-sm bg-[#131118]/95 backdrop-blur-xl border border-red-500/30 rounded-3xl p-6 md:p-8 shadow-2xl text-center flex flex-col items-center gap-6"
+                className="relative w-full max-w-sm bg-[#131118]/95 backdrop-blur-xl border border-red-500/30 rounded-3xl p-6 md:p-8 shadow-2xl text-center flex flex-col items-center gap-6 pointer-events-auto"
               >
                 <div className="absolute top-0 left-0 w-full h-1 bg-red-500/50" />
                 <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
@@ -2642,18 +2645,22 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => {
+                      playSound('click');
                       setShowUndoPackModal(false);
-                      onNavigate('Premium');
+                      navigateWithCleanup('Premium');
                     }}
-                    className="w-full py-3 bg-[#d9ad33] hover:bg-[#f5d666] text-black rounded-xl font-bold tracking-widest uppercase text-[10px] transition-colors shadow-lg cursor-pointer"
+                    className="w-full py-3 bg-[#d9ad33] hover:bg-[#f5d666] text-black rounded-xl font-bold tracking-widest uppercase text-[10px] transition-colors shadow-lg cursor-pointer pointer-events-auto"
                   >
                     Go to Shop
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowUndoPackModal(false)}
-                    className="w-full py-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl font-bold tracking-widest uppercase text-[10px] transition-colors cursor-pointer"
+                    onClick={() => {
+                      playSound('click');
+                      setShowUndoPackModal(false);
+                    }}
+                    className="w-full py-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl font-bold tracking-widest uppercase text-[10px] transition-colors cursor-pointer pointer-events-auto"
                   >
                     Close
                   </motion.button>
