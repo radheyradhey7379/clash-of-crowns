@@ -605,7 +605,17 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
 
   useEffect(() => {
     let interval: any;
-    if (gameStarted && !gameOver && (playerColor || localGameConfig)) {
+    if (
+      gameStarted && 
+      !gameOver && 
+      (playerColor || localGameConfig) && 
+      !showUndoPackModal && 
+      !isMenuOpen && 
+      !showDeclareConfirm && 
+      !showResignConfirm && 
+      !showPromotionPopup && 
+      !showResumePrompt
+    ) {
       interval = setInterval(() => {
         if (turn === 'w') {
           setWhiteTime(prev => prev + 1);
@@ -615,7 +625,19 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [turn, gameOver, playerColor, localGameConfig, gameStarted]);
+  }, [
+    turn, 
+    gameOver, 
+    playerColor, 
+    localGameConfig, 
+    gameStarted, 
+    showUndoPackModal, 
+    isMenuOpen, 
+    showDeclareConfirm, 
+    showResignConfirm,
+    showPromotionPopup,
+    showResumePrompt
+  ]);
 
   useEffect(() => {
     if (playerData.viewMode !== '3d' || is3DLoaded) {
@@ -2613,7 +2635,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
             </motion.div>
           )}
           {showUndoPackModal && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center p-6 pointer-events-auto">
+            <div className="absolute inset-0 z-[160] flex items-center justify-center p-6 pointer-events-auto">
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -2622,7 +2644,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                   playSound('click');
                   setShowUndoPackModal(false);
                 }}
-                className="absolute inset-0 bg-black/80 backdrop-blur-sm pointer-events-auto"
+                className="absolute inset-0 bg-black/85 backdrop-blur-sm pointer-events-auto"
               />
               <motion.div
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -2630,13 +2652,25 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
                 className="relative w-full max-w-sm bg-[#131118]/95 backdrop-blur-xl border border-red-500/30 rounded-3xl p-6 md:p-8 shadow-2xl text-center flex flex-col items-center gap-6 pointer-events-auto"
               >
+                {/* Close (Cross) Icon Button */}
+                <button
+                  onClick={() => {
+                    playSound('click');
+                    setShowUndoPackModal(false);
+                  }}
+                  className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-white/5 pointer-events-auto z-50"
+                  title="Close"
+                >
+                  <X size={16} />
+                </button>
+
                 <div className="absolute top-0 left-0 w-full h-1 bg-red-500/50" />
                 <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
                   <AlertTriangle size={24} />
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-white mb-2 font-serif uppercase tracking-wider">Undo Pack Required</h3>
-                  <p className="text-gray-400 text-xs leading-relaxed font-sans">
+                  <p className="text-gray-400 text-xs leading-relaxed font-sans font-medium">
                     You have run out of Undo Tokens. You can buy Undo Packs or purchase Premium to enable unlimited undos!
                   </p>
                 </div>
@@ -2652,17 +2686,6 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                     className="w-full py-3 bg-[#d9ad33] hover:bg-[#f5d666] text-black rounded-xl font-bold tracking-widest uppercase text-[10px] transition-colors shadow-lg cursor-pointer pointer-events-auto"
                   >
                     Go to Shop
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      playSound('click');
-                      setShowUndoPackModal(false);
-                    }}
-                    className="w-full py-3 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl font-bold tracking-widest uppercase text-[10px] transition-colors cursor-pointer pointer-events-auto"
-                  >
-                    Close
                   </motion.button>
                 </div>
               </motion.div>
