@@ -455,6 +455,28 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const gameStartTime = useRef<number | null>((localGameConfig || initialCharId) ? Date.now() : null);
   const gameId = useRef<string>(!localGameConfig ? `ai_${initialCharId}_${playerData.uid}` : `local_${Date.now()}_${playerData.uid}`);
 
+  const isGameInteractionBlocked =
+    !!gameOver ||
+    isMenuOpen ||
+    showUndoPackModal ||
+    showDeclareConfirm ||
+    showResignConfirm ||
+    showPromotionPopup ||
+    showResumePrompt ||
+    showReview ||
+    (isMultiplayer && (drawOfferReceived || drawOfferSent || reconnectTimeLeft !== null));
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showUndoPackModal) {
+        playSound('click');
+        setShowUndoPackModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showUndoPackModal]);
+
   useEffect(() => {
     if (isMultiplayer) return;
     if (!socketRef.current) {
@@ -872,7 +894,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   };
 
   const handleSquareClick = (square: string) => {
-    if (gameOver) return;
+    if (isGameInteractionBlocked) return;
     if (isAIThinking) return;
     if (!isLocalVS && playerColor && turn !== playerColor) return;
 
@@ -1346,7 +1368,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   }, [opponentOnline, isMultiplayer, gameOver]);
 
   useEffect(() => {
-    if (!gameOver && !isLocalVS && playerColor && turn !== playerColor) {
+    if (!gameOver && !isLocalVS && playerColor && turn !== playerColor && !isGameInteractionBlocked) {
       if (isAIThinking) return;
       setIsAIThinking(true);
 
@@ -1397,7 +1419,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
 
       return () => { clearTimeout(timer); brain.cancel(); brain.dispose(); setIsAIThinking(false); };
     }
-  }, [turn, gameOver, activeCharacterId, isLocalVS, playerColor]);
+  }, [turn, gameOver, activeCharacterId, isLocalVS, playerColor, isGameInteractionBlocked]);
 
   const handleResign = () => {
     if (isMultiplayer && multiplayerConfig && user) {
@@ -1768,6 +1790,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={() => {
+                    if (isGameInteractionBlocked) return;
                     playSound('click');
                     navigateWithCleanup('Home');
                   }}
@@ -1783,6 +1806,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={() => {
+                        if (isGameInteractionBlocked) return;
                         playSound('click');
                         setIsMenuOpen(true);
                       }}
@@ -1795,6 +1819,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={() => {
+                        if (isGameInteractionBlocked) return;
                         playSound('click');
                         onUpdatePlayerData({ viewMode: playerData.viewMode === '2d' ? '3d' : '2d' });
                       }}
@@ -1831,6 +1856,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={() => {
+                        if (isGameInteractionBlocked) return;
                         playSound('click');
                         setShowDeclareConfirm(true);
                       }}
@@ -1856,6 +1882,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => {
+                  if (isGameInteractionBlocked) return;
                   playSound('click');
                   setIsCameraLocked(!isCameraLocked);
                 }}
@@ -1875,7 +1902,10 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={handleUndo}
+                onClick={() => {
+                  if (isGameInteractionBlocked) return;
+                  handleUndo();
+                }}
                 className="p-1.5 md:p-2.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg md:rounded-xl text-white/60 hover:text-[#d9ad33] transition-all shadow-2xl"
                 title="Undo Move"
               >

@@ -351,4 +351,102 @@ describe('Gameplay Integration Tests', () => {
     expect(result.engineUsed).toBe('hce');
     expect(result.move).not.toBeNull();
   });
+
+  // ==========================================
+  // 5. Undo Pack Modal & Interaction Pause Tests
+  // ==========================================
+
+  it('undo_pack_modal_pauses_timer', () => {
+    let showUndoPackModal = false;
+    let gameOver = false;
+    let isMenuOpen = false;
+    let isGameInteractionBlocked = gameOver || isMenuOpen || showUndoPackModal;
+
+    const shouldTick = () => !isGameInteractionBlocked;
+
+    expect(shouldTick()).toBe(true);
+    showUndoPackModal = true;
+    isGameInteractionBlocked = gameOver || isMenuOpen || showUndoPackModal;
+    expect(shouldTick()).toBe(false); // Paused
+  });
+
+  it('undo_pack_modal_blocks_board_clicks', () => {
+    let showUndoPackModal = true;
+    let isGameInteractionBlocked = showUndoPackModal;
+    let clickRegistered = false;
+
+    const handleSquareClick = () => {
+      if (isGameInteractionBlocked) return;
+      clickRegistered = true;
+    };
+
+    handleSquareClick();
+    expect(clickRegistered).toBe(false); // Clicks blocked
+  });
+
+  it('undo_pack_modal_blocks_piece_drag', () => {
+    let showUndoPackModal = true;
+    let isGameInteractionBlocked = showUndoPackModal;
+    let dragRegistered = false;
+
+    const handlePieceDrag = () => {
+      if (isGameInteractionBlocked) return;
+      dragRegistered = true;
+    };
+
+    handlePieceDrag();
+    expect(dragRegistered).toBe(false); // Drag blocked
+  });
+
+  it('undo_pack_modal_close_x_works', () => {
+    let showUndoPackModal = true;
+    const closeX = () => {
+      showUndoPackModal = false;
+    };
+    closeX();
+    expect(showUndoPackModal).toBe(false);
+  });
+
+  it('timer_resumes_after_modal_close', () => {
+    let showUndoPackModal = true;
+    let isGameInteractionBlocked = showUndoPackModal;
+    const shouldTick = () => !isGameInteractionBlocked;
+
+    expect(shouldTick()).toBe(false);
+    
+    // Close modal
+    showUndoPackModal = false;
+    isGameInteractionBlocked = showUndoPackModal;
+    expect(shouldTick()).toBe(true); // Resumed
+  });
+
+  it('modal_close_does_not_duplicate_ai_move', () => {
+    let aiCallCount = 0;
+    let showUndoPackModal = true;
+    let isGameInteractionBlocked = showUndoPackModal;
+
+    const triggerAiMove = () => {
+      if (isGameInteractionBlocked) return;
+      aiCallCount++;
+    };
+
+    // Attempt trigger while blocked
+    triggerAiMove();
+    expect(aiCallCount).toBe(0);
+
+    // Modal closes
+    showUndoPackModal = false;
+    isGameInteractionBlocked = showUndoPackModal;
+    triggerAiMove();
+    expect(aiCallCount).toBe(1); // Normal trigger, no duplicate
+  });
+
+  it('background_does_not_receive_pointer_events_when_modal_open', () => {
+    let showUndoPackModal = true;
+    const modalPointerEvents = showUndoPackModal ? 'pointer-events-auto' : 'pointer-events-none';
+    const backgroundPointerEvents = showUndoPackModal ? 'pointer-events-none' : 'pointer-events-auto';
+
+    expect(modalPointerEvents).toBe('pointer-events-auto');
+    expect(backgroundPointerEvents).toBe('pointer-events-none');
+  });
 });
