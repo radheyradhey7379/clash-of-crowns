@@ -387,6 +387,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const [is3DLoaded, setIs3DLoaded] = useState(false);
   const [show3DTimeoutPrompt, setShow3DTimeoutPrompt] = useState(false);
   const [latencyText, setLatencyText] = useState<string>('Ping...');
+  const [showNetworkWarning, setShowNetworkWarning] = useState(true);
   const [latencyColorClass, setLatencyColorClass] = useState<string>('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
   const lastPongReceivedTime = useRef<number>(Date.now());
   const [lastMoveLatency, setLastMoveLatency] = useState<number | null>(null);
@@ -424,6 +425,15 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       }
     }
   }, [loadingProgress, is3DLoaded, playerData.viewMode]);
+
+  // Hide the network warning banner after 2 seconds to avoid match distraction
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowNetworkWarning(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const [pendingPromotion, setPendingPromotion] = useState<{ from: string; to: string } | null>(null);
   const [showPromotionPopup, setShowPromotionPopup] = useState(false);
   const [isCameraLocked, setIsCameraLocked] = useState(false);
@@ -1660,7 +1670,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
           message={loadingProgress >= 50 && aiCharacter ? `"${aiCharacter.introLine || 'Prepare your move.'}"` : loadingMessage} 
         />
       )}
-      {latencyText === 'Ping...' && (
+      {latencyText === 'Ping...' && isGameLoading && showNetworkWarning && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] bg-yellow-500/90 text-black font-sans font-semibold text-[9px] md:text-xs px-4 py-2 rounded-full flex items-center gap-2 shadow-lg animate-pulse pointer-events-auto">
           <span>⚠️ Your network connection is low. Please wait...</span>
         </div>
@@ -2144,28 +2154,13 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                 )}
 
                 {/* Rewards Indicator */}
-                {matchRewards && !isLocalVS && (
+                {matchRewards && !isLocalVS && (matchRewards.badge || matchRewards.tierUnlocked || matchRewards.cupCompleted) && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.55 }}
                     className="mb-4 flex flex-col items-center justify-center gap-2 text-[10px] font-bold tracking-widest uppercase text-white/80"
                   >
-                    <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
-                      {matchRewards.coins > 0 && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-[#d9ad33]">🪙</span>
-                          <span>+{matchRewards.coins} Coins</span>
-                        </div>
-                      )}
-                      {matchRewards.xp > 0 && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-[#a855f7]">⭐</span>
-                          <span>+{matchRewards.xp} XP</span>
-                        </div>
-                      )}
-                    </div>
-                    
                     {matchRewards.badge && (
                       <div className="text-cyan-400 text-[9px] bg-cyan-950/40 border border-cyan-500/30 px-3 py-1 rounded-full animate-pulse mt-1">
                         🏆 Badge: {matchRewards.badge}
