@@ -64,6 +64,15 @@ fn clean_fen(fen: &str) -> String {
 pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
     let start_time = Instant::now();
     let legals = pos.legal_moves();
+    if legals.is_empty() {
+        return SearchResult {
+            best_move: None,
+            eval: 0,
+            nodes: 0,
+            depth: 0,
+            noise_applied: 0,
+        };
+    }
     let mut best_move: Option<Move> = legals.first().cloned();
     let mut best_eval = 0;
     let mut nodes = 0;
@@ -88,44 +97,106 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
 
     let initial_extension_budget = 3;
 
-    for depth in 1..=options.max_depth {
-        let (eval, m, n) = negamax(
-            &mut current_pos,
-            depth,
-            -i32::MAX + 1,
-            i32::MAX - 1,
-            start_time,
-            options,
-            &hce_evaluator,
-            0,
-            initial_extension_budget,
-        );
-        nodes += n;
+    if options.error_noise_cp > 0 {
+        // Evaluated search with noise at the root level!
+        let mut moves_evals: Vec<(Move, i32)> = Vec::new();
+        for m in &legals {
+            let mut child_pos = current_pos.clone();
+            child_pos.play_unchecked(m);
+            let (score, _, n) = negamax(
+                &mut child_pos,
+                options.max_depth.saturating_sub(1),
+                -i32::MAX + 1,
+                i32::MAX - 1,
+                start_time,
+                options,
+                &hce_evaluator,
+                1,
+                initial_extension_budget,
+            );
+            nodes += n;
+            
+            // Negamax returns the score from child's perspective, so negate it
+            let mut eval = -score;
 
-        if start_time.elapsed() >= options.max_time {
-            // If we timed out, keep the previous best_move unless m is Some
+            // Apply low-tier bot repetition penalties
+            let bot_id = options.bot_profile_id.to_lowercase();
+            let is_low_tier = bot_id.starts_with("core_")
+                || bot_id.starts_with("beginner_")
+                || bot_id.starts_with("learner_")
+                || bot_id.contains("core")
+                || bot_id.contains("beginner")
+                || bot_id.contains("learner");
+            if is_low_tier {
+                let m_uci = m.to_uci(CastlingMode::Standard).to_string();
+                let len = options.recent_moves.len();
+                if len >= 2 {
+                    let prev_move = &options.recent_moves[len - 2];
+                    if is_reversing(&m_uci, prev_move) {
+                        eval -= 1000;
+                    }
+                }
+                let prev_move = if len >= 2 { &options.recent_moves[len - 2] } else { "" };
+                let prev_prev_move = if len >= 4 { &options.recent_moves[len - 4] } else { "" };
+                if is_same_piece(&m_uci, prev_move, prev_prev_move) {
+                    eval -= 500;
+                }
+                if options.recent_fens.len() >= 2 {
+                    let clean_curr = clean_fen(&Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string());
+                    for past_fen in &options.recent_fens {
+                        if clean_fen(past_fen) == clean_curr {
+                            eval -= 1000;
+                        }
+                    }
+                }
+            }
+
+            // Add noise
+            let noise = (rand::random::<f32>() * (options.error_noise_cp as f32) * 2.0)
+                - (options.error_noise_cp as f32);
+            let noisy_eval = eval + noise as i32;
+            moves_evals.push((m.clone(), noisy_eval));
+        }
+
+        // Sort moves by noisy evaluation descending
+        moves_evals.sort_by_key(|(_, eval)| -*eval);
+        if let Some((m, eval)) = moves_evals.first() {
+            best_move = Some(m.clone());
+            best_eval = *eval;
+        }
+    } else {
+        // Normal search (Iterative deepening)
+        for depth in 1..=options.max_depth {
+            let (eval, m, n) = negamax(
+                &mut current_pos,
+                depth,
+                -i32::MAX + 1,
+                i32::MAX - 1,
+                start_time,
+                options,
+                &hce_evaluator,
+                0,
+                initial_extension_budget,
+            );
+            nodes += n;
+
+            if start_time.elapsed() >= options.max_time {
+                if let Some(valid_move) = m {
+                    best_move = Some(valid_move);
+                    best_eval = eval;
+                }
+                break;
+            }
+
             if let Some(valid_move) = m {
                 best_move = Some(valid_move);
                 best_eval = eval;
             }
-            break;
-        }
 
-        if let Some(valid_move) = m {
-            best_move = Some(valid_move);
-            best_eval = eval;
+            if eval.abs() > 10000 {
+                break; // Mate found
+            }
         }
-
-        if eval.abs() > 10000 {
-            break; // Mate found
-        }
-    }
-
-    let mut noise_applied = 0;
-    if options.error_noise_cp > 0 {
-        let _noise = (rand::random::<f32>() * (options.error_noise_cp as f32) * 2.0)
-            - (options.error_noise_cp as f32);
-        noise_applied = options.error_noise_cp;
     }
 
     SearchResult {
@@ -133,7 +204,7 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
         eval: best_eval,
         nodes,
         depth: options.max_depth,
-        noise_applied,
+        noise_applied: options.error_noise_cp,
     }
 }
 
@@ -177,6 +248,7 @@ fn negamax(
             options.max_time,
             &options.engine_type,
             hce_evaluator,
+            &options.bot_profile_id,
             &mut qs_nodes,
         );
         return (score, None, qs_nodes);
@@ -258,46 +330,15 @@ fn negamax(
                 } else {
                     ""
                 };
-                if (prev_move != "" || prev_prev_move != "")
-                    && is_same_piece(&m_uci, prev_move, prev_prev_move)
-                {
-                    // Check if other legal moves exist that move different pieces
-                    let other_pieces_can_move = legals.iter().any(|leg_move| {
-                        let leg_uci = leg_move.to_uci(CastlingMode::Standard).to_string();
-                        !is_same_piece(&leg_uci, prev_move, prev_prev_move)
-                    });
-                    if other_pieces_can_move {
-                        eval -= 500;
-                    }
+                if is_same_piece(&m_uci, prev_move, prev_prev_move) {
+                    eval -= 500;
                 }
 
-                // Rule 3: Penalize repeating a recent board state
-                if !options.recent_fens.is_empty() {
-                    let child_fen =
-                        Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string();
-                    let clean_child = clean_fen(&child_fen);
-                    let is_repetition = options
-                        .recent_fens
-                        .iter()
-                        .rev()
-                        .take(8)
-                        .any(|hist_fen| clean_fen(hist_fen) == clean_child);
-                    if is_repetition {
-                        // Check if there is another move that doesn't repeat
-                        let has_non_repeating_move = legals.iter().any(|leg_move| {
-                            let mut temp_pos = pos.clone();
-                            temp_pos.play_unchecked(leg_move);
-                            let temp_fen =
-                                Fen::from_position(temp_pos, EnPassantMode::Legal).to_string();
-                            let clean_temp = clean_fen(&temp_fen);
-                            !options
-                                .recent_fens
-                                .iter()
-                                .rev()
-                                .take(8)
-                                .any(|hist_fen| clean_fen(hist_fen) == clean_temp)
-                        });
-                        if has_non_repeating_move {
+                // Rule 3: Penalize repeating a board state that occurred recently
+                if options.recent_fens.len() >= 2 {
+                    let clean_curr = clean_fen(&Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string());
+                    for past_fen in &options.recent_fens {
+                        if clean_fen(past_fen) == clean_curr {
                             eval -= 1000;
                         }
                     }
@@ -315,7 +356,7 @@ fn negamax(
         }
 
         if alpha >= beta {
-            break; // Beta cutoff
+            break; // Beta cut-off
         }
     }
 

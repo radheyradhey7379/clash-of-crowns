@@ -28,7 +28,7 @@ export function buildCompLeaderboardEntry(uid: string, playerData: PlayerData): 
     updatedAt: Date.now(),
     compStats: {
       compElo: playerData.aiProgress?.elo ?? 1200,
-      compTier: playerData.aiProgress?.tier || 'core',
+      compTier: playerData.aiProgress?.tier || 'beginner',
       compWins,
       compMatches: compWins + compLosses + compDraws,
       compWinStreak: playerData.streak || 0,

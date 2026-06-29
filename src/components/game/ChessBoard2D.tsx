@@ -90,19 +90,15 @@ export default function ChessBoard2D({
 
                 {/* Piece */}
                 {piece && (
-                  <motion.div
-                    key={`${square}-${turn}`}
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.5, opacity: 0 }}
-                    transition={{ duration: 0.3 }}
+                  <div
+                    key={`${square}-${piece.color}-${piece.type}`}
                     className={cn(
                       "w-full h-full z-10 flex items-center justify-center text-2xl xs:text-3xl sm:text-4xl md:text-5xl select-none",
                       piece.color === 'w' ? "text-white [text-shadow:0_0_2px_black,0_0_2px_black,0_0_2px_black]" : "text-black"
                     )}
                   >
                     {PIECE_UNICODE[piece.color + piece.type]}
-                  </motion.div>
+                  </div>
                 )}
               </div>
             );

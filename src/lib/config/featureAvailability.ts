@@ -189,7 +189,7 @@ export function getFeatureUnavailableReason(featureKey: DisabledFeatureKey, conf
 
   if (nodeH === 'unknown' || rustH === 'unknown') {
     if (elapsed > 10000) {
-      return "Waking server...";
+      return "Checking connection...";
     }
   }
 

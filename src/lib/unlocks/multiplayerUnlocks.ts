@@ -69,7 +69,7 @@ export function getUnlockReason(
       return "Backend unavailable. Retry.";
     }
     if (nodeH === 'unknown' || rustH === 'unknown') {
-      return "Waking server...";
+      return "Checking connection...";
     }
 
     // 3. Auth requirement

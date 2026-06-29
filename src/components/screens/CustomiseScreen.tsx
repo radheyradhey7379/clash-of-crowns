@@ -9,8 +9,9 @@ import { OrbitControls, PerspectiveCamera, Environment, ContactShadows, Html } f
 import { AppScreen, PlayerData } from '../../types';
 import { playSound } from '../../lib/sounds';
 import { cn } from '../../lib/utils';
+import { useTranslation } from '../../lib/translations';
 const ChessBoard3D = lazy(() => import('../game/ChessBoard3D'));
-import { Chess } from 'chess.js';
+import { ChessLogic } from '../../lib/chess-logic';
 
 interface CustomiseScreenProps {
   onNavigate: (screen: AppScreen) => void;
@@ -19,6 +20,7 @@ interface CustomiseScreenProps {
 }
 
 export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayerData }: CustomiseScreenProps) {
+  const t = useTranslation(playerData.language || 'en');
   const [activeTab, setActiveTab] = useState<'free' | 'premium'>('free');
   const [pendingData, setPendingData] = useState({
     selectedPieceSet: playerData.selectedPieceSet,
@@ -73,8 +75,8 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
   };
 
   // Dummy chess state for preview
-  const previewChess = useMemo(() => new Chess(), []);
-  const previewBoard = useMemo(() => previewChess.board(), [previewChess]);
+  const previewChess = useMemo(() => new ChessLogic(), []);
+  const previewBoard = useMemo(() => previewChess.getBoard(), [previewChess]);
 
   return (
     <div className="screen-root w-full h-full bg-[#000] flex flex-col relative overflow-hidden">
@@ -107,7 +109,7 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
             <ChevronLeft size={28} />
           </motion.button>
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-white font-serif tracking-[0.2em] uppercase">Customise</h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-white font-serif tracking-[0.2em] uppercase">{t.customise || 'Customise'}</h1>
             <p className="text-[#8c7a52] text-xs tracking-[0.3em] uppercase mt-1">Personalise your battlefield</p>
           </div>
         </div>

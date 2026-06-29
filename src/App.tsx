@@ -23,6 +23,7 @@ import ForceUpdateScreen from './components/screens/ForceUpdateScreen';
 import MaintenanceScreen from './components/screens/MaintenanceScreen';
 import SoftUpdateNotice from './components/ui/SoftUpdateNotice';
 import { useVersionGate } from './lib/version/useVersionGate';
+import { isCharacterUnlocked } from './game/ai/progressionEngine';
 import { setNodeHealth, setRustHealth } from './lib/config/featureAvailability';
 import { getApiUrl } from './services/apiClient';
 
@@ -311,6 +312,13 @@ export default function App() {
       setMultiplayerConfig(null);
       setViewingProfileUid(null);
     } else if (newScreen === 'Game') {
+      if (characterId) {
+        const isUnlocked = isCharacterUnlocked(characterId, playerData.aiProgress);
+        if (!isUnlocked) {
+          console.warn(`Direct route guard blocked navigation to locked character: ${characterId}`);
+          return;
+        }
+      }
       setSelectedCharacterId(characterId);
       setLocalGameConfig(localConfig);
       setMultiplayerConfig(multiConfig);
@@ -375,6 +383,9 @@ export default function App() {
       streak: playerData.streak,
       bestStreak: playerData.bestStreak,
       photoURL: playerData.photoURL || auth.currentUser.photoURL || "",
+      selectedPieceSet: playerData.selectedPieceSet,
+      boardTheme: playerData.boardTheme,
+      homeAnimation: playerData.homeAnimation,
       lastActive: new Date().toISOString()
     };
     
@@ -390,6 +401,9 @@ export default function App() {
     playerData.losses,
     playerData.draws,
     playerData.photoURL, 
+    playerData.selectedPieceSet,
+    playerData.boardTheme,
+    playerData.homeAnimation,
     isAuthReady,
     isDataSynced,
     isOnlineState,
@@ -544,22 +558,7 @@ export default function App() {
             <SoftUpdateNotice config={versionConfig} onDismiss={dismissSoftUpdate} />
           )}
 
-          {/* Performance Alert Notification */}
-          <AnimatePresence>
-            {performanceAlert && (
-              <motion.div
-                initial={{ opacity: 0, y: 50 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 50 }}
-                className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] bg-red-900/80 border border-red-500 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2 "
-              >
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                <span className="text-[10px] uppercase tracking-widest text-red-200 font-bold">
-                  High Latency: {rtt}ms
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+
         </motion.div>
       </AnimatePresence>
 

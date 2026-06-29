@@ -9,14 +9,12 @@ export function isCharacterUnlocked(characterId: string, progress: AIProgress): 
   if (!char) return false;
 
   const TIER_ORDER: Record<string, number> = {
-    'core': 1,
-    'beginner': 2,
-    'learner': 3,
-    'promotion_trial': 4,
-    'intermediate': 5,
-    'hard': 6,
-    'master': 7,
-    'grandmaster': 8
+    'beginner': 1,
+    'learner': 2,
+    'intermediate': 3,
+    'hard': 4,
+    'master': 5,
+    'grandmaster': 6
   };
 
   const charTierVal = TIER_ORDER[char.tier] || 0;
@@ -30,12 +28,12 @@ export function isCharacterUnlocked(characterId: string, progress: AIProgress): 
   // If the character is in the current tier, we check if its level is less than or equal to the player's current level.
   if (charTierVal === progressTierVal) {
     if (char.tier === 'master') {
-      const targetLevel = (progress.masterCup.currentCup - 1) * 4 + progress.masterCup.currentMatch;
+      const targetLevel = (progress.masterCup.currentCup - 1) * 3 + progress.masterCup.currentMatch;
       return char.level <= targetLevel;
     }
     if (char.tier === 'grandmaster') {
       if (char.level === 1) return true;
-      if (char.level === 2) return progress.grandmaster.bossDefeated;
+      return progress.grandmaster.bossDefeated;
     }
     return char.level <= progress.level;
   }
@@ -73,12 +71,9 @@ export function getGameResultCTA(
   }
 
   const nextChar = AI_CHARACTERS[idx + 1];
-  // If the next character is unlocked, it is the next challenge!
   if (isCharacterUnlocked(nextChar.id, progress)) {
-    const char = AI_CHARACTERS.find(c => c.id === characterId);
-    const isNewTier = char && nextChar.tier !== char.tier;
     return {
-      label: isNewTier ? 'NEXT CHALLENGE' : 'NEXT LEVEL',
+      label: 'NEXT LEVEL',
       nextCharacterId: nextChar.id
     };
   }
@@ -94,11 +89,10 @@ export function isCharacterCurrent(characterId: string, progress: AIProgress): b
   if (!char) return false;
 
   if (char.tier === 'master' && progress.tier === 'master') {
-    return char.cup === progress.masterCup.currentCup && char.level === ((char.cup - 1) * 4 + progress.masterCup.currentMatch);
+    return char.cup === progress.masterCup.currentCup && char.level === ((char.cup - 1) * 3 + progress.masterCup.currentMatch);
   }
 
   if (char.tier === 'grandmaster' && progress.tier === 'grandmaster') {
-    // Current is Boss if undefeated, else there is no strictly "current" one as it's mode-based
     return char.level === 1 && !progress.grandmaster.bossDefeated;
   }
 
@@ -121,21 +115,6 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
   }
 
   switch (next.tier) {
-    case 'core': {
-      if (won) {
-        next.elo += 20;
-        next.level += 1;
-        if (next.level > 5) {
-          next.tier = 'beginner';
-          next.level = 1;
-          if (!next.unlockedTiers.includes('beginner')) {
-            next.unlockedTiers.push('beginner');
-          }
-        }
-      }
-      break;
-    }
-
     case 'beginner': {
       if (won) {
         next.elo += 25;
@@ -157,41 +136,24 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
         next.level += 1;
         next.consecutiveLosses = 0;
         if (next.level > 5) {
-          next.tier = 'promotion_trial';
-          next.level = 1;
-          next.promotionTrial.unlocked = true;
-          if (!next.unlockedTiers.includes('promotion_trial')) {
-            next.unlockedTiers.push('promotion_trial');
-          }
-        }
-      } else {
-        next.elo = Math.max(0, next.elo - 5);
-        next.consecutiveLosses += 1;
-        if (next.consecutiveLosses >= 2) {
-          next.level = Math.max(1, next.level - 1);
-          next.consecutiveLosses = 0;
-        }
-      }
-      break;
-    }
-
-    case 'promotion_trial': {
-      if (won) {
-        next.elo += 30;
-        next.level += 1;
-        next.consecutiveLosses = 0;
-        if (next.level > 5) {
           next.tier = 'intermediate';
           next.level = 1;
-          next.promotionTrial.completed = true;
           if (!next.unlockedTiers.includes('intermediate')) {
             next.unlockedTiers.push('intermediate');
           }
         }
       } else {
-        // Lose -> retry same trial character (level stays same)
-        next.elo = Math.max(0, next.elo - 0); // No ELO loss
-        next.consecutiveLosses = 0;
+        next.elo = Math.max(300, next.elo - 5);
+        next.consecutiveLosses += 1;
+        if (next.consecutiveLosses >= 3) {
+          if (next.level === 1) {
+            next.tier = 'beginner';
+            next.level = 5;
+          } else {
+            next.level = Math.max(1, next.level - 1);
+          }
+          next.consecutiveLosses = 0;
+        }
       }
       break;
     }
@@ -210,10 +172,15 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           }
         }
       } else {
-        next.elo = Math.max(0, next.elo - 10);
+        next.elo = Math.max(300, next.elo - 10);
         next.consecutiveLosses += 1;
         if (next.consecutiveLosses >= 2) {
-          next.level = Math.max(1, next.level - 1);
+          if (next.level === 1) {
+            next.tier = 'learner';
+            next.level = 5;
+          } else {
+            next.level = Math.max(1, next.level - 1);
+          }
           next.consecutiveLosses = 0;
         }
       }
@@ -236,14 +203,13 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           }
         }
       } else {
-        next.elo = Math.max(0, next.elo - 20);
+        next.elo = Math.max(300, next.elo - 20);
         if (next.level === 1) {
-          // Hard Level 1 loss locks Hard tier
-          next.hard.locked = true;
           next.tier = 'intermediate';
-          next.level = 8; // Drop to Intermediate Level 8
+          next.level = 8;
+          next.hard.locked = true;
         } else {
-          next.level -= 1; // Drop one level
+          next.level -= 1;
         }
       }
       break;
@@ -255,15 +221,15 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
         next.elo += 40;
         cup.winsInCup += 1;
       } else {
-        next.elo = Math.max(0, next.elo - 15);
+        next.elo = Math.max(300, next.elo - 15);
         cup.lossesInCup += 1;
       }
 
       cup.currentMatch += 1;
 
-      if (cup.currentMatch > 4) {
-        // Cup series complete!
-        if (cup.winsInCup >= 3) {
+      if (cup.currentMatch > 3) {
+        // Cup series complete! Determine outcome based on round robin result (cupCleared)
+        if (result.cupCleared) {
           // Cup cleared!
           if (!cup.completedCups.includes(cup.currentCup)) {
             cup.completedCups.push(cup.currentCup);
@@ -283,7 +249,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
               cup.currentMatch = 1;
               cup.winsInCup = 0;
               cup.lossesInCup = 0;
-              next.level = 9; // Reset to Cup 3 Match 1
+              next.level = 7; // Reset to Cup 3 Match 1
             }
           } else {
             // Move to next Cup
@@ -291,18 +257,18 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
             cup.currentMatch = 1;
             cup.winsInCup = 0;
             cup.lossesInCup = 0;
-            next.level = (cup.currentCup - 1) * 4 + 1;
+            next.level = (cup.currentCup - 1) * 3 + 1;
           }
         } else {
           // Cup failed! Retry same Cup
           cup.currentMatch = 1;
           cup.winsInCup = 0;
           cup.lossesInCup = 0;
-          next.level = (cup.currentCup - 1) * 4 + 1;
+          next.level = (cup.currentCup - 1) * 3 + 1;
         }
       } else {
         // Cup not yet complete, advance match
-        next.level = (cup.currentCup - 1) * 4 + cup.currentMatch;
+        next.level = (cup.currentCup - 1) * 3 + cup.currentMatch;
       }
       break;
     }
@@ -316,7 +282,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           next.elo += 50;
         } else {
           gm.bossSeriesLosses += 1;
-          next.elo = Math.max(0, next.elo - 25);
+          next.elo = Math.max(300, next.elo - 25);
         }
 
         if (gm.bossSeriesWins === 2) {
@@ -335,7 +301,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           next.elo += 50;
           gm.seasonPoints += 10;
         } else {
-          next.elo = Math.max(0, next.elo - 25);
+          next.elo = Math.max(300, next.elo - 25);
         }
       }
       break;
@@ -353,7 +319,7 @@ export function getCurrentPlayableCharacterId(progress: AIProgress): string {
   if (currentTier === 'master') {
     const cup = progress.masterCup.currentCup;
     const match = progress.masterCup.currentMatch;
-    const targetLevel = (cup - 1) * 4 + match;
+    const targetLevel = (cup - 1) * 3 + match;
     const targetChar = AI_CHARACTERS.find(c => c.tier === 'master' && c.level === targetLevel);
     return targetChar?.id || 'master_1_1';
   }
@@ -366,7 +332,7 @@ export function getCurrentPlayableCharacterId(progress: AIProgress): string {
   }
 
   const targetChar = AI_CHARACTERS.find(c => c.tier === currentTier && c.level === progress.level);
-  return targetChar?.id || 'core_1';
+  return targetChar?.id || 'beginner_1';
 }
 
 /**

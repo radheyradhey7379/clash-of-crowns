@@ -17,7 +17,7 @@ export function getEloChangeOnWin(tier: AITier): number {
 }
 
 export function getEloChangeOnLoss(tier: AITier): number {
-  if (tier === 'core' || tier === 'beginner') return 0;
+  if (tier === 'beginner') return 0;
   if (tier === 'grandmaster') return -25;
   if (tier === 'hard') return -20;
   return -15;

@@ -67,16 +67,133 @@ export default function ChessBoard3D({
   }, []);
 
   // Determine if we should flip the board view (swap sides)
-  // In Local VS, we flip based on current turn so active player is always at the bottom
-  // In AI mode, we flip if player is black
   const shouldFlip = isLocalVS ? (turn === 'b') : (playerColor === 'b');
 
-  // Animation key: only include turn for local VS to trigger piece swap animation
-  const getPieceKey = (piece: any, square: string) => {
-    if (isLocalVS) {
-      return `${piece.type}-${piece.color}-${square}-${turn}`;
+  interface ActivePiece {
+    id: string;
+    type: 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
+    color: 'w' | 'b';
+    square: string;
+  }
+
+  const [activePieces, setActivePieces] = React.useState<ActivePiece[]>([]);
+
+  const initializePieces = (boardArray: any[][]) => {
+    const counts: { [key: string]: number } = {};
+    const pieces: ActivePiece[] = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const cell = boardArray[r][c];
+        if (cell) {
+          const squareName = String.fromCharCode(97 + c) + (8 - r);
+          const key = `${cell.color}-${cell.type}`;
+          counts[key] = (counts[key] || 0) + 1;
+          pieces.push({
+            id: `${key}-${counts[key]}`,
+            type: cell.type,
+            color: cell.color,
+            square: squareName
+          });
+        }
+      }
     }
-    return `${piece.type}-${piece.color}-${square}`;
+    return pieces;
+  };
+
+  useEffect(() => {
+    const newOccupied: { square: string; type: string; color: string }[] = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const cell = board[r][c];
+        if (cell) {
+          newOccupied.push({
+            square: String.fromCharCode(97 + c) + (8 - r),
+            type: cell.type,
+            color: cell.color
+          });
+        }
+      }
+    }
+
+    const historyLength = chess?.getHistory ? chess.getHistory().length : 0;
+    if (activePieces.length === 0 || historyLength === 0) {
+      const initial = initializePieces(board);
+      setActivePieces(initial);
+      return;
+    }
+
+    const updatedPieces: ActivePiece[] = [];
+    const availablePieces = [...activePieces];
+
+    // First pass: Match exact square + type + color
+    const unmatchedOccupied: typeof newOccupied = [];
+    for (const item of newOccupied) {
+      const idx = availablePieces.findIndex(p => p.square === item.square && p.type === item.type && p.color === item.color);
+      if (idx !== -1) {
+        updatedPieces.push(availablePieces[idx]);
+        availablePieces.splice(idx, 1);
+      } else {
+        unmatchedOccupied.push(item);
+      }
+    }
+
+    // Second pass: Match moves
+    const finalUnmatchedOccupied: typeof unmatchedOccupied = [];
+    for (const item of unmatchedOccupied) {
+      let idx = availablePieces.findIndex(p => p.type === item.type && p.color === item.color);
+      
+      if (idx === -1 && item.type !== 'p') {
+        idx = availablePieces.findIndex(p => p.type === 'p' && p.color === item.color);
+      }
+
+      if (idx !== -1) {
+        const piece = availablePieces[idx];
+        updatedPieces.push({
+          ...piece,
+          type: item.type as any,
+          square: item.square
+        });
+        availablePieces.splice(idx, 1);
+      } else {
+        finalUnmatchedOccupied.push(item);
+      }
+    }
+
+    // Fallback pass: create new pieces if mismatch
+    if (finalUnmatchedOccupied.length > 0) {
+      const counts: { [key: string]: number } = {};
+      for (const p of activePieces) {
+        const prefix = p.id.split('-').slice(0, 2).join('-');
+        const idx = parseInt(p.id.split('-')[2], 10);
+        counts[prefix] = Math.max(counts[prefix] || 0, idx);
+      }
+
+      for (const item of finalUnmatchedOccupied) {
+        const key = `${item.color}-${item.type}`;
+        counts[key] = (counts[key] || 0) + 1;
+        updatedPieces.push({
+          id: `${key}-${counts[key]}`,
+          type: item.type as any,
+          color: item.color as any,
+          square: item.square
+        });
+      }
+    }
+
+    updatedPieces.sort((a, b) => a.id.localeCompare(b.id));
+    setActivePieces(updatedPieces);
+  }, [board]);
+
+  const getPiece3DPosition = (squareName: string): [number, number, number] => {
+    const c = squareName.charCodeAt(0) - 97;
+    const r = parseInt(squareName[1], 10) - 1;
+    const displayC = shouldFlip ? 7 - c : c;
+    const displayR = shouldFlip ? 7 - r : r;
+    return [
+      -(displayC - 3.5) * squareSize,
+      0.12,
+      (displayR - 3.5) * squareSize
+    ];
   };
 
   // Theme Colors
@@ -182,21 +299,23 @@ export default function ChessBoard3D({
                 </mesh>
               ) : null}
 
-              {/* Pieces */}
-              {piece && (
-                <Piece 
-                  key={getPieceKey(piece, squareName)}
-                  type={piece.type} 
-                  color={piece.color} 
-                  position={DEFAULT_PIECE_POSITION} 
-                  pieceSet={selectedPieceSet}
-                  lowGraphics={lowGraphics}
-                  isAIThinking={isAIThinking}
-                />
-              )}
             </group>
           );
         })
+      ))}
+
+      {/* Active Pieces (flat list for smooth, flicker-free movement lerping) */}
+      {activePieces.map((p) => (
+        <Piece 
+          key={p.id}
+          type={p.type} 
+          color={p.color} 
+          position={getPiece3DPosition(p.square)} 
+          pieceSet={selectedPieceSet}
+          lowGraphics={lowGraphics}
+          isAIThinking={isAIThinking}
+          onPointerDown={() => handlePointerDown(p.square, p)}
+        />
       ))}
 
       {/* Labels */}
@@ -250,10 +369,21 @@ export default function ChessBoard3D({
 
 const DEFAULT_PIECE_POSITION: [number, number, number] = [0, 0.03, 0];
 
-const Piece = React.memo(function Piece({ type, color, position, pieceSet, scale = 1, lowGraphics, isAIThinking }: any) {
+const Piece = React.memo(function Piece({ type, color, position, pieceSet, scale = 1, lowGraphics, isAIThinking, onPointerDown }: any) {
   const isWhite = color === 'w';
   const groupRef = useRef<THREE.Group>(null);
   const appearanceScaleRef = useRef(lowGraphics ? 1 : 0);
+  
+  const targetPos = useRef<THREE.Vector3>(new THREE.Vector3(position[0], position[1], position[2]));
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    targetPos.current.set(position[0], position[1], position[2]);
+    if (isFirstRender.current && groupRef.current) {
+      groupRef.current.position.copy(targetPos.current);
+      isFirstRender.current = false;
+    }
+  }, [position]);
 
   // Colors based on set
   let col = isWhite ? "#ffffff" : "#2a2a2a";
@@ -298,8 +428,11 @@ const Piece = React.memo(function Piece({ type, color, position, pieceSet, scale
       break;
   }
   
-  // Appearance animation
+  // Appearance & Lerp animation
   useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.position.lerp(targetPos.current, Math.min(1, delta * 12));
+    }
     if (lowGraphics || isAIThinking) return; // Skip useFrame animations to save cycles!
     if (appearanceScaleRef.current < 1) {
       appearanceScaleRef.current = Math.min(1, appearanceScaleRef.current + delta * 3);
@@ -315,7 +448,7 @@ const Piece = React.memo(function Piece({ type, color, position, pieceSet, scale
       groupRef.current.scale.setScalar(scale * pieceScale);
     }
   }, [lowGraphics, scale, pieceScale]);
-  
+
   const material = (
     <meshStandardMaterial 
       color={col} 
@@ -339,7 +472,7 @@ const Piece = React.memo(function Piece({ type, color, position, pieceSet, scale
   };
 
   return (
-    <group ref={groupRef} position={position}>
+    <group ref={groupRef} position={position} onPointerDown={(e) => { e.stopPropagation(); if (onPointerDown) onPointerDown(); }}>
       <group position={[0, 0.1, 0]} scale={[0.22, 0.22, 0.22]}>
         {renderPiece()}
       </group>

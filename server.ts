@@ -135,10 +135,10 @@ async function startServer() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://checkout.stripe.com", "https://*.google.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://checkout.stripe.com", "https://*.google.com", "https://*.firebaseapp.com", "https://*.web.app"],
         connectSrc: ["'self'", "*", "wss://*.run.app", "wss://*.google.com", "https://*.stripe.com"],
-        frameAncestors: ["'self'", "https://aistudio.google.com", "https://*.google.com", "https://*.run.app"],
-        frameSrc: ["'self'", "https://checkout.stripe.com", "https://*.google.com"],
+        frameAncestors: ["'self'", "https://aistudio.google.com", "https://*.google.com", "https://*.run.app", "https://*.firebaseapp.com", "https://*.web.app"],
+        frameSrc: ["'self'", "https://checkout.stripe.com", "https://*.google.com", "https://*.firebaseapp.com", "https://*.web.app"],
         imgSrc: ["*", "data:", "blob:"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
@@ -986,22 +986,48 @@ Text to translate: "${text}"`;
 
       if (game) {
         try {
-          const result = game.move(move);
-          if (result) {
-            io.to(gameId).emit("moveValidated", {
+          // Make HTTP request to Rust server to validate and execute the move
+          const rustUrl = process.env.VITE_RUST_ENGINE_URL || "http://localhost:3001";
+          const response = await fetch(`${rustUrl}/engine/validate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
               fen: game.fen(),
+              from: move.from,
+              to: move.to,
+              promotion: move.promotion || null
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Rust validation service returned status ${response.status}`);
+          }
+
+          const validation = await response.json();
+          if (validation.valid) {
+            game.load(validation.next_fen);
+            const result = {
+              from: move.from,
+              to: move.to,
+              promotion: move.promotion,
+              piece: game.get(move.to)?.type || '',
+              color: game.turn() === 'w' ? 'b' : 'w',
+              flags: ''
+            };
+
+            io.to(gameId).emit("moveValidated", {
+              fen: validation.next_fen,
               move: result,
               turn: game.turn(),
-              isGameOver: game.isGameOver()
+              isGameOver: validation.is_checkmate || validation.is_stalemate || validation.is_draw
             });
 
             // Anti-Cheat: Engine Correlation (simplified version)
-            // Check if player's move matches engine's best move (simulated for now, would call Rust engine)
-            if (process.env.NODE_ENV === 'production' && Math.random() < 0.2) { // 20% audit rate
-               auditMoveForCheating(userId, game.fen(), move);
+            if (process.env.NODE_ENV === 'production' && Math.random() < 0.2) {
+               auditMoveForCheating(userId, validation.next_fen, move);
             }
 
-            if (game.isGameOver()) {
+            if (validation.is_checkmate || validation.is_stalemate || validation.is_draw) {
               await handleGameEnd(gameId, game);
             }
           } else {
@@ -1242,17 +1268,24 @@ Text to translate: "${text}"`;
     console.log(`✅ Server successfully running on http://0.0.0.0:${PORT}`);
     
     // Ensure Rust Engine is Running (deferred to after server start)
-    if (isProduction || fs.existsSync("./engine") || fs.existsSync("./src-rust/target/release/chess-engine-backend")) {
+    const pathsToCheck = [
+      "./engine",
+      "./src-rust/target/release/chess-engine-backend",
+      "./src-rust/target/release/clash-of-crowns-realtime",
+      "./src-rust/target/release/clash-of-crowns-realtime.exe"
+    ];
+    const enginePath = pathsToCheck.find(p => fs.existsSync(p));
+
+    if (isProduction || enginePath) {
       console.log("🚀 Spawning Rust Engine process...");
-      const enginePath = fs.existsSync("./engine") ? "./engine" : "./src-rust/target/release/chess-engine-backend";
-      if (fs.existsSync(enginePath)) {
+      if (enginePath && fs.existsSync(enginePath)) {
         const engineProcess = spawn(enginePath, [], {
           stdio: "inherit",
           env: { ...process.env, RUST_LOG: "info" }
         });
         engineProcess.on("error", (err) => console.error("Failed to start engine:", err));
       } else {
-        console.warn("Rust Engine binary not found at:", enginePath);
+        console.warn("Rust Engine binary not found among checked paths.");
       }
     }
   });

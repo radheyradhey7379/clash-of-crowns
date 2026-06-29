@@ -1,4 +1,4 @@
-export type AITier = 'core' | 'beginner' | 'learner' | 'promotion_trial' | 'intermediate' | 'hard' | 'master' | 'grandmaster';
+export type AITier = 'beginner' | 'learner' | 'intermediate' | 'hard' | 'master' | 'grandmaster';
 
 export type AIStyle = 'defensive' | 'aggressive' | 'balanced' | 'tactical' | 'endgame';
 
@@ -76,6 +76,7 @@ export interface AIMatchResult {
   reason?: 'checkmate' | 'resign' | 'timeout' | 'draw';
   eloBefore?: number;
   timestamp?: number;
-  playerWon?: boolean; // For backward compatibility/tests
-  isDraw?: boolean; // For backward compatibility/tests
+  playerWon?: boolean;
+  isDraw?: boolean;
+  cupCleared?: boolean;
 }

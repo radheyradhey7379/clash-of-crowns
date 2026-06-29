@@ -94,15 +94,13 @@ export interface SecurityFlag {
   timestamp: number;
 }
 
-export const TIER_LABELS = ["Core", "Beginner", "Learner", "Promotion Trial", "Intermediate", "Hard", "Master", "Grandmaster"];
+export const TIER_LABELS = ["Beginner", "Learner", "Intermediate", "Hard", "Master", "Grandmaster"];
 
-export const TIER_KEYS = ["core", "beginner", "learner", "promotion_trial", "intermediate", "hard", "master", "grandmaster"] as const;
+export const TIER_KEYS = ["beginner", "learner", "intermediate", "hard", "master", "grandmaster"] as const;
 
 export const TIER_COLORS = [
-  "#338033", // Core
   "#5cbd5c", // Beginner
   "#2196f3", // Learner
-  "#9c27b0", // Promotion Trial
   "#f44336", // Intermediate
   "#e91e63", // Hard
   "#ff9800", // Master

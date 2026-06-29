@@ -17,7 +17,7 @@ interface LevelSelectScreenProps {
 
 export default function LevelSelectScreen({ onNavigate, playerData, onSelectLevel }: LevelSelectScreenProps) {
   // Try to find the index of the player's current tier
-  const initialTierIndex = Math.max(0, TIER_KEYS.indexOf(playerData.aiProgress?.tier || 'core'));
+  const initialTierIndex = Math.max(0, TIER_KEYS.indexOf(playerData.aiProgress?.tier || 'beginner'));
   const [activeTierIdx, setActiveTierIdx] = useState(initialTierIndex);
   const [savedGame, setSavedGame] = useState<any>(null);
   const t = useTranslation(playerData.language || 'en');
@@ -67,30 +67,32 @@ export default function LevelSelectScreen({ onNavigate, playerData, onSelectLeve
           paddingRight: 'env(safe-area-inset-right)'
         }}
       >
-        {TIER_LABELS.map((label, i) => {
-          return (
-            <button
-              key={label}
-              onClick={() => setActiveTierIdx(i)}
-              className={cn(
-                "inline-flex flex-col items-center justify-center min-w-[80px] px-4 text-[10px] font-bold tracking-[0.2em] transition-all relative uppercase flex-shrink-0 h-full",
-                activeTierIdx === i 
-                  ? "text-[#d9ad33]" 
-                  : "text-white/20 hover:text-white/40"
-              )}
-            >
-              <div className="absolute top-0 left-0 w-full h-1 opacity-20" style={{ backgroundColor: TIER_COLORS[i] }} />
-              <span className="truncate w-full">{label}</span>
-              {activeTierIdx === i && (
-                <motion.div 
-                  layoutId="tier-tab" 
-                  className="absolute bottom-0 left-0 w-full h-0.5" 
-                  style={{ backgroundColor: TIER_COLORS[i] }} 
-                />
-              )}
-            </button>
-          );
-        })}
+        <div className="flex min-w-full md:justify-center px-4 h-full">
+          {TIER_LABELS.map((label, i) => {
+            return (
+              <button
+                key={label}
+                onClick={() => setActiveTierIdx(i)}
+                className={cn(
+                  "inline-flex flex-col items-center justify-center min-w-[80px] px-4 text-[10px] font-bold tracking-[0.2em] transition-all relative uppercase flex-shrink-0 h-full",
+                  activeTierIdx === i 
+                    ? "text-[#d9ad33]" 
+                    : "text-white/20 hover:text-white/40"
+                )}
+              >
+                <div className="absolute top-0 left-0 w-full h-1 opacity-20" style={{ backgroundColor: TIER_COLORS[i] }} />
+                <span className="truncate w-full">{label}</span>
+                {activeTierIdx === i && (
+                  <motion.div 
+                    layoutId="tier-tab" 
+                    className="absolute bottom-0 left-0 w-full h-0.5" 
+                    style={{ backgroundColor: TIER_COLORS[i] }} 
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Character Grid */}

@@ -134,6 +134,10 @@ export class StockfishService {
     });
   }
 
+  stop() {
+    this.sendCommand('stop');
+  }
+
   terminate() {
     if (this.worker) {
       this.worker.terminate();

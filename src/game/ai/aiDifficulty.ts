@@ -12,19 +12,18 @@ export interface AIDifficultySettings {
  * Maps an AICharacter to its active difficulty configurations.
  */
 export function getAIDifficultySettings(character: AICharacter): AIDifficultySettings {
-  // Translate blunderRate (0 to 1) into Stockfish skill level (0 to 20)
-  // Higher blunder rate = lower skill level.
-  // skillLevel = 20 - (blunderRate * 20)
-  const skillLevel = Math.max(0, Math.min(20, Math.round(20 - (character.blunderRate * 20))));
+  const blunderRate = (character as any).blunderRate !== undefined 
+    ? (character as any).blunderRate 
+    : Math.min(1, (character.errorNoiseCp || 0) / 1000);
+
+  const skillLevel = Math.max(0, Math.min(20, Math.round(20 - (blunderRate * 20))));
 
   // Resolve maxThinkTimeMs based on character config or tier fallback
   let maxThinkTimeMs = character.maxThinkTimeMs;
   if (!maxThinkTimeMs) {
     switch (character.tier) {
-      case 'core': maxThinkTimeMs = 300; break;
       case 'beginner': maxThinkTimeMs = 500; break;
       case 'learner': maxThinkTimeMs = 700; break;
-      case 'promotion_trial': maxThinkTimeMs = 900; break;
       case 'intermediate': maxThinkTimeMs = 1200; break;
       case 'hard': maxThinkTimeMs = 1600; break;
       case 'master': maxThinkTimeMs = 2200; break;
@@ -42,7 +41,7 @@ export function getAIDifficultySettings(character: AICharacter): AIDifficultySet
 
   return {
     depth: character.depth,
-    blunderRate: character.blunderRate,
+    blunderRate,
     skillLevel,
     maxThinkTimeMs,
     moveDelayMs

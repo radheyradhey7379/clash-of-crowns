@@ -103,7 +103,7 @@ export const matchFlowService = {
     }
 
     const character = AI_CHARACTERS.find(c => c.id === matchResult.characterId);
-    const tier = character?.tier || 'core';
+    const tier = character?.tier || 'beginner';
 
     // 2. Build the expanded AIMatchResult
     const resultRecord: AIMatchResult = {
@@ -114,7 +114,8 @@ export const matchFlowService = {
       eloBefore: matchResult.eloBefore,
       timestamp: Date.now(),
       playerWon: matchResult.result === 'win',
-      isDraw: matchResult.result === 'draw'
+      isDraw: matchResult.result === 'draw',
+      cupCleared: (matchResult as any).cupCleared
     };
 
     const oldProgress = currentPlayerData.aiProgress;

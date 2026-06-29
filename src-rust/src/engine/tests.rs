@@ -231,7 +231,7 @@ mod simulate_tests {
         use shakmaty::{Chess, Position};
         let pos = Chess::default();
         let eval = HceEvaluator::new();
-        let score = eval.evaluate(pos.board(), pos.turn());
+        let score = eval.evaluate(pos.board(), pos.turn(), true);
         assert_eq!(score, 0); // Symmetric
     }
 
@@ -247,7 +247,7 @@ mod simulate_tests {
             .into_position::<Chess>(CastlingMode::Standard)
             .unwrap();
         let eval = HceEvaluator::new();
-        let score = eval.evaluate(pos.board(), pos.turn());
+        let score = eval.evaluate(pos.board(), pos.turn(), true);
         assert!(score >= 800); // Massive advantage
     }
 
@@ -263,7 +263,7 @@ mod simulate_tests {
             .into_position::<Chess>(CastlingMode::Standard)
             .unwrap();
         let eval = HceEvaluator::new();
-        let score1 = eval.evaluate(pos1.board(), pos1.turn());
+        let score1 = eval.evaluate(pos1.board(), pos1.turn(), true);
 
         // e4 played -> White pawn on e4 (center) is worth more than e2
         let setup2 =
@@ -271,10 +271,10 @@ mod simulate_tests {
         let pos2 = setup2
             .into_position::<Chess>(CastlingMode::Standard)
             .unwrap();
-        let score2 = eval.evaluate(pos2.board(), pos1.turn()); // Eval from white's perspective (eval in pos1 context)
+        let score2 = eval.evaluate(pos2.board(), pos1.turn(), true); // Eval from white's perspective (eval in pos1 context)
 
         // Actually our hce eval just takes turn into account for the final sign.
-        let mut score2_white = eval.evaluate(pos2.board(), pos2.turn());
+        let mut score2_white = eval.evaluate(pos2.board(), pos2.turn(), true);
         if pos2.turn() == shakmaty::Color::Black {
             score2_white = -score2_white;
         }
@@ -294,7 +294,7 @@ mod simulate_tests {
             .into_position::<Chess>(CastlingMode::Standard)
             .unwrap();
         let eval = HceEvaluator::new();
-        let score1 = eval.evaluate(pos1.board(), pos1.turn());
+        let score1 = eval.evaluate(pos1.board(), pos1.turn(), true);
 
         // Nc3 played -> White knight on c3 (centerish) is worth more than b1
         let setup2 =
@@ -302,7 +302,7 @@ mod simulate_tests {
         let pos2 = setup2
             .into_position::<Chess>(CastlingMode::Standard)
             .unwrap();
-        let mut score2_white = eval.evaluate(pos2.board(), pos2.turn());
+        let mut score2_white = eval.evaluate(pos2.board(), pos2.turn(), true);
         if pos2.turn() == shakmaty::Color::Black {
             score2_white = -score2_white;
         }
@@ -322,7 +322,7 @@ mod simulate_tests {
             .into_position::<Chess>(CastlingMode::Standard)
             .unwrap();
         let eval = HceEvaluator::new();
-        let score1 = eval.evaluate(pos1.board(), pos1.turn());
+        let score1 = eval.evaluate(pos1.board(), pos1.turn(), true);
 
         // Bc4 played -> White bishop on c4 (centerish) is worth more than f1
         let setup2 =
@@ -330,7 +330,7 @@ mod simulate_tests {
         let pos2 = setup2
             .into_position::<Chess>(CastlingMode::Standard)
             .unwrap();
-        let mut score2_white = eval.evaluate(pos2.board(), pos2.turn());
+        let mut score2_white = eval.evaluate(pos2.board(), pos2.turn(), true);
         if pos2.turn() == shakmaty::Color::Black {
             score2_white = -score2_white;
         }

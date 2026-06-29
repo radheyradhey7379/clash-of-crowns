@@ -18,32 +18,14 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     progress = JSON.parse(JSON.stringify(DEFAULT_AI_PROGRESS));
   });
 
-  it('1. Core win unlocks next Core character', () => {
-    const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
-    expect(next.tier).toBe('core');
-    expect(next.level).toBe(2);
-    expect(next.elo).toBe(120); // 100 + 20
-  });
-
-  it('2. Core 5 win unlocks Beginner', () => {
-    progress.tier = 'core';
-    progress.level = 5;
+  it('1. Beginner win unlocks next Beginner character', () => {
     const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
     expect(next.tier).toBe('beginner');
-    expect(next.level).toBe(1);
-    expect(next.unlockedTiers).toContain('beginner');
-  });
-
-  it('3. Beginner loss retries same character', () => {
-    progress.tier = 'beginner';
-    progress.level = 2;
-    const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
-    expect(next.tier).toBe('beginner');
     expect(next.level).toBe(2);
-    expect(next.elo).toBe(100); // Beginner loss: no ELO drop
+    expect(next.elo).toBe(325); // 300 + 25
   });
 
-  it('4. Beginner 5 win unlocks Learner', () => {
+  it('2. Beginner 5 win unlocks Learner', () => {
     progress.tier = 'beginner';
     progress.level = 5;
     const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
@@ -52,38 +34,47 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     expect(next.unlockedTiers).toContain('learner');
   });
 
-  it('5. Learner two consecutive losses drops one level', () => {
+  it('3. Beginner loss retries same character', () => {
+    progress.tier = 'beginner';
+    progress.level = 2;
+    const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
+    expect(next.tier).toBe('beginner');
+    expect(next.level).toBe(2);
+    expect(next.elo).toBe(300); // Beginner loss: no ELO drop
+  });
+
+  it('4. Learner loss does not drop level unless consecutive losses >= 3', () => {
+    progress.tier = 'learner';
+    progress.level = 2;
+    const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
+    expect(next.tier).toBe('learner');
+    expect(next.level).toBe(2);
+    expect(next.consecutiveLosses).toBe(1);
+  });
+
+  it('5. Learner three consecutive losses drops one level', () => {
     progress.tier = 'learner';
     progress.level = 3;
-    progress.consecutiveLosses = 1; // Already lost once
+    progress.elo = 350;
+    progress.consecutiveLosses = 2; // Already lost twice
     const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
     expect(next.tier).toBe('learner');
     expect(next.level).toBe(2); // Dropped from 3 to 2
     expect(next.consecutiveLosses).toBe(0); // Resets after drop
-    expect(next.elo).toBe(95); // 100 - 5
+    expect(next.elo).toBe(345); // 350 - 5
   });
 
-  it('6. Learner cannot drop below Learner 1', () => {
+  it('6. Learner 1 consecutive losses drops back to Beginner 5', () => {
     progress.tier = 'learner';
     progress.level = 1;
-    progress.consecutiveLosses = 1;
+    progress.consecutiveLosses = 2;
     const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
-    expect(next.tier).toBe('learner');
-    expect(next.level).toBe(1); // Stays at 1
+    expect(next.tier).toBe('beginner');
+    expect(next.level).toBe(5);
   });
 
-  it('7. Learner 5 win unlocks Promotion Trial', () => {
+  it('7. Learner 5 win unlocks Intermediate', () => {
     progress.tier = 'learner';
-    progress.level = 5;
-    const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
-    expect(next.tier).toBe('promotion_trial');
-    expect(next.level).toBe(1);
-    expect(next.promotionTrial.unlocked).toBe(true);
-    expect(next.unlockedTiers).toContain('promotion_trial');
-  });
-
-  it('8. Promotion Trial 5 win unlocks Intermediate', () => {
-    progress.tier = 'promotion_trial';
     progress.level = 5;
     const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
     expect(next.tier).toBe('intermediate');
@@ -91,34 +82,27 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     expect(next.unlockedTiers).toContain('intermediate');
   });
 
-  it('9. Promotion Trial loss retries same character', () => {
-    progress.tier = 'promotion_trial';
-    progress.level = 2;
-    const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
-    expect(next.tier).toBe('promotion_trial');
-    expect(next.level).toBe(2);
-  });
-
-  it('10. Intermediate two losses drops one level', () => {
+  it('8. Intermediate two consecutive losses drops one level', () => {
     progress.tier = 'intermediate';
     progress.level = 4;
+    progress.elo = 350;
     progress.consecutiveLosses = 1;
     const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
     expect(next.tier).toBe('intermediate');
     expect(next.level).toBe(3);
-    expect(next.elo).toBe(90); // 100 - 10
+    expect(next.elo).toBe(340); // 350 - 10
   });
 
-  it('11. Intermediate cannot drop below Intermediate 1', () => {
+  it('9. Intermediate 1 consecutive losses drops back to Learner 5', () => {
     progress.tier = 'intermediate';
     progress.level = 1;
     progress.consecutiveLosses = 1;
     const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
-    expect(next.tier).toBe('intermediate');
-    expect(next.level).toBe(1);
+    expect(next.tier).toBe('learner');
+    expect(next.level).toBe(5);
   });
 
-  it('12. Intermediate 8 win unlocks Hard', () => {
+  it('10. Intermediate 8 win unlocks Hard', () => {
     progress.tier = 'intermediate';
     progress.level = 8;
     const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
@@ -127,16 +111,17 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     expect(next.unlockedTiers).toContain('hard');
   });
 
-  it('13. Hard loss drops one level', () => {
+  it('11. Hard loss drops one level', () => {
     progress.tier = 'hard';
     progress.level = 5;
+    progress.elo = 350;
     const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
     expect(next.tier).toBe('hard');
     expect(next.level).toBe(4);
-    expect(next.elo).toBe(80); // 100 - 20
+    expect(next.elo).toBe(330); // 350 - 20
   });
 
-  it('14. Hard 1 loss locks Hard and returns to Intermediate 8', () => {
+  it('12. Hard 1 loss locks Hard and returns to Intermediate 8', () => {
     progress.tier = 'hard';
     progress.level = 1;
     const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
@@ -145,7 +130,7 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     expect(next.hard.locked).toBe(true);
   });
 
-  it('15. Intermediate 8 win unlocks Hard again', () => {
+  it('13. Intermediate 8 win unlocks Hard again', () => {
     progress.tier = 'intermediate';
     progress.level = 8;
     progress.hard.locked = true;
@@ -154,7 +139,7 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     expect(next.hard.locked).toBe(false);
   });
 
-  it('16. Hard 8 win unlocks Master', () => {
+  it('14. Hard 8 win unlocks Master', () => {
     progress.tier = 'hard';
     progress.level = 8;
     const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
@@ -163,41 +148,39 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     expect(next.masterCup.currentCup).toBe(1);
   });
 
-  it('17. Master Cup 3 wins out of 4 unlocks next cup', () => {
+  it('15. Master Cup 3 wins out of 4 unlocks next cup', () => {
     progress.tier = 'master';
     progress.masterCup.currentCup = 1;
-    progress.masterCup.currentMatch = 4;
+    progress.masterCup.currentMatch = 3;
     progress.masterCup.winsInCup = 2; // Won 2, this is the 3rd win
-    const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
+    const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false, cupCleared: true });
     expect(next.masterCup.currentCup).toBe(2);
     expect(next.masterCup.currentMatch).toBe(1);
-    expect(next.level).toBe(5); // Start of Cup 2
   });
 
-  it('18. Master Cup fail retries same cup', () => {
+  it('16. Master Cup fail retries same cup', () => {
     progress.tier = 'master';
     progress.masterCup.currentCup = 2;
-    progress.masterCup.currentMatch = 4;
+    progress.masterCup.currentMatch = 3;
     progress.masterCup.winsInCup = 1; // 1 win, so we fail the cup
-    const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
+    const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false, cupCleared: false });
     expect(next.masterCup.currentCup).toBe(2);
     expect(next.masterCup.currentMatch).toBe(1);
-    expect(next.level).toBe(5); // Retries Cup 2
   });
 
-  it('19. Master Cup 3 completion unlocks Grandmaster if ELO condition is met', () => {
+  it('17. Master Cup 3 completion unlocks Grandmaster', () => {
     progress.tier = 'master';
     progress.elo = 2500;
     progress.masterCup.currentCup = 3;
-    progress.masterCup.currentMatch = 4;
+    progress.masterCup.currentMatch = 3;
     progress.masterCup.winsInCup = 2;
-    const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
+    const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false, cupCleared: true });
     expect(next.tier).toBe('grandmaster');
     expect(next.level).toBe(1);
     expect(next.grandmaster.unlocked).toBe(true);
   });
 
-  it('20. Grandmaster Crownless King best-of-3 works', () => {
+  it('18. Grandmaster Crownless King best-of-3 works', () => {
     progress.tier = 'grandmaster';
     progress.level = 1;
     progress.grandmaster.bossSeriesWins = 1;
@@ -208,7 +191,7 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
 });
 
 // Phase 14 additions
-import { validateCharacterSelection, getCurrentPlayableCharacterId } from '../progressionEngine';
+import { getCurrentPlayableCharacterId } from '../progressionEngine';
 import { calculateAIMatchRewards } from '../aiRewards';
 import { matchFlowService } from '../matchFlowService';
 import { DEFAULT_PLAYER_DATA } from '../../../lib/store';
@@ -225,73 +208,73 @@ describe('AI Career Progression Engine (Phase 14 New Requirements)', () => {
   });
 
   it('Selecting locked character is blocked', () => {
-    // Beginner 1 is locked initially because user is at Core 1
-    const validation = validateCharacterSelection('beginner_1', progress);
+    // Learner 1 is locked initially because user is at Beginner 1
+    const validation = validateCharacterSelection('learner_1', progress);
     expect(validation.valid).toBe(false);
     expect(validation.reason).toBe('Character is locked');
   });
 
   it('Selecting unlocked character is allowed', () => {
-    // Core 1 is unlocked initially
-    const validation = validateCharacterSelection('core_1', progress);
+    // Beginner 1 is unlocked initially
+    const validation = validateCharacterSelection('beginner_1', progress);
     expect(validation.valid).toBe(true);
   });
 
   it('Selecting previous completed characters is allowed', () => {
-    progress.tier = 'core';
+    progress.tier = 'beginner';
     progress.level = 3;
-    // Core 1 is already completed, it should be playable
-    const validation = validateCharacterSelection('core_1', progress);
+    // Beginner 1 is already completed, it should be playable
+    const validation = validateCharacterSelection('beginner_1', progress);
     expect(validation.valid).toBe(true);
   });
 
   it('Invalid characterId triggers fallback to current playable character', () => {
-    progress.tier = 'core';
-    progress.level = 3; // current playable is core_3
+    progress.tier = 'beginner';
+    progress.level = 3; // current playable is beginner_3
     const validation = validateCharacterSelection('invalid_id', progress);
     expect(validation.valid).toBe(false);
-    expect(validation.fallbackCharacterId).toBe('core_3');
+    expect(validation.fallbackCharacterId).toBe('beginner_3');
 
     const validationNull = validateCharacterSelection(null, progress);
     expect(validationNull.valid).toBe(false);
-    expect(validationNull.fallbackCharacterId).toBe('core_3');
+    expect(validationNull.fallbackCharacterId).toBe('beginner_3');
   });
 
   it('Rewards calculated correctly for Win, Loss, and Draw', () => {
     // 1. Win
-    const nextWin = applyAIMatchResult(progress, { result: 'win', characterId: 'core_1', tier: 'core', reason: 'checkmate', eloBefore: 100, timestamp: 0 });
+    const nextWin = applyAIMatchResult(progress, { result: 'win', characterId: 'beginner_1', tier: 'beginner', reason: 'checkmate', eloBefore: 300, timestamp: 0 });
     const winRewards = calculateAIMatchRewards('win', progress, nextWin);
     expect(winRewards.coins).toBe(50);
     expect(winRewards.xp).toBe(100);
 
     // 2. Draw
-    const nextDraw = applyAIMatchResult(progress, { result: 'draw', characterId: 'core_1', tier: 'core', reason: 'draw', eloBefore: 100, timestamp: 0 });
+    const nextDraw = applyAIMatchResult(progress, { result: 'draw', characterId: 'beginner_1', tier: 'beginner', reason: 'draw', eloBefore: 300, timestamp: 0 });
     const drawRewards = calculateAIMatchRewards('draw', progress, nextDraw);
     expect(drawRewards.coins).toBe(20);
     expect(drawRewards.xp).toBe(40);
 
     // 3. Loss
-    const nextLoss = applyAIMatchResult(progress, { result: 'loss', characterId: 'core_1', tier: 'core', reason: 'checkmate', eloBefore: 100, timestamp: 0 });
+    const nextLoss = applyAIMatchResult(progress, { result: 'loss', characterId: 'beginner_1', tier: 'beginner', reason: 'checkmate', eloBefore: 300, timestamp: 0 });
     const lossRewards = calculateAIMatchRewards('loss', progress, nextLoss);
     expect(lossRewards.coins).toBe(0);
     expect(lossRewards.xp).toBe(10);
   });
 
   it('Tier unlock bonus is awarded and not duplicated', () => {
-    progress.tier = 'core';
+    progress.tier = 'beginner';
     progress.level = 5;
-    const nextWin = applyAIMatchResult(progress, { result: 'win', characterId: 'core_5', tier: 'core', reason: 'checkmate', eloBefore: 180, timestamp: 0 });
-    // This win unlocks Beginner tier
-    expect(nextWin.tier).toBe('beginner');
+    const nextWin = applyAIMatchResult(progress, { result: 'win', characterId: 'beginner_5', tier: 'beginner', reason: 'checkmate', eloBefore: 400, timestamp: 0 });
+    // This win unlocks Learner tier
+    expect(nextWin.tier).toBe('learner');
     const winRewards = calculateAIMatchRewards('win', progress, nextWin);
-    expect(winRewards.tierUnlocked).toBe('beginner');
+    expect(winRewards.tierUnlocked).toBe('learner');
     expect(winRewards.coins).toBe(250); // 50 base win + 200 tier unlock bonus
     // Simulate user editing save to relock the tier, but claimed array still has it
     const cheatProgress = JSON.parse(JSON.stringify(progress));
-    cheatProgress.claimedTierRewards = ['beginner'];
+    cheatProgress.claimedTierRewards = ['learner'];
     
     // They win again
-    const cheatNextWin = applyAIMatchResult(cheatProgress, { result: 'win', characterId: 'core_5', tier: 'core', reason: 'checkmate', eloBefore: 180, timestamp: 0 });
+    const cheatNextWin = applyAIMatchResult(cheatProgress, { result: 'win', characterId: 'beginner_5', tier: 'beginner', reason: 'checkmate', eloBefore: 400, timestamp: 0 });
     const winRewardsAgain = calculateAIMatchRewards('win', cheatProgress, cheatNextWin);
     
     expect(winRewardsAgain.tierUnlocked).toBeNull();
@@ -302,9 +285,9 @@ describe('AI Career Progression Engine (Phase 14 New Requirements)', () => {
   it('Master cup clear bonus is awarded and not duplicated', () => {
     progress.tier = 'master';
     progress.masterCup.currentCup = 1;
-    progress.masterCup.currentMatch = 4;
+    progress.masterCup.currentMatch = 3;
     progress.masterCup.winsInCup = 2; // 3rd win
-    const nextWin = applyAIMatchResult(progress, { result: 'win', characterId: 'master_1_4', tier: 'master', reason: 'checkmate', eloBefore: 2000, timestamp: 0 });
+    const nextWin = applyAIMatchResult(progress, { result: 'win', characterId: 'master_1_3', tier: 'master', reason: 'checkmate', eloBefore: 2000, timestamp: 0, cupCleared: true });
     
     const winRewards = calculateAIMatchRewards('win', progress, nextWin);
     expect(winRewards.cupCompleted).toBe(1);
@@ -315,7 +298,7 @@ describe('AI Career Progression Engine (Phase 14 New Requirements)', () => {
     const cheatProgress = JSON.parse(JSON.stringify(progress));
     cheatProgress.claimedCupRewards = [1];
 
-    const cheatNextWin = applyAIMatchResult(cheatProgress, { result: 'win', characterId: 'master_1_4', tier: 'master', reason: 'checkmate', eloBefore: 2000, timestamp: 0 });
+    const cheatNextWin = applyAIMatchResult(cheatProgress, { result: 'win', characterId: 'master_1_3', tier: 'master', reason: 'checkmate', eloBefore: 2000, timestamp: 0, cupCleared: true });
     const winRewardsAgain = calculateAIMatchRewards('win', cheatProgress, cheatNextWin);
     
     expect(winRewardsAgain.cupCompleted).toBeNull();
@@ -379,11 +362,10 @@ describe('AI Career Progression Engine (Phase 14 New Requirements)', () => {
 // Phase 15 additions
 import { getAIDifficultySettings } from '../aiDifficulty';
 import { AI_CHARACTERS } from '../aiCharacters';
-import { stockfishService } from '../../../services/stockfishService';
+
 
 describe('AI Difficulty Scaling & Performance (Phase 15)', () => {
   it('Verify correct engine selected per tier', () => {
-    const coreChar = AI_CHARACTERS.find(c => c.tier === 'core')!;
     const begChar = AI_CHARACTERS.find(c => c.tier === 'beginner')!;
     const learnChar = AI_CHARACTERS.find(c => c.tier === 'learner')!;
     const interChar = AI_CHARACTERS.find(c => c.tier === 'intermediate')!;
@@ -391,7 +373,6 @@ describe('AI Difficulty Scaling & Performance (Phase 15)', () => {
     const masterChar = AI_CHARACTERS.find(c => c.tier === 'master')!;
     const gmChar = AI_CHARACTERS.find(c => c.tier === 'grandmaster')!;
 
-    expect(coreChar.engine).toBe('hce');
     expect(begChar.engine).toBe('hce');
     expect(learnChar.engine).toBe('hce');
     expect(interChar.engine).toBe('nnue');
@@ -401,25 +382,20 @@ describe('AI Difficulty Scaling & Performance (Phase 15)', () => {
   });
 
   it('Verify maxThinkTimeMs and moveDelayMs mapping/fallback per tier', () => {
-    const mockCore = { id: 'c1', tier: 'core', depth: 1, blunderRate: 0.4 } as any;
     const mockBeg = { id: 'b1', tier: 'beginner', depth: 1, blunderRate: 0.3 } as any;
     const mockLearn = { id: 'l1', tier: 'learner', depth: 2, blunderRate: 0.2 } as any;
-    const mockTrial = { id: 'pt1', tier: 'promotion_trial', depth: 2, blunderRate: 0.15 } as any;
     const mockInter = { id: 'i1', tier: 'intermediate', depth: 4, blunderRate: 0.1 } as any;
     const mockHard = { id: 'h1', tier: 'hard', depth: 6, blunderRate: 0.05 } as any;
     const mockMaster = { id: 'm1', tier: 'master', depth: 8, blunderRate: 0.03 } as any;
     const mockGM = { id: 'g1', tier: 'grandmaster', depth: 10, blunderRate: 0.01 } as any;
 
-    expect(getAIDifficultySettings(mockCore).maxThinkTimeMs).toBe(300);
     expect(getAIDifficultySettings(mockBeg).maxThinkTimeMs).toBe(500);
     expect(getAIDifficultySettings(mockLearn).maxThinkTimeMs).toBe(700);
-    expect(getAIDifficultySettings(mockTrial).maxThinkTimeMs).toBe(900);
     expect(getAIDifficultySettings(mockInter).maxThinkTimeMs).toBe(1200);
     expect(getAIDifficultySettings(mockHard).maxThinkTimeMs).toBe(1600);
     expect(getAIDifficultySettings(mockMaster).maxThinkTimeMs).toBe(2200);
     expect(getAIDifficultySettings(mockGM).maxThinkTimeMs).toBe(3000);
 
-    expect(getAIDifficultySettings(mockCore).moveDelayMs).toBe(150);
     expect(getAIDifficultySettings(mockBeg).moveDelayMs).toBe(250);
   });
 
@@ -474,8 +450,8 @@ describe('AI Difficulty Scaling & Performance (Phase 15)', () => {
 // Phase 16 additions
 
 describe('AI Personality, Dialogue & Match Feel (Phase 16)', () => {
-  it('Verify all 51 characters/modes have complete dialogue fields and correct types', () => {
-    expect(AI_CHARACTERS.length).toBe(51);
+  it('Verify all 40 characters/modes have complete dialogue fields and correct types', () => {
+    expect(AI_CHARACTERS.length).toBe(40);
 
     AI_CHARACTERS.forEach(char => {
       expect(char.introLine).toBeDefined();
@@ -508,9 +484,9 @@ describe('AI Personality, Dialogue & Match Feel (Phase 16)', () => {
   });
 
   it('Verify dialogue lookup by characterId works', () => {
-    const pawnlingRook = AI_CHARACTERS.find(c => c.id === 'core_1')!;
-    expect(pawnlingRook.name).toBe('Pawnling Rook');
-    expect(pawnlingRook.introLine).toContain('Hi! I am Pawnling Rook');
+    const woodpecker = AI_CHARACTERS.find(c => c.id === 'beginner_1')!;
+    expect(woodpecker.name).toBe('Woodpecker');
+    expect(woodpecker.introLine).toContain('Hello! I am Woodpecker');
   });
 
   it('Verify outcome mapping helper resolves correct dialogue for win, loss, and draw', () => {
@@ -559,44 +535,44 @@ describe('AI Personality, Dialogue & Match Feel (Phase 16)', () => {
       progress = JSON.parse(JSON.stringify(DEFAULT_AI_PROGRESS));
     });
 
-    it('only_first_core_bot_unlocked_initially', () => {
-      expect(isCharacterUnlocked('core_1', progress)).toBe(true);
-      expect(isCharacterUnlocked('core_2', progress)).toBe(false);
-      expect(isCharacterUnlocked('core_3', progress)).toBe(false);
-      expect(isCharacterUnlocked('core_4', progress)).toBe(false);
-      expect(isCharacterUnlocked('core_5', progress)).toBe(false);
+    it('only_first_beginner_bot_unlocked_initially', () => {
+      expect(isCharacterUnlocked('beginner_1', progress)).toBe(true);
+      expect(isCharacterUnlocked('beginner_2', progress)).toBe(false);
+      expect(isCharacterUnlocked('beginner_3', progress)).toBe(false);
+      expect(isCharacterUnlocked('beginner_4', progress)).toBe(false);
+      expect(isCharacterUnlocked('beginner_5', progress)).toBe(false);
     });
 
-    it('winning_core_1_unlocks_only_core_2', () => {
-      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_1', playerWon: true, isDraw: false });
+    it('winning_beginner_1_unlocks_only_beginner_2', () => {
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'beginner_1', playerWon: true, isDraw: false });
       expect(nextProgress.level).toBe(2);
-      expect(isCharacterUnlocked('core_1', nextProgress)).toBe(true);
-      expect(isCharacterUnlocked('core_2', nextProgress)).toBe(true);
-      expect(isCharacterUnlocked('core_3', nextProgress)).toBe(false);
+      expect(isCharacterUnlocked('beginner_1', nextProgress)).toBe(true);
+      expect(isCharacterUnlocked('beginner_2', nextProgress)).toBe(true);
+      expect(isCharacterUnlocked('beginner_3', nextProgress)).toBe(false);
     });
 
-    it('winning_core_1_does_not_unlock_core_3_or_later', () => {
-      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_1', playerWon: true, isDraw: false });
-      expect(isCharacterUnlocked('core_3', nextProgress)).toBe(false);
-      expect(isCharacterUnlocked('core_4', nextProgress)).toBe(false);
-      expect(isCharacterUnlocked('core_5', nextProgress)).toBe(false);
+    it('winning_beginner_1_does_not_unlock_beginner_3_or_later', () => {
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'beginner_1', playerWon: true, isDraw: false });
+      expect(isCharacterUnlocked('beginner_3', nextProgress)).toBe(false);
+      expect(isCharacterUnlocked('beginner_4', nextProgress)).toBe(false);
+      expect(isCharacterUnlocked('beginner_5', nextProgress)).toBe(false);
     });
 
     it('locked_bot_cannot_be_challenged', () => {
-      const validation = validateCharacterSelection('core_3', progress);
+      const validation = validateCharacterSelection('beginner_3', progress);
       expect(validation.valid).toBe(false);
       expect(validation.reason).toBe('Character is locked');
     });
 
     it('direct_navigation_to_locked_bot_blocked', () => {
-      const validation = validateCharacterSelection('core_3', progress);
+      const validation = validateCharacterSelection('beginner_3', progress);
       expect(validation.valid).toBe(false);
-      expect(validation.fallbackCharacterId).toBe('core_1');
+      expect(validation.fallbackCharacterId).toBe('beginner_1');
     });
 
     it('current_bot_display_correct', () => {
-      expect(isCharacterCurrent('core_1', progress)).toBe(true);
-      expect(isCharacterCurrent('core_2', progress)).toBe(false);
+      expect(isCharacterCurrent('beginner_1', progress)).toBe(true);
+      expect(isCharacterCurrent('beginner_2', progress)).toBe(false);
     });
 
     it('guest_progress_persists_locally', () => {
@@ -608,60 +584,71 @@ describe('AI Personality, Dialogue & Match Feel (Phase 16)', () => {
     });
 
     it('completed_bot_shows_completed_or_replay', () => {
+      progress.tier = 'beginner';
       progress.level = 3;
-      expect(isCharacterUnlocked('core_1', progress)).toBe(true);
-      expect(isCharacterCurrent('core_1', progress)).toBe(false);
+      expect(isCharacterUnlocked('beginner_1', progress)).toBe(true);
+      expect(isCharacterCurrent('beginner_1', progress)).toBe(false);
     });
 
     it('next_bot_shows_current', () => {
-      expect(isCharacterCurrent('core_1', progress)).toBe(true);
+      progress.tier = 'beginner';
+      progress.level = 1;
+      expect(isCharacterCurrent('beginner_1', progress)).toBe(true);
     });
 
     it('tier_transition_unlocks_first_bot_only', () => {
-      progress.tier = 'core';
+      progress.tier = 'beginner';
       progress.level = 5;
-      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_5', playerWon: true, isDraw: false });
-      expect(nextProgress.tier).toBe('beginner');
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'beginner_5', playerWon: true, isDraw: false });
+      expect(nextProgress.tier).toBe('learner');
       expect(nextProgress.level).toBe(1);
-      expect(isCharacterUnlocked('beginner_1', nextProgress)).toBe(true);
-      expect(isCharacterUnlocked('beginner_2', nextProgress)).toBe(false);
+      expect(isCharacterUnlocked('learner_1', nextProgress)).toBe(true);
+      expect(isCharacterUnlocked('learner_2', nextProgress)).toBe(false);
     });
 
     it('win_result_shows_next_level', () => {
-      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_1', playerWon: true, isDraw: false });
-      const cta = getGameResultCTA('win', 'core_1', nextProgress);
+      progress.tier = 'beginner';
+      progress.level = 1;
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'beginner_1', playerWon: true, isDraw: false });
+      const cta = getGameResultCTA('win', 'beginner_1', nextProgress);
       expect(cta.label).toBe('NEXT LEVEL');
-      expect(cta.nextCharacterId).toBe('core_2');
+      expect(cta.nextCharacterId).toBe('beginner_2');
     });
 
     it('loss_result_shows_play_again', () => {
-      const cta = getGameResultCTA('loss', 'core_1', progress);
+      progress.tier = 'beginner';
+      progress.level = 1;
+      const cta = getGameResultCTA('loss', 'beginner_1', progress);
       expect(cta.label).toBe('PLAY AGAIN');
     });
 
     it('draw_result_shows_rematch', () => {
-      const cta = getGameResultCTA('draw', 'core_1', progress);
+      progress.tier = 'beginner';
+      progress.level = 1;
+      const cta = getGameResultCTA('draw', 'beginner_1', progress);
       expect(cta.label).toBe('REMATCH');
     });
 
     it('final_bot_win_shows_next_tier_or_cup_unlock', () => {
-      progress.tier = 'core';
+      progress.tier = 'beginner';
       progress.level = 5;
-      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_5', playerWon: true, isDraw: false });
-      const cta = getGameResultCTA('win', 'core_5', nextProgress);
-      expect(cta.label).toBe('NEXT CHALLENGE');
-      expect(cta.nextCharacterId).toBe('beginner_1');
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'beginner_5', playerWon: true, isDraw: false });
+      const cta = getGameResultCTA('win', 'beginner_5', nextProgress);
+      expect(cta.label).toBe('NEXT LEVEL');
+      expect(cta.nextCharacterId).toBe('learner_1');
     });
 
     it('next_level_cta_uses_next_character_id', () => {
-      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'core_1', playerWon: true, isDraw: false });
-      const cta = getGameResultCTA('win', 'core_1', nextProgress);
-      expect(cta.nextCharacterId).toBe('core_2');
+      progress.tier = 'beginner';
+      progress.level = 1;
+      const nextProgress = applyAIMatchResult(progress, { result: 'win', characterId: 'beginner_1', playerWon: true, isDraw: false });
+      const cta = getGameResultCTA('win', 'beginner_1', nextProgress);
+      expect(cta.nextCharacterId).toBe('beginner_2');
     });
 
     it('game_remounts_cleanly_on_next_level', () => {
-      const keyVal1 = 'core_1';
-      const keyVal2 = 'core_2';
+      const keyVal1 = 'beginner_1';
+      const keyVal2 = 'beginner_2';
       expect(keyVal1).not.toBe(keyVal2);
     });
   });

@@ -72,8 +72,16 @@ async fn main() {
         .route("/engine/move", axum::routing::post(engine::move_handler))
         .route("/engine/eval", axum::routing::post(engine::eval_handler))
         .route(
+            "/engine/validate",
+            axum::routing::post(engine::validate_handler),
+        )
+        .route(
             "/engine/simulate",
             axum::routing::post(engine::simulate_handler),
+        )
+        .route(
+            "/engine/status",
+            axum::routing::get(engine::status_handler),
         )
         .with_state(state)
         .layer(cors);

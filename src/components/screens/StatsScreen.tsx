@@ -110,7 +110,7 @@ export default function StatsScreen({ onNavigate, playerData, onReset }: StatsSc
             >
               <div className="absolute top-0 left-0 w-1 h-full bg-white/20" />
               <h3 className="text-xl font-bold text-white mb-6 tracking-[0.3em] font-serif uppercase">{t.whiteStats}</h3>
-              <div className="grid grid-cols-2 gap-8">
+              <div className="grid grid-cols-3 gap-6">
                 <div>
                   <div className="text-3xl font-bold text-white mb-1">{playerData.whiteWins || 0}</div>
                   <div className="text-[10px] text-[#8c7a52] font-bold tracking-widest uppercase">{t.wins}</div>
@@ -119,7 +119,11 @@ export default function StatsScreen({ onNavigate, playerData, onReset }: StatsSc
                   <div className="text-3xl font-bold text-white/60 mb-1">{playerData.whiteLosses || 0}</div>
                   <div className="text-[10px] text-[#8c7a52] font-bold tracking-widest uppercase">{t.losses}</div>
                 </div>
-                <div className="col-span-2">
+                <div>
+                  <div className="text-3xl font-bold text-white/80 mb-1">{(playerData.whiteWins || 0) + (playerData.whiteLosses || 0)}</div>
+                  <div className="text-[10px] text-[#8c7a52] font-bold tracking-widest uppercase">Games</div>
+                </div>
+                <div className="col-span-3">
                   <div className="text-2xl font-bold text-[#f5d666] mb-1">{formatTime(playerData.whiteTime || 0)}</div>
                   <div className="text-[10px] text-[#8c7a52] font-bold tracking-widest uppercase">{t.timePlayed}</div>
                 </div>
@@ -134,7 +138,7 @@ export default function StatsScreen({ onNavigate, playerData, onReset }: StatsSc
             >
               <div className="absolute top-0 right-0 w-1 h-full bg-[#d9ad33]/40" />
               <h3 className="text-xl font-bold text-[#d9ad33] mb-6 tracking-[0.3em] font-serif uppercase">{t.blackStats}</h3>
-              <div className="grid grid-cols-2 gap-8">
+              <div className="grid grid-cols-3 gap-6">
                 <div>
                   <div className="text-3xl font-bold text-[#d9ad33] mb-1">{playerData.blackWins || 0}</div>
                   <div className="text-[10px] text-[#8c7a52] font-bold tracking-widest uppercase">{t.wins}</div>
@@ -143,7 +147,11 @@ export default function StatsScreen({ onNavigate, playerData, onReset }: StatsSc
                   <div className="text-3xl font-bold text-[#d9ad33]/60 mb-1">{playerData.blackLosses || 0}</div>
                   <div className="text-[10px] text-[#8c7a52] font-bold tracking-widest uppercase">{t.losses}</div>
                 </div>
-                <div className="col-span-2">
+                <div>
+                  <div className="text-3xl font-bold text-[#d9ad33]/80 mb-1">{(playerData.blackWins || 0) + (playerData.blackLosses || 0)}</div>
+                  <div className="text-[10px] text-[#8c7a52] font-bold tracking-widest uppercase">Games</div>
+                </div>
+                <div className="col-span-3">
                   <div className="text-2xl font-bold text-[#f5d666] mb-1">{formatTime(playerData.blackTime || 0)}</div>
                   <div className="text-[10px] text-[#8c7a52] font-bold tracking-widest uppercase">{t.timePlayed}</div>
                 </div>

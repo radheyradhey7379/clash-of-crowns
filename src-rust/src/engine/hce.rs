@@ -1,4 +1,4 @@
-use crate::engine::pst::{BISHOP_PST, KNIGHT_PST, PAWN_PST};
+use crate::engine::pst::{BISHOP_PST, KNIGHT_PST, PAWN_PST, ROOK_PST, QUEEN_PST, KING_PST};
 use shakmaty::{Board, Color, Role, Square};
 
 pub struct HceEvaluator;
@@ -8,7 +8,7 @@ impl HceEvaluator {
         Self
     }
 
-    pub fn evaluate(&self, board: &Board, turn: Color) -> i32 {
+    pub fn evaluate(&self, board: &Board, turn: Color, use_all_pst: bool) -> i32 {
         let mut score = 0;
 
         for sq in Square::ALL {
@@ -32,7 +32,9 @@ impl HceEvaluator {
                     Role::Pawn => PAWN_PST[idx],
                     Role::Knight => KNIGHT_PST[idx],
                     Role::Bishop => BISHOP_PST[idx],
-                    _ => 0,
+                    Role::Rook => if use_all_pst { ROOK_PST[idx] } else { 0 },
+                    Role::Queen => if use_all_pst { QUEEN_PST[idx] } else { 0 },
+                    Role::King => if use_all_pst { KING_PST[idx] } else { 0 },
                 };
 
                 val += pst_val;

@@ -14,7 +14,7 @@ export default function RankScreen({ onNavigate, playerData, onReset }: { onNavi
   const rankRef = useRef<HTMLDivElement>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const isRtl = playerData.language === 'ur' || playerData.language === 'ar';
-  const tierIdx = Math.max(0, TIER_KEYS.indexOf(playerData.aiProgress?.tier || 'core'));
+  const tierIdx = Math.max(0, TIER_KEYS.indexOf(playerData.aiProgress?.tier || 'beginner'));
   const tierName = (t as any)[TIER_LABELS[tierIdx].toLowerCase()] || TIER_LABELS[tierIdx];
   const char = AI_CHARACTERS.find(c => c.tier === playerData.aiProgress?.tier && c.level === playerData.aiProgress?.level);
   const charName = char?.name || 'Unknown';

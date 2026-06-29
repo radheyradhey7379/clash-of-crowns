@@ -6,7 +6,7 @@ import { loadProtectedPlayerData, saveProtectedPlayerData } from "../protectedSa
 
 export const DEFAULT_PLAYER_DATA: PlayerData = {
   name: "Guest",
-  rating: 100, // Start ELO at 100
+  rating: 300, // Start ELO at 300
   wins: 0,
   losses: 0,
   draws: 0,
@@ -52,56 +52,73 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
 
 export function migrateAIProgress(data: any): AIProgress {
   if (data.aiProgress) {
-    return data.aiProgress;
+    // If it already has aiProgress, migrate core/promotion_trial fields within it if present
+    const progress = data.aiProgress;
+    if (progress.tier === 'core') {
+      progress.tier = 'beginner';
+      progress.level = 1;
+      progress.elo = Math.max(300, progress.elo);
+    }
+    if (progress.tier === 'promotion_trial') {
+      progress.tier = 'learner';
+      progress.level = 5;
+    }
+    if (progress.unlockedTiers) {
+      progress.unlockedTiers = progress.unlockedTiers.filter((t: any) => t !== 'core' && t !== 'promotion_trial');
+      if (progress.unlockedTiers.length === 0) {
+        progress.unlockedTiers.push('beginner');
+      } else if (!progress.unlockedTiers.includes('beginner')) {
+        progress.unlockedTiers.unshift('beginner');
+      }
+    }
+    if (progress.lockedTiers) {
+      progress.lockedTiers = progress.lockedTiers.filter((t: any) => t !== 'core' && t !== 'promotion_trial');
+    }
+    return progress;
   }
 
   const progress = JSON.parse(JSON.stringify(DEFAULT_AI_PROGRESS));
-  progress.elo = data.rating || 100;
+  progress.elo = data.rating || 300;
   
   const oldTier = data.tier || 0;
   const oldChar = data.char || 0;
 
   if (oldTier === 0) {
     if (oldChar <= 2) {
-      progress.tier = 'core';
-      progress.level = oldChar + 1;
-      progress.unlockedTiers = ['core'];
+      progress.tier = 'beginner';
+      progress.level = 1;
+      progress.unlockedTiers = ['beginner'];
     } else if (oldChar <= 7) {
       progress.tier = 'beginner';
       progress.level = (oldChar - 3) + 1;
-      progress.unlockedTiers = ['core', 'beginner'];
+      progress.unlockedTiers = ['beginner'];
     } else if (oldChar <= 12) {
       progress.tier = 'learner';
       progress.level = (oldChar - 8) + 1;
-      progress.unlockedTiers = ['core', 'beginner', 'learner'];
+      progress.unlockedTiers = ['beginner', 'learner'];
     } else if (oldChar === 13) {
-      progress.tier = 'promotion_trial';
-      progress.level = 1; // Promotion Trial
-      progress.unlockedTiers = ['core', 'beginner', 'learner', 'promotion_trial'];
-      progress.promotionTrial.unlocked = true;
+      progress.tier = 'learner';
+      progress.level = 5;
+      progress.unlockedTiers = ['beginner', 'learner'];
     } else {
       progress.tier = 'intermediate';
       progress.level = 1;
-      progress.unlockedTiers = ['core', 'beginner', 'learner', 'promotion_trial', 'intermediate'];
-      progress.promotionTrial.completed = true;
+      progress.unlockedTiers = ['beginner', 'learner', 'intermediate'];
     }
   } else if (oldTier === 1) {
     if (oldChar <= 7) {
       progress.tier = 'intermediate';
       progress.level = oldChar + 1;
-      progress.unlockedTiers = ['core', 'beginner', 'learner', 'promotion_trial', 'intermediate'];
-      progress.promotionTrial.completed = true;
+      progress.unlockedTiers = ['beginner', 'learner', 'intermediate'];
     } else {
       progress.tier = 'hard';
       progress.level = (oldChar - 8) + 1;
-      progress.unlockedTiers = ['core', 'beginner', 'learner', 'promotion_trial', 'intermediate', 'hard'];
-      progress.promotionTrial.completed = true;
+      progress.unlockedTiers = ['beginner', 'learner', 'intermediate', 'hard'];
     }
   } else {
     progress.tier = 'grandmaster';
     progress.level = 1;
-    progress.unlockedTiers = ['core', 'beginner', 'learner', 'promotion_trial', 'intermediate', 'hard', 'master', 'grandmaster'];
-    progress.promotionTrial.completed = true;
+    progress.unlockedTiers = ['beginner', 'learner', 'intermediate', 'hard', 'master', 'grandmaster'];
     progress.grandmaster.unlocked = true;
   }
 
@@ -188,8 +205,6 @@ export function getRank(rating: number) {
   if (rating >= 2000) return "Master ♚";
   if (rating >= 1500) return "Hard Level 🔥";
   if (rating >= 1100) return "Intermediate ⚡";
-  if (rating >= 1000) return "Trial Zone ⚔️";
   if (rating >= 700) return "Learner ⭐";
-  if (rating >= 300) return "Beginner 🛡️";
-  return "Core 🛡️";
+  return "Beginner 🛡️";
 }

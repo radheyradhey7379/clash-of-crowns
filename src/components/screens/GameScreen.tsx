@@ -15,7 +15,7 @@ import { getCurrentPlayableCharacterId, getGameResultCTA, isCharacterUnlocked } 
 import { getAIDifficultySettings } from '../../game/ai/aiDifficulty';
 import { createMatchSession } from '../../game/security/matchSessionGuard';
 import { playSound } from '../../lib/sounds';
-import { ChevronLeft, RotateCcw, Home, Layout, BarChart2, Undo2, Menu, X, Box, Square, Crown, Shield } from 'lucide-react';
+import { ChevronLeft, RotateCcw, Home, Layout, BarChart2, Undo2, Menu, X, Box, Square, Crown, Shield, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../lib/translations';
@@ -38,6 +38,7 @@ import { createDrawOffer, getActiveDrawOffer, subscribeToDrawOffers, acceptDrawO
 import { registerSubscription, cleanupRoomListeners } from '../../game/multiplayer/multiplayerCleanupService';
 import { addMultiplayerHistoryItem } from '../../game/multiplayer/multiplayerHistoryService';
 import { realtimeMultiplayerAdapter } from '../../game/multiplayer/realtimeMultiplayerAdapter';
+import { createCupRoundRobin, recordMatchResult, simulateAiVsAiMatch } from '../../game/engine/campaign/cupRoundRobin';
 import { realtimeClient } from '../../services/realtime/realtimeClient';
 import { useDeviceLayout } from '../../hooks/useDeviceLayout';
 import { getOfflinePackageMetadata } from '../../lib/offline/offlinePackage';
@@ -206,7 +207,14 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const [playerColor, setPlayerColor] = useState<'w' | 'b'>(() => {
     if (multiplayerConfig) return multiplayerConfig.color;
     if (localGameConfig) return localGameConfig.player1Color;
-    if (selectedCharacterId) return playerData.preferredSide || 'w';
+    if (selectedCharacterId) {
+      const char = AI_CHARACTERS.find(c => c.id === selectedCharacterId);
+      if (char && char.tier === 'master') {
+        const matchIdx = playerData.aiProgress?.masterCup?.currentMatch || 1;
+        return matchIdx === 2 ? 'b' : 'w';
+      }
+      return playerData.preferredSide || 'w';
+    }
     return 'w';
   });
   
@@ -217,6 +225,137 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const boardLoadStartTime = useRef(Date.now());
   const [boardLoadTime, setBoardLoadTime] = useState<number | null>(null);
   const [aiCalcTime, setAiCalcTime] = useState<number | null>(null);
+  const [isSimulatingTournament, setIsSimulatingTournament] = useState(false);
+
+  const activeCharacterId = React.useMemo(() => {
+    if (localGameConfig || multiplayerConfig) return null; // Local VS or Multiplayer match, no AI character
+    
+    // AI match
+    const validation = matchFlowService.validateCharacter(selectedCharacterId, playerData.aiProgress);
+    if (validation.valid && selectedCharacterId) {
+      return selectedCharacterId;
+    } else {
+      console.warn(`Fallback triggered: selected=${selectedCharacterId}, playing=${validation.fallbackCharacterId}`);
+      return validation.fallbackCharacterId;
+    }
+  }, [selectedCharacterId, playerData.aiProgress, localGameConfig, multiplayerConfig]);
+
+  const isMultiplayer = !!multiplayerConfig;
+  const isLocalVS = activeCharacterId === null && !isMultiplayer;
+  const aiCharacter = activeCharacterId ? AI_CHARACTERS.find(c => c.id === activeCharacterId) : null;
+
+  const nextCharacter = React.useMemo(() => {
+    if (gameOver && gameOver.includes(t.victory) && !isLocalVS && playerData.aiProgress) {
+      const nextCharId = getCurrentPlayableCharacterId(playerData.aiProgress);
+      return AI_CHARACTERS.find(c => c.id === nextCharId);
+    }
+    return null;
+  }, [gameOver, isLocalVS, playerData.aiProgress, t.victory]);
+
+  useEffect(() => {
+    if (!isLocalVS && aiCharacter && aiCharacter.tier === 'master' && playerData.aiProgress) {
+      const cup = playerData.aiProgress.masterCup;
+      const rrJson = localStorage.getItem('clash_cup_round_robin_state');
+      let initNew = false;
+      if (!rrJson) {
+        initNew = true;
+      } else {
+        try {
+          const rr = JSON.parse(rrJson);
+          if (rr.cupId !== cup.currentCup || cup.currentMatch === 1) {
+            initNew = true;
+          }
+        } catch (e) {
+          initNew = true;
+        }
+      }
+
+      if (initNew) {
+        const cupAiBots = AI_CHARACTERS.filter(c => c.tier === 'master' && c.cup === cup.currentCup);
+        if (cupAiBots.length === 3) {
+          const newRR = createCupRoundRobin(
+            cup.currentCup,
+            playerData.uid,
+            playerData.name,
+            cupAiBots[0],
+            cupAiBots[1],
+            cupAiBots[2]
+          );
+          localStorage.setItem('clash_cup_round_robin_state', JSON.stringify(newRR));
+          console.log("Initialized new Cup Round Robin state:", newRR);
+        }
+      }
+    }
+  }, [activeCharacterId, aiCharacter, playerData.aiProgress?.masterCup]);
+
+  const handleMatchCompletion = async (
+    result: 'win' | 'loss' | 'draw',
+    reason: 'checkmate' | 'resign' | 'timeout' | 'draw'
+  ) => {
+    if (isLocalVS || !activeCharacterId || !playerData.aiProgress) return;
+    
+    // Prevent duplicate processing
+    if ((window as any)._matchProcessedId === matchIdRef.current) return;
+    (window as any)._matchProcessedId = matchIdRef.current;
+
+    let cupCleared = false;
+
+    if (aiCharacter && aiCharacter.tier === 'master') {
+      const cup = playerData.aiProgress.masterCup;
+      const rrJson = localStorage.getItem('clash_cup_round_robin_state');
+      if (rrJson) {
+        try {
+          let rr = JSON.parse(rrJson);
+          const matchIdx = cup.currentMatch - 1; // 0, 1, or 2
+
+          // Record player's match result
+          let matchOutcome: 'white_win' | 'black_win' | 'draw' = 'draw';
+          if (result === 'win') {
+            matchOutcome = rr.matches[matchIdx].whiteId === playerData.uid ? 'white_win' : 'black_win';
+          } else if (result === 'loss') {
+            matchOutcome = rr.matches[matchIdx].whiteId === playerData.uid ? 'black_win' : 'white_win';
+          }
+          
+          rr = recordMatchResult(rr, matchIdx, matchOutcome);
+          
+          if (matchIdx === 2) {
+            // Player completed their 3rd match. Simulate remaining AI vs AI matches!
+            setIsSimulatingTournament(true);
+            const cupAiBots = AI_CHARACTERS.filter(c => c.tier === 'master' && c.cup === rr.cupId);
+            if (cupAiBots.length === 3) {
+              const res3 = await simulateAiVsAiMatch(cupAiBots[0], cupAiBots[1]);
+              rr = recordMatchResult(rr, 3, res3);
+              const res4 = await simulateAiVsAiMatch(cupAiBots[0], cupAiBots[2]);
+              rr = recordMatchResult(rr, 4, res4);
+              const res5 = await simulateAiVsAiMatch(cupAiBots[1], cupAiBots[2]);
+              rr = recordMatchResult(rr, 5, res5);
+            }
+            setIsSimulatingTournament(false);
+          }
+          
+          localStorage.setItem('clash_cup_round_robin_state', JSON.stringify(rr));
+          if (rr.status === 'completed' && rr.winnerId === playerData.uid) {
+            cupCleared = true;
+          }
+        } catch (e) {
+          console.error("Error processing Cup Round Robin match result:", e);
+        }
+      }
+    }
+
+    const summary = matchFlowService.processMatchResult({
+      matchId: matchIdRef.current,
+      characterId: activeCharacterId,
+      result,
+      reason,
+      eloBefore: playerData.aiProgress.elo,
+      cupCleared
+    } as any, playerData);
+
+    setEloChange(summary.eloChange);
+    setMatchRewards(summary.rewards);
+    onUpdatePlayerData(summary.updatedPlayerData);
+  };
 
   useEffect(() => {
     let progress = 0;
@@ -225,11 +364,6 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       if (progress >= 100) {
         progress = 100;
         clearInterval(interval);
-        setTimeout(() => {
-          setIsGameLoading(false);
-          const duration = Date.now() - boardLoadStartTime.current;
-          setBoardLoadTime(duration);
-        }, 300);
       }
       setLoadingProgress(progress);
       
@@ -239,21 +373,20 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         setLoadingMessage('Loading board theme...');
       } else if (progress < 70) {
         setLoadingMessage('Assembling pieces...');
-      } else if (progress < 90) {
-        setLoadingMessage('Calibrating engine...');
       } else {
-        setLoadingMessage('Ready!');
+        setLoadingMessage('Positioning cameras...');
       }
-    }, 60);
+    }, 80);
 
     return () => clearInterval(interval);
   }, []);
+
   const [checkInfo, setCheckInfo] = useState<{ king: string; checker: string } | null>(null);
   const [matchRewards, setMatchRewards] = useState<any>(null);
   const [isAIThinking, setIsAIThinking] = useState(false);
   const [is3DLoaded, setIs3DLoaded] = useState(false);
   const [show3DTimeoutPrompt, setShow3DTimeoutPrompt] = useState(false);
-  const [latencyText, setLatencyText] = useState<string>('Waking server...');
+  const [latencyText, setLatencyText] = useState<string>('Ping...');
   const [latencyColorClass, setLatencyColorClass] = useState<string>('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
   const lastPongReceivedTime = useRef<number>(Date.now());
   const [lastMoveLatency, setLastMoveLatency] = useState<number | null>(null);
@@ -276,6 +409,21 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const [whiteTime, setWhiteTime] = useState(0);
   const [blackTime, setBlackTime] = useState(0);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
+
+  // Dismiss loading screen when progress is 100% and 3D board is ready (if 3D mode)
+  useEffect(() => {
+    if (loadingProgress >= 100) {
+      const is3DMode = playerData.viewMode === '3d';
+      if (!is3DMode || is3DLoaded) {
+        const timer = setTimeout(() => {
+          setIsGameLoading(false);
+          const duration = Date.now() - boardLoadStartTime.current;
+          setBoardLoadTime(duration);
+        }, 300);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [loadingProgress, is3DLoaded, playerData.viewMode]);
   const [pendingPromotion, setPendingPromotion] = useState<{ from: string; to: string } | null>(null);
   const [showPromotionPopup, setShowPromotionPopup] = useState(false);
   const [isCameraLocked, setIsCameraLocked] = useState(false);
@@ -350,6 +498,14 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       if (winner.toLowerCase() === (playerColor === 'w' ? 'white' : 'black')) {
         playSound('clapping');
         confetti({ particleCount: 200, spread: 90, origin: { y: 0.5 }, colors: ['#d9ad33', '#ffffff', '#a855f7'] });
+      }
+
+      if (!isLocalVS && activeCharacterId && playerData.aiProgress) {
+        const playerWon = winner.toLowerCase() === (playerColor === 'w' ? 'white' : 'black');
+        handleMatchCompletion(
+          playerWon ? 'win' : 'loss',
+          reason === 'resignation' ? 'resign' : 'checkmate'
+        );
       }
     });
 
@@ -452,37 +608,16 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
 
     const timer = setTimeout(() => {
       if (!is3DLoaded && playerData.viewMode === '3d') {
-        setShow3DTimeoutPrompt(true);
+        onUpdatePlayerData({ viewMode: '2d' });
+        setShow3DTimeoutPrompt(false);
+        console.warn("Automatically fell back to 2D board due to 5-second 3D loading timeout.");
       }
     }, 5000);
 
     return () => clearTimeout(timer);
   }, [playerData.viewMode, is3DLoaded]);
 
-  const activeCharacterId = React.useMemo(() => {
-    if (localGameConfig || multiplayerConfig) return null; // Local VS or Multiplayer match, no AI character
-    
-    // AI match
-    const validation = matchFlowService.validateCharacter(selectedCharacterId, playerData.aiProgress);
-    if (validation.valid && selectedCharacterId) {
-      return selectedCharacterId;
-    } else {
-      console.warn(`Fallback triggered: selected=${selectedCharacterId}, playing=${validation.fallbackCharacterId}`);
-      return validation.fallbackCharacterId;
-    }
-  }, [selectedCharacterId, playerData.aiProgress, localGameConfig, multiplayerConfig]);
 
-  const isMultiplayer = !!multiplayerConfig;
-  const isLocalVS = activeCharacterId === null && !isMultiplayer;
-  const aiCharacter = activeCharacterId ? AI_CHARACTERS.find(c => c.id === activeCharacterId) : null;
-
-  const nextCharacter = React.useMemo(() => {
-    if (gameOver && gameOver.includes(t.victory) && !isLocalVS && playerData.aiProgress) {
-      const nextCharId = getCurrentPlayableCharacterId(playerData.aiProgress);
-      return AI_CHARACTERS.find(c => c.id === nextCharId);
-    }
-    return null;
-  }, [gameOver, isLocalVS, playerData.aiProgress, t.victory]);
   
   const whitePlayerName = multiplayerConfig
     ? (roomData?.hostName || 'Host')
@@ -1064,7 +1199,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     lastPongReceivedTime.current = Date.now();
     const initialStatus = realtimeClient.getRealtimeStatus();
     if (initialStatus === 'connecting') {
-      setLatencyText('Waking server...');
+      setLatencyText('Ping...');
       setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
     } else if (initialStatus === 'reconnecting') {
       setLatencyText('Reconnecting...');
@@ -1080,7 +1215,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     const checkLatencyInterval = setInterval(() => {
       const currentStatus = realtimeClient.getRealtimeStatus();
       if (currentStatus === 'connecting') {
-        setLatencyText('Waking server...');
+        setLatencyText('Ping...');
         setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
       } else if (currentStatus === 'reconnecting') {
         setLatencyText('Reconnecting...');
@@ -1118,7 +1253,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     realtimeClient.onRealtimeStatus((status) => {
       if (!isMounted) return;
       if (status === 'connecting') {
-        setLatencyText('Waking server...');
+        setLatencyText('Ping...');
         setLatencyColorClass('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
       } else if (status === 'reconnecting') {
         setLatencyText('Reconnecting...');
@@ -1295,20 +1430,10 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         return;
       }
 
-      // Apply AI career progression and rewards via matchFlowService
+      // Apply AI career progression and rewards
       if (!isLocalVS && activeCharacterId && playerData.aiProgress) {
         const result: 'win' | 'loss' = playerWon ? 'win' : 'loss';
-        const summary = matchFlowService.processMatchResult({
-          matchId: matchIdRef.current,
-          characterId: activeCharacterId,
-          result,
-          reason: 'checkmate',
-          eloBefore: playerData.aiProgress.elo
-        }, playerData);
-        
-        setEloChange(summary.eloChange);
-        setMatchRewards(summary.rewards);
-        onUpdatePlayerData(summary.updatedPlayerData);
+        handleMatchCompletion(result, 'checkmate');
       }
 
       setGameOver(`${winner.toUpperCase()} ${t.victory} - ${t.checkmate}`);
@@ -1337,19 +1462,9 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         return;
       }
       
-      // Apply AI progression and rewards via matchFlowService
+      // Apply AI progression and rewards
       if (!isLocalVS && activeCharacterId && playerData.aiProgress) {
-        const summary = matchFlowService.processMatchResult({
-          matchId: matchIdRef.current,
-          characterId: activeCharacterId,
-          result: 'draw',
-          reason: 'draw',
-          eloBefore: playerData.aiProgress.elo
-        }, playerData);
-        
-        setEloChange(summary.eloChange);
-        setMatchRewards(summary.rewards);
-        onUpdatePlayerData(summary.updatedPlayerData);
+        handleMatchCompletion('draw', 'draw');
       }
       
       setGameOver(reason);
@@ -1441,21 +1556,11 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     const isWhite = playerColor === 'w';
 
     if (!isLocalVS && activeCharacterId && playerData.aiProgress) {
-      const summary = matchFlowService.processMatchResult({
-        matchId: matchIdRef.current,
-        characterId: activeCharacterId,
-        result: 'draw',
-        reason: 'draw',
-        eloBefore: playerData.aiProgress.elo
-      }, {
-        ...playerData,
+      onUpdatePlayerData({
         whiteTime: isWhite ? playerData.whiteTime + duration : playerData.whiteTime,
         blackTime: !isWhite ? playerData.blackTime + duration : playerData.blackTime,
       });
-
-      setEloChange(summary.eloChange);
-      setMatchRewards(summary.rewards);
-      onUpdatePlayerData(summary.updatedPlayerData);
+      handleMatchCompletion('draw', 'draw');
     } else if (!isLocalVS) {
       onUpdatePlayerData({
         whiteTime: isWhite ? playerData.whiteTime + duration : playerData.whiteTime,
@@ -1531,6 +1636,13 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       className="w-full h-full bg-[#030204] relative overflow-hidden" 
       dir={isRtl ? 'rtl' : 'ltr'}
     >
+      {isSimulatingTournament && (
+        <div className="absolute inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center gap-4 z-50">
+          <Loader2 size={36} className="animate-spin text-[#d9ad33]" />
+          <h3 className="text-lg font-bold text-white uppercase tracking-widest font-serif">Simulating Tournament Matches</h3>
+          <p className="text-xs text-white/60 uppercase tracking-widest">Calculating round-robin standings...</p>
+        </div>
+      )}
       <PerformanceOverlay 
         show={!!playerData.showDebugOverlay} 
         rtt={latency}
@@ -1547,6 +1659,11 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
           progress={loadingProgress} 
           message={loadingProgress >= 50 && aiCharacter ? `"${aiCharacter.introLine || 'Prepare your move.'}"` : loadingMessage} 
         />
+      )}
+      {latencyText === 'Ping...' && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] bg-yellow-500/90 text-black font-sans font-semibold text-[9px] md:text-xs px-4 py-2 rounded-full flex items-center gap-2 shadow-lg animate-pulse pointer-events-auto">
+          <span>⚠️ Your network connection is low. Please wait...</span>
+        </div>
       )}
       {/* Background Gradient */}
       <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-b from-[#1a0f0a] via-[#030204] to-[#1a0f0a]" />
@@ -1616,13 +1733,22 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                     {/* Latency Indicator */}
                     <div 
                       className={cn(
-                        "p-1.5 md:p-2.5 backdrop-blur-xl border rounded-lg md:rounded-xl transition-all shadow-2xl flex flex-col items-center justify-center min-w-[36px] md:min-w-[50px]",
+                        "p-1.5 md:p-2.5 backdrop-blur-xl border rounded-lg md:rounded-xl transition-all shadow-2xl flex flex-col items-center justify-center min-w-[36px] md:min-w-[50px] cursor-help",
                         latencyColorClass
                       )}
-                      title={`Ping: ${latencyText}`}
+                      title={
+                        latencyText === 'Ping...'
+                          ? 'Your network connection is low. Please wait...'
+                          : latencyText === 'Offline'
+                            ? 'Disconnected from the engine. Operating in offline local fallback mode.'
+                            : latencyText === 'Reconnecting...'
+                              ? 'Connection lost. Reconnecting to engine...'
+                              : `Ping: ${latencyText}. Lower is better for multiplayer and online engine queries.`
+                      }
                     >
-                      <span className="text-[7px] md:text-[8px] font-bold uppercase tracking-tighter">RTT</span>
-                      <span className="text-[8px] md:text-[10px] font-black">{latencyText}</span>
+                      <span className="text-[10px] md:text-xs font-black">
+                        {latencyText.replace(/[^0-9]/g, '') || (latencyText === 'Offline' ? '--' : '...')}
+                      </span>
                     </div>
 
                     <motion.button
@@ -2128,7 +2254,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                     const cta = getGameResultCTA(
                       outcome,
                       activeCharacterId,
-                      playerData.aiProgress || { tier: 'core', level: 1, elo: 100, consecutiveLosses: 0, unlockedTiers: ['core'], lockedTiers: [], promotionTrial: { unlocked: false, completed: false }, hard: { locked: true }, masterCup: { currentCup: 1, currentMatch: 1, winsInCup: 0, lossesInCup: 0, completedCups: [] }, grandmaster: { unlocked: false, bossDefeated: false, bossSeriesWins: 0, bossSeriesLosses: 0, seasonPoints: 0 } }
+                      playerData.aiProgress || { tier: 'beginner', level: 1, elo: 300, consecutiveLosses: 0, unlockedTiers: ['beginner'], lockedTiers: [], promotionTrial: { unlocked: false, completed: false }, hard: { locked: true }, masterCup: { currentCup: 1, currentMatch: 1, winsInCup: 0, lossesInCup: 0, completedCups: [] }, grandmaster: { unlocked: false, bossDefeated: false, bossSeriesWins: 0, bossSeriesLosses: 0, seasonPoints: 0 } }
                     );
 
                     return (
@@ -2272,6 +2398,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               whitePlayerName={whitePlayerName}
               blackPlayerName={blackPlayerName}
               isLocalGame={isLocalVS}
+              playerColor={playerColor}
             />
           )}
           {isMultiplayer && reconnectTimeLeft !== null && (

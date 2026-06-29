@@ -1,7 +1,7 @@
 import { PlayerData, AIProgress, AITier } from '../../types';
 import { validatePlayerData, validateAndRepairPlayerData } from '../../game/security/validatePlayerData';
 
-const TIER_ORDER: AITier[] = ['core', 'beginner', 'learner', 'promotion_trial', 'intermediate', 'hard', 'master', 'grandmaster'];
+const TIER_ORDER: AITier[] = ['beginner', 'learner', 'intermediate', 'hard', 'master', 'grandmaster'];
 
 /**
  * Returns a score representing the player's career progress.

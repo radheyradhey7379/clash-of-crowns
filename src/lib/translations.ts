@@ -78,6 +78,7 @@ export const translations = {
     bishop: "BISHOP",
     knight: "KNIGHT",
     support: "SUPPORT",
+    customise: "CUSTOMISE",
   },
   hi: {
     play: "खेलें",
@@ -156,6 +157,7 @@ export const translations = {
     bishop: "ऊंट",
     knight: "घोड़ा",
     support: "सहायता",
+    customise: "अनुकूलित करें",
   },
   ur: {
     play: "کھیلیں",
@@ -234,6 +236,7 @@ export const translations = {
     bishop: "فیلہ",
     knight: "گھوڑا",
     support: "سپورٹ",
+    customise: "اپنی مرضی کے مطابق بنائیں",
   },
   ar: {
     play: "العب",
@@ -312,6 +315,7 @@ export const translations = {
     bishop: "فيل",
     knight: "حصان",
     support: "الدعم",
+    customise: "تخصيص",
   }
 };
 

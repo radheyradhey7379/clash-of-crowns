@@ -13,11 +13,9 @@ export interface BotProfile {
 
 export function resolveEngine(tier: AITier): EngineType {
   switch (tier) {
-    case 'core':
     case 'beginner':
     case 'learner':
       return 'hce';
-    case 'promotion_trial':
     case 'intermediate':
     case 'hard':
     case 'master':
@@ -30,14 +28,10 @@ export function resolveEngine(tier: AITier): EngineType {
 
 export function resolveErrorNoiseCp(tier: AITier, level: number): number {
   switch (tier) {
-    case 'core':
-      return 200;
     case 'beginner':
       return 160;
     case 'learner':
       return 100;
-    case 'promotion_trial':
-      return 80;
     case 'intermediate':
       return Math.max(60, 120 - (level * 8));
     case 'hard':

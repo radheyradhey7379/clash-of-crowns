@@ -118,7 +118,7 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode, playerDa
                     <ModeButton
                       icon={<Globe size={18} className="animate-spin opacity-60 text-yellow-500" />}
                       label="CASUAL / FRIEND MATCH"
-                      description="Waking server..."
+                      description="Checking connection..."
                       onClick={() => {}}
                       color="opacity-60 border-white/10 cursor-not-allowed"
                     />

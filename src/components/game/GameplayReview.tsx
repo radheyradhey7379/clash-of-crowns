@@ -44,6 +44,7 @@ interface GameplayReviewProps {
   whitePlayerName?: string;
   blackPlayerName?: string;
   isLocalGame?: boolean;
+  playerColor?: 'w' | 'b';
 }
 
 export default function GameplayReview({ 
@@ -57,7 +58,8 @@ export default function GameplayReview({
   blackTime = 0,
   whitePlayerName,
   blackPlayerName,
-  isLocalGame = false
+  isLocalGame = false,
+  playerColor = 'w'
 }: GameplayReviewProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -290,7 +292,7 @@ export default function GameplayReview({
   const handleUpgrade = async (type: 'premium' | 'undo_day' | 'undo_month' | 'undo_year') => {
     try {
       const prices = {
-        premium: includeUndo ? 248 : 199,
+        premium: includeUndo ? 348 : 299,
         undo_day: 29,
         undo_month: 79,
         undo_year: 499
@@ -539,7 +541,7 @@ export default function GameplayReview({
               className="flex flex-col justify-around pr-1.5 text-[10px] text-[#524e48] font-mono"
               style={{ height: boardSize }}
             >
-              {['8','7','6','5','4','3','2','1'].map(r => <span key={r}>{r}</span>)}
+              {(playerColor === 'w' ? ['8','7','6','5','4','3','2','1'] : ['1','2','3','4','5','6','7','8']).map(r => <span key={r}>{r}</span>)}
             </div>
             <div>
               <div className="rounded-sm overflow-hidden shadow-[0_12px_60px_rgba(0,0,0,0.75),0_0_0_1px_#252528]">
@@ -550,7 +552,7 @@ export default function GameplayReview({
                     validMoves={[]}
                     lastMove={lastMove}
                     onSquareClick={() => {}}
-                    playerColor="w"
+                    playerColor={playerColor}
                     checkInfo={null}
                   />
                 </div>
@@ -559,7 +561,7 @@ export default function GameplayReview({
                 className="flex justify-around pt-1 text-[10px] text-[#524e48] font-mono"
                 style={{ width: boardSize }}
               >
-                {['a','b','c','d','e','f','g','h'].map(f => <span key={f}>{f}</span>)}
+                {(playerColor === 'w' ? ['a','b','c','d','e','f','g','h'] : ['h','g','f','e','d','c','b','a']).map(f => <span key={f}>{f}</span>)}
               </div>
             </div>
           </div>
@@ -1075,7 +1077,7 @@ export default function GameplayReview({
                     <div className="relative bg-[#1a0d2e] border-2 border-[#a855f7] rounded-2xl p-5 text-center shadow-[0_0_30px_rgba(168,85,247,0.2)] flex flex-col">
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#a855f7] to-[#7c3aed] text-white px-3 py-0.5 rounded-full text-[9px] font-serif font-bold tracking-wider whitespace-nowrap">⭐ PRO BUNDLE</div>
                       <div className="font-serif text-[11px] text-[#c084fc] tracking-[0.2em] mb-2 uppercase">PREMIUM</div>
-                      <div className="font-serif text-[36px] font-bold text-[#f5c518]">₹{includeUndo ? 248 : 199}</div>
+                      <div className="font-serif text-[36px] font-bold text-[#f5c518]">₹{includeUndo ? 348 : 299}</div>
                       <div className="text-[9px] text-[#524e48] uppercase tracking-widest mb-4">per month</div>
                       
                       <div 

@@ -304,8 +304,8 @@ export default function LeaderboardScreen({ onNavigate, playerData }: { onNaviga
             </div>
             <div className="w-32 text-center text-[10px] font-bold tracking-widest uppercase">
               {activeTab === 0 ? (
-                <span style={{ color: TIER_COLORS[TIER_KEYS.indexOf(playerData.aiProgress?.tier || 'core')] }}>
-                  {TIER_LABELS[TIER_KEYS.indexOf(playerData.aiProgress?.tier || 'core')]}
+                <span style={{ color: TIER_COLORS[TIER_KEYS.indexOf(playerData.aiProgress?.tier || 'beginner')] }}>
+                  {TIER_LABELS[TIER_KEYS.indexOf(playerData.aiProgress?.tier || 'beginner')]}
                 </span>
               ) : (
                 <span className="text-white/40">

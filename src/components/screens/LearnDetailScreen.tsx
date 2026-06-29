@@ -25,6 +25,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
   const [isFallback, setIsFallback] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [voiceAlert, setVoiceAlert] = useState<string | null>(null);
+  const [puzzleState, setPuzzleState] = useState<'playing' | 'success' | 'failed'>('playing');
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isMounted = useRef(true);
   const narrationTimeoutRef = useRef<any>(null);
@@ -38,6 +39,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     setLastMove(null);
     setDemoIndex(0);
     setIsDemoPlaying(false);
+    setPuzzleState('playing');
     stopNarration();
 
     return () => {
@@ -254,7 +256,14 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
   };
 
   const handleSquareClick = (square: string) => {
-    if (isDemoPlaying) return;
+    if (isDemoPlaying || puzzleState === 'success') return;
+
+    // Freeze non-required pieces
+    if (lesson.requiredPieceSquare && !selectedSquare && square !== lesson.requiredPieceSquare) {
+      setVoiceAlert(`To solve this puzzle, you must move the piece on ${lesson.requiredPieceSquare}!`);
+      setTimeout(() => setVoiceAlert(null), 3000);
+      return;
+    }
 
     const piece = logic.getBoard()[8 - parseInt(square[1])][square.charCodeAt(0) - 97];
 
@@ -270,6 +279,25 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
         setLastMove({ from: selectedSquare, to: square });
         setSelectedSquare(null);
         setValidMoves([]);
+        
+        // Check puzzle success!
+        const expectedMove = lesson.puzzleMoves?.[0];
+        if (expectedMove) {
+          const isCorrect = move.san === expectedMove || 
+                            move.san.replace('+', '').replace('#', '') === expectedMove.replace('+', '').replace('#', '');
+          
+          if (isCorrect) {
+            setPuzzleState('success');
+            setVoiceAlert("Excellent! That is the correct move!");
+          } else {
+            setPuzzleState('failed');
+            setVoiceAlert("Incorrect move. Try again!");
+            setTimeout(() => {
+              resetBoard();
+            }, 2000);
+          }
+        }
+
         // Re-render board
         setLogic(new ChessLogic(logic.getFen()));
       }
@@ -283,6 +311,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     const demoLogic = new ChessLogic(lesson.fen);
     setLogic(demoLogic);
     setLastMove(null);
+    setPuzzleState('playing');
     
     for (const moveStr of lesson.demoMoves) {
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -302,6 +331,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     setValidMoves([]);
     setLastMove(null);
     setIsDemoPlaying(false);
+    setPuzzleState('playing');
   };
 
   const getCheckInfo = () => {
@@ -490,12 +520,20 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="flex-1 bg-[#09090b] p-2 xs:p-4 sm:p-8 lg:p-12 flex items-center justify-center relative overflow-hidden"
+          className="flex-1 bg-[#09090b] p-2 xs:p-4 sm:p-8 lg:p-12 flex flex-col items-center justify-center relative overflow-hidden"
         >
           {/* Decorative Elements */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] h-[90%] bg-[#d9ad33]/5 blur-[120px] rounded-full" />
           </div>
+
+          {/* Puzzle Instructions */}
+          {lesson.puzzleInstructions && (
+            <div className="mb-6 px-6 py-3 bg-[#d9ad33]/10 border border-[#d9ad33]/30 rounded-2xl text-center max-w-md z-10 shadow-lg">
+              <span className="text-[8px] sm:text-[10px] text-[#d9ad33] font-black uppercase tracking-widest block mb-1">YOUR TASK</span>
+              <p className="text-xs sm:text-sm text-white font-medium">{lesson.puzzleInstructions}</p>
+            </div>
+          )}
 
           <div 
             className="w-full aspect-square relative z-10 flex items-center justify-center"
@@ -515,6 +553,45 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
                 checkInfo={getCheckInfo()}
               />
             </div>
+
+            {/* Success Overlay */}
+            {puzzleState === 'success' && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="absolute inset-0 bg-black/90 z-20 rounded-2xl flex flex-col items-center justify-center p-6 border border-[#d9ad33] shadow-[0_0_50px_rgba(217,173,51,0.3)]"
+              >
+                <motion.div 
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                  className="w-16 h-16 bg-[#d9ad33]/20 rounded-full flex items-center justify-center border border-[#d9ad33] mb-4"
+                >
+                  <CheckCircle2 className="text-[#d9ad33] w-10 h-10" />
+                </motion.div>
+                <h3 className="text-[#d9ad33] text-xl font-bold tracking-widest font-serif mb-2 uppercase">LESSON COMPLETE!</h3>
+                <p className="text-white/70 text-xs sm:text-sm text-center mb-6 max-w-xs">
+                  You successfully executed the target move for this lesson!
+                </p>
+                <div className="flex gap-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={resetBoard}
+                    className="px-6 py-2 border border-white/20 hover:border-white/40 text-white rounded-xl text-xs font-bold tracking-wider"
+                  >
+                    RESET
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={onBack}
+                    className="px-6 py-2 bg-[#d9ad33] text-black rounded-xl text-xs font-bold tracking-wider"
+                  >
+                    CONTINUE
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
             
             <div className="absolute -bottom-6 sm:-bottom-10 left-0 w-full flex justify-between items-center px-1 sm:px-2">
               <span className="text-[#524e48] text-[6px] sm:text-[8px] font-bold tracking-widest uppercase">Interactive Training Board</span>

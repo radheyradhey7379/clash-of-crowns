@@ -30,7 +30,7 @@ export function validatePlayerData(playerData: PlayerData): boolean {
   if (!progress) return false;
 
   // AI Progress type validations
-  const validTiers: AITier[] = ['core', 'beginner', 'learner', 'promotion_trial', 'intermediate', 'hard', 'master', 'grandmaster'];
+  const validTiers: AITier[] = ['beginner', 'learner', 'intermediate', 'hard', 'master', 'grandmaster'];
   if (!validTiers.includes(progress.tier)) return false;
   if (typeof progress.level !== 'number' || progress.level < 1) return false;
   if (typeof progress.elo !== 'number' || progress.elo < 0 || progress.elo > 5000) return false;
@@ -66,8 +66,8 @@ export function validatePlayerData(playerData: PlayerData): boolean {
   if (progress.unlockedTiers.includes('grandmaster') && !progress.masterCup.completedCups.includes(3)) return false;
   if (progress.unlockedTiers.includes('master') && !progress.unlockedTiers.includes('hard')) return false;
   if (progress.unlockedTiers.includes('hard') && !progress.unlockedTiers.includes('intermediate')) return false;
-  if (progress.unlockedTiers.includes('intermediate') && !progress.promotionTrial.completed) return false;
-  if (progress.unlockedTiers.includes('promotion_trial') && !progress.unlockedTiers.includes('learner')) return false;
+  if (progress.unlockedTiers.includes('intermediate') && !progress.unlockedTiers.includes('learner')) return false;
+  if (progress.unlockedTiers.includes('learner') && !progress.unlockedTiers.includes('beginner')) return false;
 
   return true;
 }
@@ -192,15 +192,41 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
   }
 
   const progress = data.aiProgress;
-  const validTiers: AITier[] = ['core', 'beginner', 'learner', 'promotion_trial', 'intermediate', 'hard', 'master', 'grandmaster'];
+
+  // Migrate legacy tiers first
+  if (progress.tier === ('core' as any)) {
+    progress.tier = 'beginner';
+    progress.level = 1;
+    progress.elo = Math.max(300, progress.elo);
+    repaired = true;
+  } else if (progress.tier === ('promotion_trial' as any)) {
+    progress.tier = 'learner';
+    progress.level = 5;
+    repaired = true;
+  }
+
+  if (progress.unlockedTiers && (progress.unlockedTiers.includes('core' as any) || progress.unlockedTiers.includes('promotion_trial' as any))) {
+    progress.unlockedTiers = progress.unlockedTiers.filter((t: any) => t !== 'core' && t !== 'promotion_trial');
+    if (!progress.unlockedTiers.includes('beginner')) {
+      progress.unlockedTiers.unshift('beginner');
+    }
+    repaired = true;
+  }
+
+  if (progress.lockedTiers && (progress.lockedTiers.includes('core' as any) || progress.lockedTiers.includes('promotion_trial' as any))) {
+    progress.lockedTiers = progress.lockedTiers.filter((t: any) => t !== 'core' && t !== 'promotion_trial');
+    repaired = true;
+  }
+
+  const validTiers: AITier[] = ['beginner', 'learner', 'intermediate', 'hard', 'master', 'grandmaster'];
 
   if (!validTiers.includes(progress.tier)) {
-    progress.tier = 'core';
+    progress.tier = 'beginner';
     repaired = true;
     flags.push({
       type: 'invalid_tier',
       severity: 'high',
-      message: 'Reset invalid tier to core'
+      message: 'Reset invalid tier to beginner'
     });
   }
 
@@ -215,7 +241,7 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
   }
 
   if (typeof progress.elo !== 'number' || progress.elo < 0 || progress.elo > 5000) {
-    progress.elo = progress.elo < 0 ? 0 : progress.elo > 5000 ? 5000 : 100;
+    progress.elo = progress.elo < 0 ? 0 : progress.elo > 5000 ? 5000 : 300;
     repaired = true;
     flags.push({
       type: 'invalid_career_elo',
@@ -237,25 +263,23 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
 
   // Lists integrity
   if (!Array.isArray(progress.unlockedTiers)) {
-    progress.unlockedTiers = ['core'];
+    progress.unlockedTiers = ['beginner'];
     repaired = true;
   }
   progress.unlockedTiers = progress.unlockedTiers.filter((t: any) => validTiers.includes(t));
   if (progress.unlockedTiers.length === 0) {
-    progress.unlockedTiers.push('core');
+    progress.unlockedTiers.push('beginner');
   }
 
   if (!Array.isArray(progress.lockedTiers)) {
-    progress.lockedTiers = ['beginner', 'learner', 'promotion_trial', 'intermediate', 'hard', 'master', 'grandmaster'];
+    progress.lockedTiers = ['learner', 'intermediate', 'hard', 'master', 'grandmaster'];
     repaired = true;
   }
   progress.lockedTiers = progress.lockedTiers.filter((t: any) => validTiers.includes(t));
 
   // Phase 33A: Migrate claimed rewards to prevent duplicates
   if (!Array.isArray(progress.claimedTierRewards)) {
-    // If it's an old save, we infer they already claimed rewards for tiers they have unlocked
-    // minus 'core' (which doesn't give an unlock reward)
-    progress.claimedTierRewards = progress.unlockedTiers.filter(t => t !== 'core');
+    progress.claimedTierRewards = [];
     repaired = true;
   } else {
     progress.claimedTierRewards = progress.claimedTierRewards.filter((t: any) => validTiers.includes(t));
@@ -417,30 +441,42 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
     });
   }
 
-  // Intermediate unlocked without Promotion Trial completed
-  if (progress.unlockedTiers.includes('intermediate') && !progress.promotionTrial.completed) {
-    progress.tier = 'promotion_trial';
-    progress.level = 1;
-    progress.promotionTrial.unlocked = true;
+  // intermediate unlocked but promotionTrial not completed
+  if (progress.unlockedTiers.includes('intermediate') && progress.promotionTrial && !progress.promotionTrial.completed) {
+    progress.tier = 'learner';
+    progress.level = 5;
     progress.unlockedTiers = progress.unlockedTiers.filter(t => t !== 'intermediate' && t !== 'hard' && t !== 'master' && t !== 'grandmaster');
     repaired = true;
     flags.push({
       type: 'impossible_intermediate_state',
       severity: 'high',
-      message: 'Locked Intermediate: Promotion Trial was not completed'
+      message: 'Locked Intermediate: Promotion trial was not completed'
     });
   }
 
-  // Promotion Trial unlocked without Learner 5 completed
-  if (progress.unlockedTiers.includes('promotion_trial') && !progress.unlockedTiers.includes('learner')) {
+  // Intermediate unlocked without Learner completed
+  if (progress.unlockedTiers.includes('intermediate') && !progress.unlockedTiers.includes('learner')) {
     progress.tier = 'learner';
     progress.level = 1;
-    progress.unlockedTiers = progress.unlockedTiers.filter(t => t !== 'promotion_trial' && t !== 'intermediate' && t !== 'hard' && t !== 'master' && t !== 'grandmaster');
+    progress.unlockedTiers = progress.unlockedTiers.filter(t => t !== 'intermediate' && t !== 'hard' && t !== 'master' && t !== 'grandmaster');
     repaired = true;
     flags.push({
-      type: 'impossible_trial_state',
+      type: 'impossible_intermediate_state',
       severity: 'high',
-      message: 'Locked Promotion Trial: Learner tier was not completed'
+      message: 'Locked Intermediate: Learner tier was not completed'
+    });
+  }
+
+  // Learner unlocked without Beginner completed
+  if (progress.unlockedTiers.includes('learner') && !progress.unlockedTiers.includes('beginner')) {
+    progress.tier = 'beginner';
+    progress.level = 1;
+    progress.unlockedTiers = progress.unlockedTiers.filter(t => t !== 'learner' && t !== 'intermediate' && t !== 'hard' && t !== 'master' && t !== 'grandmaster');
+    repaired = true;
+    flags.push({
+      type: 'impossible_learner_state',
+      severity: 'high',
+      message: 'Locked Learner: Beginner tier was not completed'
     });
   }
 

@@ -6,6 +6,9 @@ export interface LessonContent {
   rules: string[];
   fen: string;
   demoMoves?: string[];
+  puzzleMoves?: string[];
+  puzzleInstructions?: string;
+  requiredPieceSquare?: string;
 }
 
 export const LESSON_DATA: Record<string, LessonContent> = {
@@ -22,7 +25,10 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "Can be promoted if it reaches the other side."
     ],
     fen: "k7/8/8/8/8/4P3/8/7K w - - 0 1",
-    demoMoves: ["e4"]
+    demoMoves: ["e4"],
+    puzzleMoves: ["e4"],
+    puzzleInstructions: "Move the White Pawn to e4.",
+    requiredPieceSquare: "e3"
   },
   "KNIGHT": {
     id: "KNIGHT",
@@ -35,8 +41,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "Always lands on a square of a different color than it started on.",
       "Excellent for 'forking' multiple enemy pieces at once."
     ],
-    fen: "k7/8/8/8/4N3/8/8/7K w - - 0 1",
-    demoMoves: ["Nf6", "Nd4", "Nc5", "Nd7"]
+    fen: "6k1/8/3r4/8/4N3/8/8/7K w - - 0 1",
+    demoMoves: ["Nf6+"],
+    puzzleMoves: ["Nf6+"],
+    puzzleInstructions: "Move the Knight to f6 to deliver a check!",
+    requiredPieceSquare: "e4"
   },
   "BISHOP": {
     id: "BISHOP",
@@ -49,8 +58,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "You start with one light-squared and one dark-squared bishop.",
       "Cannot jump over other pieces."
     ],
-    fen: "k7/8/8/8/4B3/8/8/7K w - - 0 1",
-    demoMoves: ["Ba8", "Bh7", "Bg2", "Bb1"]
+    fen: "r6k/8/8/8/4B3/8/8/7K w - - 0 1",
+    demoMoves: ["Bxa8"],
+    puzzleMoves: ["Bxa8"],
+    puzzleInstructions: "Capture the Black Rook on a8 with your Bishop.",
+    requiredPieceSquare: "e4"
   },
   "ROOK": {
     id: "ROOK",
@@ -63,8 +75,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "Used in the special move called 'Castling'.",
       "Cannot jump over other pieces."
     ],
-    fen: "k7/8/8/8/4R3/8/8/7K w - - 0 1",
-    demoMoves: ["Re8", "Ra4", "Rh4", "Re1"]
+    fen: "7k/8/8/8/4R3/8/8/7K w - - 0 1",
+    demoMoves: ["Re8+"],
+    puzzleMoves: ["Re8+"],
+    puzzleInstructions: "Move the Rook to e8 to check the Black King.",
+    requiredPieceSquare: "e4"
   },
   "QUEEN": {
     id: "QUEEN",
@@ -77,8 +92,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "Protect your Queen at all costs, but don't be afraid to use her power.",
       "Cannot jump over other pieces."
     ],
-    fen: "k7/8/8/8/4Q3/8/8/7K w - - 0 1",
-    demoMoves: ["Qa8", "Qh8", "Qh1", "Qa1", "Qe4"]
+    fen: "q6k/8/8/8/4Q3/8/8/7K w - - 0 1",
+    demoMoves: ["Qxa8+"],
+    puzzleMoves: ["Qxa8+"],
+    puzzleInstructions: "Capture the Black Queen on a8.",
+    requiredPieceSquare: "e4"
   },
   "KING": {
     id: "KING",
@@ -92,7 +110,10 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "The game ends when the King is in 'Checkmate'."
     ],
     fen: "k7/8/8/8/4K3/8/8/8 w - - 0 1",
-    demoMoves: ["Ke5", "Kf5", "Kf4", "Ke4", "Kd4", "Kd5"]
+    demoMoves: ["Ke5"],
+    puzzleMoves: ["Ke5"],
+    puzzleInstructions: "Move your King to e5.",
+    requiredPieceSquare: "e4"
   },
   "CHESS NOTATION": {
     id: "CHESS NOTATION",
@@ -106,7 +127,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "Pieces are capitalized: K (King), Q (Queen), R (Rook), B (Bishop), N (Knight).",
       "Pawns have no letter (e.g., 'e4' means pawn to e4)."
     ],
-    fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    fen: "k7/8/8/8/4B3/8/8/7K w - - 0 1",
+    demoMoves: ["Bf5"],
+    puzzleMoves: ["Bf5"],
+    puzzleInstructions: "Move the Bishop to f5.",
+    requiredPieceSquare: "e4"
   },
   "CAPTURING": {
     id: "CAPTURING",
@@ -119,8 +144,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "You cannot capture your own pieces.",
       "Capturing is usually optional, unless it's the only way out of check."
     ],
-    fen: "k7/8/8/3p4/4P3/8/8/7K w - - 0 1",
-    demoMoves: ["exd5"]
+    fen: "k7/8/5p2/8/4B3/8/8/7K w - - 0 1",
+    demoMoves: ["Bxf5"],
+    puzzleMoves: ["Bxf5"],
+    puzzleInstructions: "Capture the Black Pawn on f5 using your Bishop.",
+    requiredPieceSquare: "e4"
   },
   "CHECK": {
     id: "CHECK",
@@ -133,8 +161,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "You cannot make a move that leaves your King in check.",
       "It is polite (but not required) to say 'Check' in casual play."
     ],
-    fen: "4k3/8/8/8/8/8/8/4R1K1 w - - 0 1",
-    demoMoves: ["Re8+"]
+    fen: "k7/8/8/8/4R3/8/8/7K w - - 0 1",
+    demoMoves: ["Re8+"],
+    puzzleMoves: ["Re8+"],
+    puzzleInstructions: "Deliver a check by moving your Rook to e8.",
+    requiredPieceSquare: "e4"
   },
   "OUT OF CHECK": {
     id: "OUT OF CHECK",
@@ -147,8 +178,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "Capture the piece that is giving the check.",
       "If none of these are possible, it is Checkmate."
     ],
-    fen: "4k3/8/4R3/8/8/8/8/6K1 b - - 0 1",
-    demoMoves: ["Kd8", "Kf8"]
+    fen: "k7/8/8/8/r3K3/8/8/8 w - - 0 1",
+    demoMoves: ["Kf3"],
+    puzzleMoves: ["Kf3"],
+    puzzleInstructions: "Move your King to f3 to get out of check.",
+    requiredPieceSquare: "e4"
   },
   "CHECKMATE": {
     id: "CHECKMATE",
@@ -161,8 +195,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "Checkmate can happen very quickly (Scholar's Mate) or after a long battle.",
       "Once checkmate is delivered, the game stops immediately."
     ],
-    fen: "R1k5/8/2K5/8/8/8/8/8 w - - 0 1",
-    demoMoves: ["Ra8#"]
+    fen: "7k/6R1/8/8/8/8/8/1Q5K w - - 0 1",
+    demoMoves: ["Qb8#"],
+    puzzleMoves: ["Qb8#"],
+    puzzleInstructions: "Deliver checkmate by moving your Queen to b8.",
+    requiredPieceSquare: "b1"
   },
   "STALEMATE": {
     id: "STALEMATE",
@@ -175,7 +212,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "The game ends in a draw (1/2 - 1/2).",
       "Be careful when winning to avoid accidentally stalemating your opponent!"
     ],
-    fen: "k7/2K5/8/8/8/8/8/8 w - - 0 1",
+    fen: "7k/4Q3/8/8/8/8/8/7K w - - 0 1",
+    demoMoves: ["Qf7"],
+    puzzleMoves: ["Qf7"],
+    puzzleInstructions: "Deliver stalemate (draw) by moving your Queen to f7.",
+    requiredPieceSquare: "e7"
   },
   "PROMOTION": {
     id: "PROMOTION",
@@ -188,8 +229,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "Most players choose a Queen (the most powerful).",
       "You can have multiple Queens on the board through promotion."
     ],
-    fen: "8/P7/8/8/8/8/8/k1K5 w - - 0 1",
-    demoMoves: ["a8=Q"]
+    fen: "8/P7/k7/8/8/8/8/7K w - - 0 1",
+    demoMoves: ["a8=Q"],
+    puzzleMoves: ["a8=Q"],
+    puzzleInstructions: "Promote your Pawn to a Queen on a8.",
+    requiredPieceSquare: "a7"
   },
   "CASTLING K-SIDE": {
     id: "CASTLING K-SIDE",
@@ -202,8 +246,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "Neither piece must have moved before.",
       "The path must be clear, and the King cannot be in check or pass through check."
     ],
-    fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK2R w KQkq - 0 1",
-    demoMoves: ["O-O"]
+    fen: "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+    demoMoves: ["O-O"],
+    puzzleMoves: ["O-O"],
+    puzzleInstructions: "Castle King-side by moving your King to g1.",
+    requiredPieceSquare: "e1"
   },
   "CASTLING Q-SIDE": {
     id: "CASTLING Q-SIDE",
@@ -216,8 +263,11 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "The Rook jumps over the King to d1 or d8.",
       "Often used to create asymmetrical positions and aggressive attacks."
     ],
-    fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R3KBNR w KQkq - 0 1",
-    demoMoves: ["O-O-O"]
+    fen: "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+    demoMoves: ["O-O-O"],
+    puzzleMoves: ["O-O-O"],
+    puzzleInstructions: "Castle Queen-side by moving your King to c1.",
+    requiredPieceSquare: "e1"
   },
   "EN PASSANT": {
     id: "EN PASSANT",
@@ -230,7 +280,10 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "You move your pawn diagonally forward as if the enemy pawn had only moved one square.",
       "This move MUST be made immediately on the next turn."
     ],
-    fen: "k7/8/8/4pP2/8/8/8/7K w - e6 0 1",
-    demoMoves: ["fxe6"]
+    fen: "k7/8/8/3pP3/8/8/8/7K w - d6 0 1",
+    demoMoves: ["exd6"],
+    puzzleMoves: ["exd6"],
+    puzzleInstructions: "Capture the Black Pawn en passant by moving your Pawn to d6.",
+    requiredPieceSquare: "e5"
   }
 };

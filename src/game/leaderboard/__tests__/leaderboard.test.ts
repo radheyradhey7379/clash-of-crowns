@@ -82,12 +82,12 @@ const DEFAULT_TEST_PLAYER_DATA: PlayerData = {
   coins: 1000,
   xp: 500,
   aiProgress: {
-    tier: 'core',
+    tier: 'beginner',
     level: 1,
     elo: 1500,
     consecutiveLosses: 0,
-    unlockedTiers: ['core'],
-    lockedTiers: ['beginner', 'learner', 'promotion_trial', 'intermediate', 'hard', 'master', 'grandmaster'],
+    unlockedTiers: ['beginner'],
+    lockedTiers: ['learner', 'intermediate', 'hard', 'master', 'grandmaster'],
     promotionTrial: { unlocked: false, completed: false },
     hard: { locked: true },
     masterCup: { currentCup: 1, currentMatch: 1, winsInCup: 0, lossesInCup: 0, completedCups: [1] },
@@ -144,7 +144,7 @@ describe('Phase 22 Leaderboard Tests', () => {
       expect(entry.mode).toBe('comp_kings');
       expect(entry.score).toBe(3550);
       expect(entry.compStats?.compElo).toBe(1500);
-      expect(entry.compStats?.compTier).toBe('core');
+      expect(entry.compStats?.compTier).toBe('beginner');
       expect(entry.compStats?.grandmasterDefeated).toBe(true);
       expect(entry.compStats?.completedMasterCups).toBe(1);
     });

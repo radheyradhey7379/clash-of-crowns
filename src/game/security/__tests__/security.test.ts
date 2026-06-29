@@ -180,7 +180,7 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
 
       const loaded = loadProtectedPlayerData(DEFAULT_PLAYER_DATA);
       // Reset to default
-      expect(loaded.rating).toBe(100); // DEFAULT rating
+      expect(loaded.rating).toBe(300); // DEFAULT rating
       const flags = loaded.securityFlags || [];
       expect(flags.some(f => f.severity === 'high' && f.type === 'checksum_mismatch')).toBe(true);
     });
@@ -249,7 +249,7 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
 
       const { data: repaired, repaired: isRepaired } = validateAndRepairPlayerData(badData);
       expect(isRepaired).toBe(true);
-      expect(repaired.aiProgress.tier).toBe('core');
+      expect(repaired.aiProgress.tier).toBe('beginner');
       expect(repaired.aiProgress.level).toBe(1);
     });
 
@@ -260,7 +260,7 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
           ...DEFAULT_PLAYER_DATA.aiProgress,
           tier: 'intermediate',
           level: 2,
-          unlockedTiers: ['core', 'beginner', 'learner', 'promotion_trial', 'intermediate'],
+          unlockedTiers: ['beginner', 'learner', 'intermediate'],
           lockedTiers: ['hard', 'master', 'grandmaster'],
           promotionTrial: {
             unlocked: true,
@@ -271,8 +271,8 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
 
       const { data: repaired, repaired: isRepaired, flags } = validateAndRepairPlayerData(inconsistentData);
       expect(isRepaired).toBe(true);
-      expect(repaired.aiProgress.tier).toBe('promotion_trial');
-      expect(repaired.aiProgress.level).toBe(1);
+      expect(repaired.aiProgress.tier).toBe('learner');
+      expect(repaired.aiProgress.level).toBe(5);
       expect(repaired.aiProgress.unlockedTiers).not.toContain('intermediate');
       expect(flags.some(f => f.type === 'impossible_intermediate_state')).toBe(true);
     });
@@ -284,7 +284,7 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
           ...DEFAULT_PLAYER_DATA.aiProgress,
           tier: 'master',
           level: 1,
-          unlockedTiers: ['core', 'beginner', 'learner', 'promotion_trial', 'intermediate', 'master'],
+          unlockedTiers: ['beginner', 'learner', 'intermediate', 'master'],
           lockedTiers: ['hard', 'grandmaster'], // ERROR: Hard tier not unlocked!
           promotionTrial: {
             unlocked: true,
@@ -305,47 +305,48 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
 
   describe('5. Match Session Guard & Time Check', () => {
     it('should create an active session and validate completion correctly', () => {
-      const matchId = createMatchSession('core_1');
+      const matchId = createMatchSession('beginner_1');
       expect(matchId).toBeDefined();
 
       const sessionJson = mockLocalStorage.getItem('clash_active_match_session');
       expect(sessionJson).not.toBeNull();
       const session = JSON.parse(sessionJson!);
+      const expectedCharId = 'beginner_1';
       expect(session.matchId).toBe(matchId);
-      expect(session.characterId).toBe('core_1');
+      expect(session.characterId).toBe(expectedCharId);
       expect(session.status).toBe('active');
 
       // Fast-forward 6 seconds to pass too-fast checks
       vi.advanceTimersByTime(6000);
 
-      const validation = validateMatchCompletion(matchId, 'core_1', 'win', DEFAULT_PLAYER_DATA);
+      const validation = validateMatchCompletion(matchId, expectedCharId, 'win', DEFAULT_PLAYER_DATA);
       expect(validation.valid).toBe(true);
     });
 
     it('should block completions for locked characters', () => {
-      // beginner_1 is a Beginner character, locked at start
-      const matchId = createMatchSession('beginner_1');
+      // learner_1 is locked at start
+      const matchId = createMatchSession('learner_1');
       vi.advanceTimersByTime(10000);
 
-      const validation = validateMatchCompletion(matchId, 'beginner_1', 'win', DEFAULT_PLAYER_DATA);
+      const validation = validateMatchCompletion(matchId, 'learner_1', 'win', DEFAULT_PLAYER_DATA);
       expect(validation.valid).toBe(false);
       expect(validation.reason).toBe('locked_character_attempt');
     });
 
     it('should block games completed under 2 seconds', () => {
-      const matchId = createMatchSession('core_1');
+      const matchId = createMatchSession('beginner_1');
       vi.advanceTimersByTime(1000); // 1 second elapsed
 
-      const validation = validateMatchCompletion(matchId, 'core_1', 'win', DEFAULT_PLAYER_DATA);
+      const validation = validateMatchCompletion(matchId, 'beginner_1', 'win', DEFAULT_PLAYER_DATA);
       expect(validation.valid).toBe(false);
       expect(validation.reason).toBe('too_fast_match');
     });
 
     it('should warning flag but allow games completed between 2 and 5 seconds', () => {
-      const matchId = createMatchSession('core_1');
+      const matchId = createMatchSession('beginner_1');
       vi.advanceTimersByTime(3000); // 3 seconds elapsed
 
-      const validation = validateMatchCompletion(matchId, 'core_1', 'win', DEFAULT_PLAYER_DATA);
+      const validation = validateMatchCompletion(matchId, 'beginner_1', 'win', DEFAULT_PLAYER_DATA);
       expect(validation.valid).toBe(true);
       expect(validation.reason).toBe('too_fast_suspicious');
     });
@@ -353,10 +354,10 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
 
   describe('6. Duplicate Match Reward Prevention', () => {
     it('should block matching with a previously completed match ID', () => {
-      const matchId = createMatchSession('core_1');
+      const matchId = createMatchSession('beginner_1');
       vi.advanceTimersByTime(7000);
 
-      const validation1 = validateMatchCompletion(matchId, 'core_1', 'win', DEFAULT_PLAYER_DATA);
+      const validation1 = validateMatchCompletion(matchId, 'beginner_1', 'win', DEFAULT_PLAYER_DATA);
       expect(validation1.valid).toBe(true);
 
       // Mark completed
@@ -367,17 +368,17 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
       expect(completed).toContain(matchId);
 
       // Try validating again
-      const validation2 = validateMatchCompletion(matchId, 'core_1', 'win', DEFAULT_PLAYER_DATA);
+      const validation2 = validateMatchCompletion(matchId, 'beginner_1', 'win', DEFAULT_PLAYER_DATA);
       expect(validation2.valid).toBe(false);
       expect(validation2.reason).toBe('duplicate_match_result');
     });
 
     it('should recover from corrupt clash_completed_matches cache', () => {
       mockLocalStorage.setItem('clash_completed_matches', JSON.stringify({ malicious: 'object' }));
-      const matchId = createMatchSession('core_1');
+      const matchId = createMatchSession('beginner_1');
       vi.advanceTimersByTime(7000);
 
-      const validation = validateMatchCompletion(matchId, 'core_1', 'win', DEFAULT_PLAYER_DATA);
+      const validation = validateMatchCompletion(matchId, 'beginner_1', 'win', DEFAULT_PLAYER_DATA);
       expect(validation.valid).toBe(true);
       
       markMatchCompleted(matchId);
@@ -389,12 +390,12 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
 
   describe('7. Match Flow Integration & Impossible Jump Guarding', () => {
     it('should process match result, apply progression/rewards, and clip impossible jumps', () => {
-      const matchId = createMatchSession('core_1');
+      const matchId = createMatchSession('beginner_1');
       vi.advanceTimersByTime(8000);
 
       const summary = matchFlowService.processMatchResult({
         matchId,
-        characterId: 'core_1',
+        characterId: 'beginner_1',
         result: 'win',
         reason: 'checkmate',
         eloBefore: 100
@@ -414,7 +415,7 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
       // Attempting to complete a match without creating a session first
       const summary = matchFlowService.processMatchResult({
         matchId: 'ghost_match_123',
-        characterId: 'core_1',
+        characterId: 'beginner_1',
         result: 'win',
         reason: 'checkmate',
         eloBefore: 100

@@ -15,16 +15,18 @@ pub fn quiescence_search(
     max_time: Duration,
     engine_type: &str,
     hce_evaluator: &HceEvaluator,
+    bot_profile_id: &str,
     nodes: &mut u64,
 ) -> i32 {
     *nodes += 1;
 
     if start_time.elapsed() >= max_time {
-        return alpha; // Return alpha if time is up, preventing bad bounds
+        return alpha;
     }
 
+    let use_all_pst = bot_profile_id.starts_with("learner_") || bot_profile_id.contains("learner");
     let stand_pat = if engine_type == "hce" {
-        hce_evaluator.evaluate(pos.board(), pos.turn())
+        hce_evaluator.evaluate(pos.board(), pos.turn(), use_all_pst)
     } else {
         NNUE_EVALUATOR.evaluate(pos.board(), pos.turn())
     };
@@ -65,6 +67,7 @@ pub fn quiescence_search(
             max_time,
             engine_type,
             hce_evaluator,
+            bot_profile_id,
             nodes,
         );
 

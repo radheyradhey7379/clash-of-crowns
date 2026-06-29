@@ -207,7 +207,7 @@ export default function HomeScreen({ onNavigate, playerData }: HomeScreenProps) 
               className="text-[#8c7a52] hover:text-[#d9ad33] text-body font-bold tracking-[0.2em] transition-colors flex items-center gap-2 uppercase"
             >
               <Palette size={14} />
-              Customise
+              {t.customise || 'Customise'}
             </motion.button>
           </div>
         </motion.div>

@@ -2,7 +2,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use shakmaty::fen::Fen;
 use shakmaty::EnPassantMode;
-use shakmaty::{CastlingMode, Chess, Position};
+use shakmaty::{CastlingMode, Chess, Position, Role, Square};
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -134,7 +134,7 @@ pub async fn eval_handler(
 
     let (eval, inference_mode) = if req.engine_type == "hce" {
         (
-            crate::engine::hce::HceEvaluator::new().evaluate(pos.board(), pos.turn()),
+            crate::engine::hce::HceEvaluator::new().evaluate(pos.board(), pos.turn(), true),
             "not_applicable",
         )
     } else {
@@ -192,6 +192,10 @@ pub async fn simulate_handler(Json(req): Json<SimulateRequest>) -> Json<Simulate
     };
     let time_per_move = Duration::from_millis(500); // 500ms max think per move in simulation
 
+    let mut history_fens = Vec::new();
+    let starting_fen = Fen::from_position(pos.clone(), EnPassantMode::Legal).to_string();
+    history_fens.push(starting_fen);
+
     while move_count < max_moves {
         if pos.is_checkmate() {
             result = if pos.turn() == shakmaty::Color::White {
@@ -207,7 +211,18 @@ pub async fn simulate_handler(Json(req): Json<SimulateRequest>) -> Json<Simulate
             break;
         } else if pos.is_insufficient_material() {
             result = "draw".to_string();
-            reason = "repetition".to_string(); // we'll lump this here since shakmaty handles it
+            reason = "insufficient_material".to_string();
+            break;
+        } else if pos.halfmoves() >= 100 {
+            result = "draw".to_string();
+            reason = "fifty_moves".to_string();
+            break;
+        }
+
+        let current_fen = Fen::from_position(pos.clone(), EnPassantMode::Legal).to_string();
+        if is_threefold_repetition(&current_fen, &history_fens) {
+            result = "draw".to_string();
+            reason = "repetition".to_string();
             break;
         }
 
@@ -240,6 +255,8 @@ pub async fn simulate_handler(Json(req): Json<SimulateRequest>) -> Json<Simulate
 
         if let Some(m) = search_res.best_move {
             pos.play_unchecked(&m);
+            let next_fen_str = Fen::from_position(pos.clone(), EnPassantMode::Legal).to_string();
+            history_fens.push(next_fen_str);
             move_count += 1;
         } else {
             // Engine completely failed
@@ -259,5 +276,218 @@ pub async fn simulate_handler(Json(req): Json<SimulateRequest>) -> Json<Simulate
         move_count,
         final_fen: fen_obj.to_string(),
         duration_ms,
+    })
+}
+
+#[derive(Deserialize)]
+pub struct ValidateMoveRequest {
+    pub fen: String,
+    pub from: String,
+    pub to: String,
+    pub promotion: Option<String>,
+    pub recent_fens: Option<Vec<String>>,
+}
+
+#[derive(Serialize)]
+pub struct ValidateMoveResponse {
+    pub valid: bool,
+    pub next_fen: String,
+    pub is_checkmate: bool,
+    pub is_stalemate: bool,
+    pub is_draw: bool,
+    pub is_fifty_moves: bool,
+    pub is_repetition: bool,
+}
+
+pub async fn validate_handler(
+    Json(req): Json<ValidateMoveRequest>,
+) -> Json<ValidateMoveResponse> {
+    let setup = match Fen::from_str(&req.fen) {
+        Ok(s) => s,
+        Err(_) => return Json(ValidateMoveResponse {
+            valid: false,
+            next_fen: req.fen.clone(),
+            is_checkmate: false,
+            is_stalemate: false,
+            is_draw: false,
+            is_fifty_moves: false,
+            is_repetition: false,
+        }),
+    };
+
+    let pos: Chess = match setup.into_position(CastlingMode::Standard) {
+        Ok(p) => p,
+        Err(_) => return Json(ValidateMoveResponse {
+            valid: false,
+            next_fen: req.fen.clone(),
+            is_checkmate: false,
+            is_stalemate: false,
+            is_draw: false,
+            is_fifty_moves: false,
+            is_repetition: false,
+        }),
+    };
+
+    let from_sq = match Square::from_ascii(req.from.as_bytes()) {
+        Ok(s) => s,
+        Err(_) => return Json(ValidateMoveResponse {
+            valid: false,
+            next_fen: req.fen.clone(),
+            is_checkmate: false,
+            is_stalemate: false,
+            is_draw: false,
+            is_fifty_moves: false,
+            is_repetition: false,
+        }),
+    };
+
+    let to_sq = match Square::from_ascii(req.to.as_bytes()) {
+        Ok(s) => s,
+        Err(_) => return Json(ValidateMoveResponse {
+            valid: false,
+            next_fen: req.fen.clone(),
+            is_checkmate: false,
+            is_stalemate: false,
+            is_draw: false,
+            is_fifty_moves: false,
+            is_repetition: false,
+        }),
+    };
+
+    let mut promotion_role = None;
+    if let Some(ref promo) = req.promotion {
+        promotion_role = match promo.to_lowercase().as_str() {
+            "q" => Some(Role::Queen),
+            "r" => Some(Role::Rook),
+            "b" => Some(Role::Bishop),
+            "n" => Some(Role::Knight),
+            _ => None,
+        };
+    }
+
+    let legal_moves = pos.legal_moves();
+    let matched_move = legal_moves.iter().find(|m| {
+        if m.from() != Some(from_sq) || m.to() != to_sq {
+            return false;
+        }
+        if let shakmaty::Move::Normal {
+            promotion: Some(promo),
+            ..
+        } = m
+        {
+            if let Some(r) = promotion_role {
+                return *promo == r;
+            }
+            return false;
+        }
+        promotion_role.is_none()
+    });
+
+    match matched_move {
+        Some(mv) => {
+            let next_pos = pos.clone();
+            match next_pos.play(mv) {
+                Ok(p2) => {
+                    let next_fen = Fen::from_position(p2.clone(), EnPassantMode::Legal).to_string();
+                    let is_checkmate = p2.is_checkmate();
+                    let is_stalemate = p2.is_stalemate();
+                    let is_fifty = p2.halfmoves() >= 100;
+                    let is_insufficient = p2.is_insufficient_material();
+                    
+                    let is_repetition = if let Some(ref fens) = req.recent_fens {
+                        is_threefold_repetition(&next_fen, fens)
+                    } else {
+                        false
+                    };
+
+                    let is_draw = is_stalemate || is_fifty || is_insufficient || is_repetition;
+                    Json(ValidateMoveResponse {
+                        valid: true,
+                        next_fen,
+                        is_checkmate,
+                        is_stalemate,
+                        is_draw,
+                        is_fifty_moves: is_fifty,
+                        is_repetition,
+                    })
+                }
+                Err(_) => Json(ValidateMoveResponse {
+                    valid: false,
+                    next_fen: req.fen.clone(),
+                    is_checkmate: false,
+                    is_stalemate: false,
+                    is_draw: false,
+                    is_fifty_moves: false,
+                    is_repetition: false,
+                })
+            }
+        }
+        None => Json(ValidateMoveResponse {
+            valid: false,
+            next_fen: req.fen.clone(),
+            is_checkmate: false,
+            is_stalemate: false,
+            is_draw: false,
+            is_fifty_moves: false,
+            is_repetition: false,
+        }),
+    }
+}
+
+pub fn is_threefold_repetition(next_fen: &str, recent_fens: &[String]) -> bool {
+    fn normalize_fen(fen: &str) -> String {
+        let parts: Vec<&str> = fen.split_whitespace().collect();
+        if parts.len() >= 4 {
+            parts[0..4].join(" ")
+        } else {
+            fen.to_string()
+        }
+    }
+
+    let target = normalize_fen(next_fen);
+    let mut count = 1;
+    for fen in recent_fens {
+        if normalize_fen(fen) == target {
+            count += 1;
+            if count >= 3 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[derive(Serialize)]
+pub struct EngineStatusResponse {
+    pub weights_status: String,
+    pub weights_source: String,
+    pub inference_mode: String,
+}
+
+pub async fn status_handler() -> Json<EngineStatusResponse> {
+    let is_tensor = crate::engine::nnue::EVALUATOR.model.weights.status
+        == crate::engine::nnue::weights::WeightsStatus::Trained;
+    let weights_status = crate::engine::nnue::EVALUATOR
+        .model
+        .weights
+        .status
+        .as_str()
+        .to_string();
+    let weights_source = crate::engine::nnue::EVALUATOR
+        .model
+        .weights
+        .source
+        .as_str()
+        .to_string();
+    let inference_mode = if is_tensor {
+        "tensor".to_string()
+    } else {
+        "placeholder".to_string()
+    };
+
+    Json(EngineStatusResponse {
+        weights_status,
+        weights_source,
+        inference_mode,
     })
 }

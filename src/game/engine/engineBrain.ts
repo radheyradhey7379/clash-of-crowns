@@ -3,16 +3,12 @@ import { ChessLogic } from '../../lib/chess-logic';
 import { EngineResult, IEngineAdapter } from './types';
 import { RustEngineAdapter } from './adapters/rustEngineAdapter';
 import { StockfishBenchmarkAdapter } from './adapters/stockfishBenchmarkAdapter';
-import { getBotProfile, getEngineForCharacter } from './campaign/progressionRules';
+import { getEngineForCharacter } from './campaign/progressionRules';
 import { resolveEngine, getBotProfile as resolveBotProfile } from './campaign/botProfiles';
 import { Chess } from 'chess.js';
 
 export class EngineBrain {
-  private adapter: IEngineAdapter;
-  private constructor(character: AICharacter, chess: ChessLogic, adapter: IEngineAdapter) {
-    this.character = character;
-    this.chess = chess;
-    this.adapter = adapter;
+  private constructor(private character: AICharacter, private chess: ChessLogic, private adapter: IEngineAdapter) {
   }
 
   static create(character: AICharacter, chess: ChessLogic): EngineBrain {
