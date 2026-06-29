@@ -82,7 +82,7 @@ function CameraDirector({ turn, playerColor, isLocalVS, isCameraLocked }: { turn
 function CameraResetter({ playerColor }: { playerColor: 'w' | 'b' }) {
   const { camera } = useThree();
   useEffect(() => {
-    camera.position.set(0, 10, playerColor === 'b' ? 12 : -12);
+    camera.position.set(0, 10, -12);
     camera.lookAt(0, 1.5, 0);
   }, [playerColor, camera]);
   return null;
@@ -1934,7 +1934,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
           <PerspectiveCamera 
             makeDefault 
             fov={45} 
-            position={[0, 10, playerColor === 'b' ? 12 : -12]}
+            position={[0, 10, -12]}
           />
           <CameraResetter playerColor={playerColor} />
           <CameraDirector 
