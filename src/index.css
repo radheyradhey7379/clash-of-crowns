@@ -166,10 +166,10 @@
 
 /* Homepage Profile Card Scaling */
 .profile-card {
-  width: clamp(160px, 18vw, 280px) !important;
-  height: clamp(48px, 9vh, 76px) !important;
+  width: clamp(180px, 22vw, 320px) !important;
+  min-height: clamp(48px, 9vh, 76px) !important;
   border-radius: clamp(18px, 3vw, 36px) !important;
-  padding: clamp(6px, 1vw, 14px) !important;
+  padding: clamp(6px, 1.2vw, 16px) !important;
 }
 
 .profile-avatar {
