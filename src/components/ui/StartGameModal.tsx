@@ -1,16 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Monitor, Users, Globe, X, AlertTriangle, Trophy } from 'lucide-react';
-import { isFeatureAvailable, getEffectiveNodeHealth, getEffectiveRustHealth } from '../../lib/config/featureAvailability';
-import { isOnlineBetaEnabled } from '../../lib/config/featureFlags';
-import { isFirebaseConfigured, auth } from '../../lib/firebase';
+import { X, Globe, Trophy, Shield, Lock, Crown, Users } from 'lucide-react';
 import { PlayerData } from '../../types';
-import { 
-  getCareerLevel, 
-  canAccessCasualOnline, 
-  canAccessRanked, 
-  canAccessTournament 
-} from '../../lib/unlocks/multiplayerUnlocks';
 import { playSound } from '../../lib/sounds';
 
 interface StartGameModalProps {
@@ -21,349 +12,229 @@ interface StartGameModalProps {
 }
 
 export default function StartGameModal({ isOpen, onClose, onSelectMode, playerData }: StartGameModalProps) {
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [premiumComingSoonOpen, setPremiumComingSoonOpen] = useState(false);
-
-  const playerLevel = getCareerLevel(playerData.aiProgress);
-  const entitlements = playerData.entitlements || { multiplayerPass: false, championshipPass: false };
-  const casualUnlocked = canAccessCasualOnline(playerData.aiProgress, entitlements);
-  const rankedUnlocked = canAccessRanked(playerData.aiProgress, entitlements);
-  const tournamentUnlocked = canAccessTournament(playerData.aiProgress, entitlements);
-
-  const handleLockedClick = (reason: string) => {
-    playSound('click');
-    setToastMsg(reason);
-    setTimeout(() => setToastMsg(null), 4000);
-  };
+  const isRtl = playerData.language === 'ur' || playerData.language === 'ar';
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-6">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/90 backdrop-blur-md"
           />
           
           <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            initial={{ scale: 0.95, opacity: 0, y: 30 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className="play-popup relative bg-[#030204] border border-white/10 shadow-2xl w-full max-w-md p-6 rounded-2xl"
+            exit={{ scale: 0.95, opacity: 0, y: 30 }}
+            className="relative bg-[#030204] border-2 border-[#d9ad33]/30 shadow-2xl w-full h-full md:h-auto md:max-w-4xl p-6 md:p-10 rounded-none md:rounded-3xl flex flex-col justify-between md:justify-start overflow-y-auto md:overflow-y-visible z-10"
+            dir={isRtl ? 'rtl' : 'ltr'}
           >
+            {/* Top Crown Accent */}
+            <div className="flex justify-center mb-1 shrink-0">
+              <Crown size={28} className="text-[#d9ad33] drop-shadow-[0_0_8px_rgba(217,173,51,0.5)] animate-pulse" />
+            </div>
+
+            {/* Close Button */}
             <button 
               onClick={onClose}
-              className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
+              className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors cursor-pointer p-2 z-20"
+              title="Close"
             >
               <X size={20} />
             </button>
 
-            <h2 className="play-popup-title font-bold text-[#d9ad33] font-serif text-center mb-6 tracking-[0.3em] uppercase text-lg">
-              CHOOSE BATTLE MODE
-            </h2>
+            {/* Header */}
+            <div className="text-center mb-8 shrink-0">
+              <h2 className="font-bold text-[#d9ad33] font-serif text-center tracking-[0.3em] uppercase text-xl md:text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                CHOOSE MODE
+              </h2>
+              <p className="text-white/40 text-[10px] md:text-xs font-sans tracking-wider mt-1.5">
+                Choose how you want to play Clash of Crowns
+              </p>
+            </div>
 
-            <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-1">
-              <ModeButton
-                icon={<Monitor size={18} />}
-                label="VERSUS COMPUTER"
-                description="Challenge the AI tiers locally"
-                onClick={() => onSelectMode('computer')}
-                color="hover:bg-white/5 border-white/10"
-              />
-              <ModeButton
-                icon={<Users size={18} />}
-                label="VERSUS FRIEND (LOCAL)"
-                description="Local play on one device"
-                onClick={() => onSelectMode('friend')}
-                color="hover:bg-white/5 border-white/10"
-              />
+            {/* Content Groups */}
+            <div className="flex flex-col gap-8 flex-1">
               
-              <div className="h-px bg-white/10 my-2" />
-              <div className="text-[9px] text-[#8c7a52] font-black uppercase tracking-[0.2em] pl-2 mb-1">
-                Online Multiplayer
+              {/* PLAY NOW SECTION */}
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-px bg-gradient-to-r from-transparent via-[#d9ad33]/40 to-[#d9ad33]/40 flex-1" />
+                  <span className="text-[10px] md:text-xs text-[#d9ad33] font-bold tracking-[0.2em] uppercase">Play Now</span>
+                  <div className="h-px bg-gradient-to-l from-transparent via-[#d9ad33]/40 to-[#d9ad33]/40 flex-1" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                  {/* Card 1: Versus Computer */}
+                  <div className="flex flex-col justify-between p-5 rounded-2xl bg-gradient-to-b from-[#131118]/80 to-[#0c0a0e]/95 border border-[#d9ad33]/30 shadow-xl relative group overflow-hidden min-h-[170px]">
+                    <div className="flex gap-4 items-start">
+                      <div className="w-14 h-14 bg-[#d9ad33]/10 border border-[#d9ad33]/20 rounded-xl flex items-center justify-center text-[#d9ad33] shrink-0 shadow-[0_0_15px_rgba(217,173,51,0.15)]">
+                        <Crown size={28} />
+                      </div>
+                      <div className="text-left">
+                        <h3 className="font-bold text-white tracking-wider text-sm sm:text-base">VERSUS COMPUTER</h3>
+                        <h4 className="text-[9px] text-[#d9ad33] font-bold tracking-widest uppercase mt-0.5">Comp Career</h4>
+                        <p className="text-white/60 text-[11px] mt-2 leading-relaxed font-sans">
+                          Challenge AI tiers and unlock stronger bots as you progress.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          playSound('click');
+                          onSelectMode('computer');
+                        }}
+                        className="w-full py-2.5 bg-[#d9ad33] hover:bg-[#f5d666] text-black rounded-xl font-bold tracking-widest uppercase text-[10px] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-[#d9ad33]/20"
+                      >
+                        <span>Play Comp Career</span>
+                        <span className="text-[12px] font-sans">&gt;</span>
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Versus Friend Local */}
+                  <div className="flex flex-col justify-between p-5 rounded-2xl bg-gradient-to-b from-[#131118]/80 to-[#0c0a0e]/95 border border-[#d9ad33]/30 shadow-xl relative group overflow-hidden min-h-[170px]">
+                    <div className="flex gap-4 items-start">
+                      <div className="w-14 h-14 bg-[#d9ad33]/10 border border-[#d9ad33]/20 rounded-xl flex items-center justify-center text-[#d9ad33] shrink-0 shadow-[0_0_15px_rgba(217,173,51,0.15)]">
+                        <Users size={28} />
+                      </div>
+                      <div className="text-left">
+                        <h3 className="font-bold text-white tracking-wider text-sm sm:text-base">VERSUS FRIEND LOCAL</h3>
+                        <h4 className="text-[9px] text-[#d9ad33] font-bold tracking-widest uppercase mt-0.5">One Device</h4>
+                        <p className="text-white/60 text-[11px] mt-2 leading-relaxed font-sans">
+                          Play locally with a friend on the same device.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          playSound('click');
+                          onSelectMode('friend');
+                        }}
+                        className="w-full py-2.5 bg-[#d9ad33] hover:bg-[#f5d666] text-black rounded-xl font-bold tracking-widest uppercase text-[10px] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-[#d9ad33]/20"
+                      >
+                        <span>Start Local Match</span>
+                        <span className="text-[12px] font-sans">&gt;</span>
+                      </motion.button>
+                    </div>
+                  </div>
+                </div>
               </div>
-              
-              {/* Casual / Friend Match */}
-              {(() => {
-                if (!isFeatureAvailable('multiplayer')) {
-                  return (
-                    <ModeButton
-                      icon={<Globe size={18} className="opacity-40" />}
-                      label="CASUAL / FRIEND MATCH"
-                      description="Online beta not enabled yet"
-                      onClick={() => handleLockedClick("Online beta not enabled yet")}
-                      color="opacity-50 border-white/5 cursor-pointer"
-                    />
-                  );
-                }
 
-                const nodeH = getEffectiveNodeHealth();
-                const rustH = getEffectiveRustHealth();
-                if (nodeH === 'failed' || rustH === 'failed') {
-                  return (
-                    <ModeButton
-                      icon={<Globe size={18} className="opacity-40" />}
-                      label="CASUAL / FRIEND MATCH"
-                      description="Backend unavailable. Retry."
-                      onClick={() => handleLockedClick("Backend unavailable. Retry.")}
-                      color="opacity-60 border-red-500/20 hover:bg-red-950/10 cursor-pointer text-red-400"
-                    />
-                  );
-                }
-                if (nodeH === 'unknown' || rustH === 'unknown') {
-                  return (
-                    <ModeButton
-                      icon={<Globe size={18} className="animate-spin opacity-60 text-yellow-500" />}
-                      label="CASUAL / FRIEND MATCH"
-                      description="Checking connection..."
-                      onClick={() => {}}
-                      color="opacity-60 border-white/10 cursor-not-allowed"
-                    />
-                  );
-                }
+              {/* COMING SOON SECTION */}
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-white/10 flex-1" />
+                  <span className="text-[10px] md:text-xs text-white/30 font-bold tracking-[0.2em] uppercase">Coming Soon</span>
+                  <div className="h-px bg-gradient-to-l from-transparent via-white/10 to-white/10 flex-1" />
+                </div>
 
-                const isAuthRequired = isFirebaseConfigured;
-                const isUserLoggedIn = auth?.currentUser != null;
-                const isBeta = isOnlineBetaEnabled();
-                if (isAuthRequired && !isUserLoggedIn && !isBeta) {
-                  return (
-                    <ModeButton
-                      icon={<Globe size={18} className="opacity-40" />}
-                      label="CASUAL / FRIEND MATCH"
-                      description="Login required for permanent online progress."
-                      onClick={() => handleLockedClick("Login required for permanent online progress.")}
-                      color="opacity-60 border-white/10 cursor-pointer"
-                    />
-                  );
-                }
-
-                if (!casualUnlocked) {
-                  return (
-                    <div className="border border-white/10 p-3 rounded-xl bg-white/5 flex flex-col gap-2">
-                      <div className="flex items-center gap-4">
-                        <div className="text-[#d9ad33]">
-                          <Globe size={18} />
-                        </div>
-                        <div className="text-left">
-                          <div className="font-bold text-white tracking-widest text-xs md:text-sm">CASUAL / FRIEND MATCH</div>
-                          <div className="text-[#f44336] uppercase tracking-[0.12em] text-[8px] md:text-[9px] mt-0.5">
-                            Unlock at Level 5 Comp Career (Current: Level {playerLevel})
-                          </div>
-                        </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                  {/* Card 3: Online Friend Match */}
+                  <div className="flex flex-col justify-between p-5 rounded-2xl bg-black/40 border border-white/5 opacity-50 relative overflow-hidden min-h-[160px] group">
+                    <div className="absolute top-4 right-4 text-white/30">
+                      <Lock size={12} />
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 shrink-0">
+                        <Globe size={20} />
                       </div>
-                      <div className="flex gap-2 mt-1">
-                        <button
-                          onClick={() => {
-                            playSound('click');
-                            onClose();
-                            onSelectMode('computer');
-                          }}
-                          className="flex-1 bg-[#d9ad33] hover:bg-[#b88f28] text-black font-bold uppercase tracking-[0.1em] text-[9px] py-1.5 px-2 rounded-lg transition-colors text-center"
-                        >
-                          Play Comp Career
-                        </button>
-                        <button
-                          onClick={() => {
-                            playSound('click');
-                            setPremiumComingSoonOpen(true);
-                          }}
-                          className="flex-1 border border-[#d9ad33] text-[#d9ad33] hover:bg-[#d9ad33]/10 font-bold uppercase tracking-[0.1em] text-[9px] py-1.5 px-2 rounded-lg transition-colors text-center"
-                        >
-                          Unlock with Premium
-                        </button>
+                      <div className="text-left">
+                        <h3 className="font-bold text-white/60 tracking-wider text-xs md:text-sm">ONLINE FRIEND MATCH</h3>
+                        <h4 className="text-[8px] text-[#8c7a52] font-bold tracking-widest uppercase mt-0.5">Private Rooms</h4>
+                        <p className="text-white/40 text-[10px] mt-1.5 leading-relaxed font-sans">
+                          Invite friends and play online.
+                        </p>
                       </div>
                     </div>
-                  );
-                }
+                    <div className="mt-4">
+                      <button
+                        disabled
+                        className="w-full py-2 bg-white/5 border border-white/10 text-white/30 rounded-xl font-bold tracking-widest uppercase text-[8px] font-sans"
+                      >
+                        Coming Soon Beta
+                      </button>
+                    </div>
+                  </div>
 
-                return (
-                  <ModeButton
-                    icon={<Globe size={18} />}
-                    label="CASUAL / FRIEND MATCH"
-                    description="Casual/Friend Match: online room/link play, no ranked points"
-                    onClick={() => onSelectMode('multiplayer')}
-                    color="hover:bg-white/5 border-[#d9ad33]/30"
-                  />
-                );
-              })()}
-
-              {/* Ranked Match */}
-              {(() => {
-                const infoText = "Competitive rank points: Bronze → Silver → Gold → Platinum → Diamond → Master → Crown → Conqueror";
-                
-                if (!rankedUnlocked) {
-                  return (
-                    <div className="border border-white/10 p-3 rounded-xl bg-white/5 flex flex-col gap-2">
-                      <div className="flex items-center gap-4">
-                        <div className="text-white/40">
-                          <Globe size={18} />
-                        </div>
-                        <div className="text-left">
-                          <div className="font-bold text-white/60 tracking-widest text-xs md:text-sm">RANKED MATCH</div>
-                          <div className="text-white/40 uppercase tracking-[0.12em] text-[8px] mt-0.5 leading-relaxed font-sans font-medium">
-                            {infoText}
-                          </div>
-                          <div className="text-[#f44336] uppercase tracking-[0.12em] text-[8px] md:text-[9px] mt-1 font-bold">
-                            Unlock at Level 15 / Coming Soon Beta (Current: Level {playerLevel})
-                          </div>
-                        </div>
+                  {/* Card 4: Ranked Arena */}
+                  <div className="flex flex-col justify-between p-5 rounded-2xl bg-black/40 border border-white/5 opacity-50 relative overflow-hidden min-h-[160px] group">
+                    <div className="absolute top-4 right-4 text-white/30">
+                      <Lock size={12} />
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 shrink-0">
+                        <Trophy size={20} />
                       </div>
-                      <div className="flex gap-2 mt-1">
-                        <button
-                          onClick={() => {
-                            playSound('click');
-                            onClose();
-                            onSelectMode('computer');
-                          }}
-                          className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold uppercase tracking-[0.1em] text-[9px] py-1.5 px-2 rounded-lg transition-colors text-center"
-                        >
-                          Improve in Comp Career
-                        </button>
-                        <button
-                          onClick={() => {
-                            playSound('click');
-                            setPremiumComingSoonOpen(true);
-                          }}
-                          className="flex-1 border border-white/20 text-white/60 hover:bg-white/5 font-bold uppercase tracking-[0.1em] text-[9px] py-1.5 px-2 rounded-lg transition-colors text-center"
-                        >
-                          Premium users get early access when beta opens
-                        </button>
+                      <div className="text-left">
+                        <h3 className="font-bold text-white/60 tracking-wider text-xs md:text-sm">RANKED ARENA</h3>
+                        <h4 className="text-[8px] text-[#8c7a52] font-bold tracking-widest uppercase mt-0.5">Competitive Ladder</h4>
+                        <p className="text-white/40 text-[10px] mt-1.5 leading-relaxed font-sans">
+                          Rank points: Bronze to Crown.
+                        </p>
                       </div>
                     </div>
-                  );
-                }
+                    <div className="mt-4">
+                      <button
+                        disabled
+                        className="w-full py-2 bg-white/5 border border-white/10 text-white/30 rounded-xl font-bold tracking-widest uppercase text-[8px] font-sans"
+                      >
+                        Unlocks at Level 15
+                      </button>
+                    </div>
+                  </div>
 
-                return (
-                  <ModeButton
-                    icon={<Globe size={18} className="opacity-60" />}
-                    label="RANKED MATCH"
-                    description="Coming Soon / Beta Locked"
-                    onClick={() => handleLockedClick("Ranked Match unlocks after Level 15 or Premium + verification. Currently coming soon.")}
-                    color="opacity-50 border-white/5 cursor-pointer"
-                  />
-                );
-              })()}
-
-              {/* Championship Tournament */}
-              {(() => {
-                const infoText = "Bracket event with server-controlled rounds and rewards";
-                
-                if (!tournamentUnlocked) {
-                  return (
-                    <div className="border border-white/10 p-3 rounded-xl bg-white/5 flex flex-col gap-2">
-                      <div className="flex items-center gap-4">
-                        <div className="text-white/40">
-                          <Trophy size={18} />
-                        </div>
-                        <div className="text-left">
-                          <div className="font-bold text-white/60 tracking-widest text-xs md:text-sm">CHAMPIONSHIP TOURNAMENT</div>
-                          <div className="text-white/40 uppercase tracking-[0.12em] text-[8px] mt-0.5 leading-relaxed font-sans font-medium">
-                            {infoText}
-                          </div>
-                          <div className="text-[#f44336] uppercase tracking-[0.12em] text-[8px] md:text-[9px] mt-1 font-bold">
-                            Unlock at Level 20 / Coming Soon (Current: Level {playerLevel})
-                          </div>
-                        </div>
+                  {/* Card 5: Championship Tournament */}
+                  <div className="flex flex-col justify-between p-5 rounded-2xl bg-black/40 border border-white/5 opacity-50 relative overflow-hidden min-h-[160px] group">
+                    <div className="absolute top-4 right-4 text-white/30">
+                      <Lock size={12} />
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 shrink-0">
+                        <Shield size={20} />
                       </div>
-                      <div className="flex gap-2 mt-1">
-                        <button
-                          onClick={() => {
-                            playSound('click');
-                            onClose();
-                            onSelectMode('computer');
-                          }}
-                          className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold uppercase tracking-[0.1em] text-[9px] py-1.5 px-2 rounded-lg transition-colors text-center"
-                        >
-                          Play Comp Career
-                        </button>
-                        <button
-                          onClick={() => {
-                            playSound('click');
-                            setPremiumComingSoonOpen(true);
-                          }}
-                          className="flex-1 border border-white/20 text-white/60 hover:bg-white/5 font-bold uppercase tracking-[0.1em] text-[9px] py-1.5 px-2 rounded-lg transition-colors text-center"
-                        >
-                          Championship Pass coming soon
-                        </button>
+                      <div className="text-left">
+                        <h3 className="font-bold text-white/60 tracking-wider text-xs md:text-sm">CHAMPIONSHIP TOURNAMENT</h3>
+                        <h4 className="text-[8px] text-[#8c7a52] font-bold tracking-widest uppercase mt-0.5">Server Events</h4>
+                        <p className="text-white/40 text-[10px] mt-1.5 leading-relaxed font-sans">
+                          Bracket and reward-based tournaments.
+                        </p>
                       </div>
                     </div>
-                  );
-                }
+                    <div className="mt-4">
+                      <button
+                        disabled
+                        className="w-full py-2 bg-white/5 border border-white/10 text-white/30 rounded-xl font-bold tracking-widest uppercase text-[8px] font-sans"
+                      >
+                        Unlocks at Level 20
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                return (
-                  <ModeButton
-                    icon={<Trophy size={18} className="opacity-60" />}
-                    label="CHAMPIONSHIP TOURNAMENT"
-                    description="Coming Soon / Locked"
-                    onClick={() => handleLockedClick("Tournament unlocks after Level 20 or Championship Pass. Currently coming soon.")}
-                    color="opacity-50 border-white/5 cursor-pointer"
-                  />
-                );
-              })()}
             </div>
 
-            <div className="text-[10px] text-white/40 text-center mt-4 font-sans leading-normal">
-              Online modes unlock through Comp progress or Premium Pass. Ranked and Tournament require server verification.
+            {/* Footer */}
+            <div className="mt-8 border-t border-white/5 pt-4 text-center shrink-0">
+              <p className="text-[10px] text-white/40 font-sans tracking-wide leading-normal flex items-center justify-center gap-1.5">
+                <Crown size={12} className="text-[#d9ad33]/60" />
+                <span>Online modes are coming soon. Build your Comp Career progress now.</span>
+              </p>
             </div>
-
-            <AnimatePresence>
-              {toastMsg && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  className="mt-4 p-3 bg-red-950/40 border border-red-500/20 rounded-xl flex items-center gap-2"
-                >
-                  <AlertTriangle size={16} className="text-red-400 shrink-0" />
-                  <span className="text-red-200 text-xs text-left leading-normal font-sans">{toastMsg}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </motion.div>
         </div>
       )}
-
-      {/* Premium Coming Soon Overlay Modal */}
-      {premiumComingSoonOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setPremiumComingSoonOpen(false)} />
-          <div className="relative bg-[#0d0a15] border border-[#d9ad33]/30 shadow-2xl w-full max-w-sm p-6 rounded-2xl text-center">
-            <Trophy size={48} className="text-[#d9ad33] mx-auto mb-4" />
-            <h3 className="text-white font-serif font-bold text-lg uppercase tracking-wider mb-2">
-              Premium Pass
-            </h3>
-            <p className="text-white/60 text-xs font-sans leading-relaxed mb-6">
-              Premium Pass is coming soon. For now, unlock Online Multiplayer by reaching Level 5 in Comp Career.
-            </p>
-            <button
-              onClick={() => setPremiumComingSoonOpen(false)}
-              className="bg-[#d9ad33] hover:bg-[#b88f28] text-black font-bold uppercase tracking-[0.1em] text-xs py-2 px-6 rounded-lg transition-colors w-full"
-            >
-              Okay
-            </button>
-          </div>
-        </div>
-      )}
     </AnimatePresence>
-  );
-}
-
-function ModeButton({ icon, label, description, onClick, color }: any) {
-  return (
-    <button
-      onClick={onClick}
-      className={`play-mode-button flex items-center gap-4 border transition-all group p-3 rounded-xl cursor-pointer ${color}`}
-    >
-      <div className="text-[#d9ad33] group-hover:scale-105 transition-transform shrink-0">
-        {icon}
-      </div>
-      <div className="text-left">
-        <div className="font-bold text-white tracking-widest text-xs md:text-sm">{label}</div>
-        <div className="play-mode-subtitle text-[#8c7a52] group-hover:text-[#d9ad33] transition-colors uppercase tracking-[0.15em] text-[8px] md:text-[9px] mt-0.5">{description}</div>
-      </div>
-    </button>
   );
 }
