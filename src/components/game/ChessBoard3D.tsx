@@ -67,7 +67,7 @@ export default function ChessBoard3D({
   }, []);
 
   // Determine if we should flip the board view (swap sides)
-  const shouldFlip = isLocalVS ? (turn === 'b') : (playerColor === 'b');
+  const shouldFlip = isLocalVS ? (turn === 'b') : false;
 
   interface ActivePiece {
     id: string;
