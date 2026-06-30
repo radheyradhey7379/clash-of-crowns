@@ -1909,7 +1909,6 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={() => {
-                    if (isGameInteractionBlocked) return;
                     playSound('click');
                     navigateWithCleanup('Home');
                   }}
@@ -2488,7 +2487,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                     const cta = getGameResultCTA(
                       outcome,
                       activeCharacterId,
-                      playerData.aiProgress || { tier: 'beginner', level: 1, elo: 300, consecutiveLosses: 0, unlockedTiers: ['beginner'], lockedTiers: [], promotionTrial: { unlocked: false, completed: false }, hard: { locked: true }, masterCup: { currentCup: 1, currentMatch: 1, winsInCup: 0, lossesInCup: 0, completedCups: [] }, grandmaster: { unlocked: false, bossDefeated: false, bossSeriesWins: 0, bossSeriesLosses: 0, seasonPoints: 0 } }
+                      playerData.aiProgress || { tier: 'beginner', level: 1, elo: 0, consecutiveLosses: 0, unlockedTiers: ['beginner'], lockedTiers: [], promotionTrial: { unlocked: false, completed: false }, hard: { locked: true }, masterCup: { currentCup: 1, currentMatch: 1, winsInCup: 0, lossesInCup: 0, completedCups: [] }, grandmaster: { unlocked: false, bossDefeated: false, bossSeriesWins: 0, bossSeriesLosses: 0, seasonPoints: 0 } }
                     );
 
                     return (
