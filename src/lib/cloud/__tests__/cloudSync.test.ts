@@ -175,7 +175,7 @@ describe('Cloud Save & Firebase Sync System (Phase 19)', () => {
       
       // Verify local save was not overwritten by corrupted data
       const loaded = localPlayerStore.loadLocalData();
-      expect(loaded.rating).toBe(300); // kept valid default
+      expect(loaded.rating).toBe(0); // kept valid default
       expect(setDoc).not.toHaveBeenCalled();
     });
   });
@@ -363,7 +363,7 @@ describe('Cloud Save & Firebase Sync System (Phase 19)', () => {
       // Local store remains active and healthy
       const loaded = localPlayerStore.loadLocalData();
       expect(loaded).toBeDefined();
-      expect(loaded.rating).toBe(300);
+      expect(loaded.rating).toBe(0);
     });
   });
 });

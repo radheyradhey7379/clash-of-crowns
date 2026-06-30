@@ -6,6 +6,7 @@ import { signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, where, getDocs, setDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { AppScreen } from '../../types';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
+import { setSession } from '../../lib/session';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -41,9 +42,20 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         lastLogin: serverTimestamp(),
       }, { merge: true });
 
+      if (user.isAnonymous) {
+        await setSession('guest');
+      } else {
+        await setSession('user', user.uid);
+      }
+
       onLoginSuccess();
     } catch (err) {
       console.error("Failed to sync device ID:", err);
+      if (user.isAnonymous) {
+        await setSession('guest');
+      } else {
+        await setSession('user', user.uid);
+      }
       onLoginSuccess(); // Still proceed, but log error
     }
   };
@@ -118,6 +130,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       }
       
       // Fallback: Bypass Firebase Auth for offline Guest Mode
+      await setSession('guest');
       onLoginSuccess();
     } catch (err: any) {
       console.error("Guest login failed:", err);

@@ -10,6 +10,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import * as htmlToImage from 'modern-screenshot';
 import { downloadElement, cn } from '../../lib/utils';
+import { clearSession, clearGuestSessionProgress } from '../../lib/session';
+import { releaseSessionLock } from '../../services/sessionLock';
 
 export default function ProfileScreen({ 
   onNavigate, 
@@ -538,11 +540,18 @@ export default function ProfileScreen({
                           lastActive: new Date().toISOString()
                         });
                       }
+                      const isGuest = !user || user.isAnonymous || (user.uid && user.uid.startsWith("guest_"));
+                      if (isGuest) {
+                        await clearGuestSessionProgress();
+                      } else if (user) {
+                        await releaseSessionLock(user.uid).catch(() => {});
+                      }
+                      await clearSession();
                       await signOut(auth);
                       onNavigate('Home');
                     } catch (e) {
                       console.error("Logout error:", e);
-                      // Fallback sign out if save fails
+                      await clearSession();
                       await signOut(auth).catch(() => {});
                       onNavigate('Home');
                     } finally {

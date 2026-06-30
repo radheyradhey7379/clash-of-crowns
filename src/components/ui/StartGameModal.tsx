@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Globe, Trophy, Shield, Lock, Crown, Users } from 'lucide-react';
 import { PlayerData } from '../../types';
 import { playSound } from '../../lib/sounds';
+import { isMultiplayerEnabled } from '../../lib/config/featureFlags';
+import { useTranslation } from '../../lib/translations';
 
 interface StartGameModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface StartGameModalProps {
 }
 
 export default function StartGameModal({ isOpen, onClose, onSelectMode, playerData }: StartGameModalProps) {
+  const t = useTranslation(playerData.language || 'en');
   const isRtl = playerData.language === 'ur' || playerData.language === 'ar';
 
   return (
@@ -50,10 +53,10 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode, playerDa
             {/* Header */}
             <div className="text-center mb-8 shrink-0">
               <h2 className="font-bold text-[#d9ad33] font-serif text-center tracking-[0.3em] uppercase text-xl md:text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                CHOOSE MODE
+                {t.chooseMode || "CHOOSE MODE"}
               </h2>
               <p className="text-white/40 text-[10px] md:text-xs font-sans tracking-wider mt-1.5">
-                Choose how you want to play Clash of Crowns
+                {t.chooseModeDesc || "Choose how you want to play Clash of Crowns"}
               </p>
             </div>
 
@@ -64,7 +67,7 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode, playerDa
               <div>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="h-px bg-gradient-to-r from-transparent via-[#d9ad33]/40 to-[#d9ad33]/40 flex-1" />
-                  <span className="text-[10px] md:text-xs text-[#d9ad33] font-bold tracking-[0.2em] uppercase">Play Now</span>
+                  <span className="text-[10px] md:text-xs text-[#d9ad33] font-bold tracking-[0.2em] uppercase">{t.playNow || "Play Now"}</span>
                   <div className="h-px bg-gradient-to-l from-transparent via-[#d9ad33]/40 to-[#d9ad33]/40 flex-1" />
                 </div>
 
@@ -76,10 +79,10 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode, playerDa
                         <Crown size={28} />
                       </div>
                       <div className="text-left">
-                        <h3 className="font-bold text-white tracking-wider text-sm sm:text-base">VERSUS COMPUTER</h3>
-                        <h4 className="text-[9px] text-[#d9ad33] font-bold tracking-widest uppercase mt-0.5">Comp Career</h4>
+                        <h3 className="font-bold text-white tracking-wider text-sm sm:text-base">{t.vsComputer || "VERSUS COMPUTER"}</h3>
+                        <h4 className="text-[9px] text-[#d9ad33] font-bold tracking-widest uppercase mt-0.5">{t.compCareer || "Comp Career"}</h4>
                         <p className="text-white/60 text-[11px] mt-2 leading-relaxed font-sans">
-                          Challenge AI tiers and unlock stronger bots as you progress.
+                          {t.vsComputerDesc || "Challenge AI tiers and unlock stronger bots as you progress."}
                         </p>
                       </div>
                     </div>
@@ -93,7 +96,7 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode, playerDa
                         }}
                         className="w-full py-2.5 bg-[#d9ad33] hover:bg-[#f5d666] text-black rounded-xl font-bold tracking-widest uppercase text-[10px] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-[#d9ad33]/20"
                       >
-                        <span>Play Comp Career</span>
+                        <span>{t.playCompCareer || "Play Comp Career"}</span>
                         <span className="text-[12px] font-sans">&gt;</span>
                       </motion.button>
                     </div>
@@ -106,10 +109,10 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode, playerDa
                         <Users size={28} />
                       </div>
                       <div className="text-left">
-                        <h3 className="font-bold text-white tracking-wider text-sm sm:text-base">VERSUS FRIEND LOCAL</h3>
-                        <h4 className="text-[9px] text-[#d9ad33] font-bold tracking-widest uppercase mt-0.5">One Device</h4>
+                        <h3 className="font-bold text-white tracking-wider text-sm sm:text-base">{t.vsFriendLocal || "VERSUS FRIEND LOCAL"}</h3>
+                        <h4 className="text-[9px] text-[#d9ad33] font-bold tracking-widest uppercase mt-0.5">{t.oneDevice || "One Device"}</h4>
                         <p className="text-white/60 text-[11px] mt-2 leading-relaxed font-sans">
-                          Play locally with a friend on the same device.
+                          {t.vsFriendLocalDesc || "Play locally with a friend on the same device."}
                         </p>
                       </div>
                     </div>
@@ -123,7 +126,7 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode, playerDa
                         }}
                         className="w-full py-2.5 bg-[#d9ad33] hover:bg-[#f5d666] text-black rounded-xl font-bold tracking-widest uppercase text-[10px] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-[#d9ad33]/20"
                       >
-                        <span>Start Local Match</span>
+                        <span>{t.startLocalMatch || "Start Local Match"}</span>
                         <span className="text-[12px] font-sans">&gt;</span>
                       </motion.button>
                     </div>
@@ -131,97 +134,99 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode, playerDa
                 </div>
               </div>
 
-              {/* COMING SOON SECTION */}
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-white/10 flex-1" />
-                  <span className="text-[10px] md:text-xs text-white/30 font-bold tracking-[0.2em] uppercase">Coming Soon</span>
-                  <div className="h-px bg-gradient-to-l from-transparent via-white/10 to-white/10 flex-1" />
+              {/* COMING SOON SECTION (Only if multiplayer is enabled in config/env) */}
+              {isMultiplayerEnabled() && (
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-white/10 flex-1" />
+                    <span className="text-[10px] md:text-xs text-white/30 font-bold tracking-[0.2em] uppercase">Coming Soon</span>
+                    <div className="h-px bg-gradient-to-l from-transparent via-white/10 to-white/10 flex-1" />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                    {/* Card 3: Online Friend Match */}
+                    <div className="flex flex-col justify-between p-5 rounded-2xl bg-black/40 border border-white/5 opacity-50 relative overflow-hidden min-h-[160px] group">
+                      <div className="absolute top-4 right-4 text-white/30">
+                        <Lock size={12} />
+                      </div>
+                      <div className="flex gap-3 items-start">
+                        <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 shrink-0">
+                          <Globe size={20} />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="font-bold text-white/60 tracking-wider text-xs md:text-sm">ONLINE FRIEND MATCH</h3>
+                          <h4 className="text-[8px] text-[#8c7a52] font-bold tracking-widest uppercase mt-0.5">Private Rooms</h4>
+                          <p className="text-white/40 text-[10px] mt-1.5 leading-relaxed font-sans">
+                            Invite friends and play online.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <button
+                          disabled
+                          className="w-full py-2 bg-white/5 border border-white/10 text-white/30 rounded-xl font-bold tracking-widest uppercase text-[8px] font-sans"
+                        >
+                          Coming Soon Beta
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card 4: Ranked Arena */}
+                    <div className="flex flex-col justify-between p-5 rounded-2xl bg-black/40 border border-white/5 opacity-50 relative overflow-hidden min-h-[160px] group">
+                      <div className="absolute top-4 right-4 text-white/30">
+                        <Lock size={12} />
+                      </div>
+                      <div className="flex gap-3 items-start">
+                        <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 shrink-0">
+                          <Trophy size={20} />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="font-bold text-white/60 tracking-wider text-xs md:text-sm">RANKED ARENA</h3>
+                          <h4 className="text-[8px] text-[#8c7a52] font-bold tracking-widest uppercase mt-0.5">Competitive Ladder</h4>
+                          <p className="text-white/40 text-[10px] mt-1.5 leading-relaxed font-sans">
+                            Rank points: Bronze to Crown.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <button
+                          disabled
+                          className="w-full py-2 bg-white/5 border border-white/10 text-white/30 rounded-xl font-bold tracking-widest uppercase text-[8px] font-sans"
+                        >
+                          Unlocks at Level 15
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card 5: Championship Tournament */}
+                    <div className="flex flex-col justify-between p-5 rounded-2xl bg-black/40 border border-white/5 opacity-50 relative overflow-hidden min-h-[160px] group">
+                      <div className="absolute top-4 right-4 text-white/30">
+                        <Lock size={12} />
+                      </div>
+                      <div className="flex gap-3 items-start">
+                        <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 shrink-0">
+                          <Shield size={20} />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="font-bold text-white/60 tracking-wider text-xs md:text-sm">CHAMPIONSHIP TOURNAMENT</h3>
+                          <h4 className="text-[8px] text-[#8c7a52] font-bold tracking-widest uppercase mt-0.5">Server Events</h4>
+                          <p className="text-white/40 text-[10px] mt-1.5 leading-relaxed font-sans">
+                            Bracket and reward-based tournaments.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <button
+                          disabled
+                          className="w-full py-2 bg-white/5 border border-white/10 text-white/30 rounded-xl font-bold tracking-widest uppercase text-[8px] font-sans"
+                        >
+                          Unlocks at Level 20
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                  {/* Card 3: Online Friend Match */}
-                  <div className="flex flex-col justify-between p-5 rounded-2xl bg-black/40 border border-white/5 opacity-50 relative overflow-hidden min-h-[160px] group">
-                    <div className="absolute top-4 right-4 text-white/30">
-                      <Lock size={12} />
-                    </div>
-                    <div className="flex gap-3 items-start">
-                      <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 shrink-0">
-                        <Globe size={20} />
-                      </div>
-                      <div className="text-left">
-                        <h3 className="font-bold text-white/60 tracking-wider text-xs md:text-sm">ONLINE FRIEND MATCH</h3>
-                        <h4 className="text-[8px] text-[#8c7a52] font-bold tracking-widest uppercase mt-0.5">Private Rooms</h4>
-                        <p className="text-white/40 text-[10px] mt-1.5 leading-relaxed font-sans">
-                          Invite friends and play online.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <button
-                        disabled
-                        className="w-full py-2 bg-white/5 border border-white/10 text-white/30 rounded-xl font-bold tracking-widest uppercase text-[8px] font-sans"
-                      >
-                        Coming Soon Beta
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Card 4: Ranked Arena */}
-                  <div className="flex flex-col justify-between p-5 rounded-2xl bg-black/40 border border-white/5 opacity-50 relative overflow-hidden min-h-[160px] group">
-                    <div className="absolute top-4 right-4 text-white/30">
-                      <Lock size={12} />
-                    </div>
-                    <div className="flex gap-3 items-start">
-                      <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 shrink-0">
-                        <Trophy size={20} />
-                      </div>
-                      <div className="text-left">
-                        <h3 className="font-bold text-white/60 tracking-wider text-xs md:text-sm">RANKED ARENA</h3>
-                        <h4 className="text-[8px] text-[#8c7a52] font-bold tracking-widest uppercase mt-0.5">Competitive Ladder</h4>
-                        <p className="text-white/40 text-[10px] mt-1.5 leading-relaxed font-sans">
-                          Rank points: Bronze to Crown.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <button
-                        disabled
-                        className="w-full py-2 bg-white/5 border border-white/10 text-white/30 rounded-xl font-bold tracking-widest uppercase text-[8px] font-sans"
-                      >
-                        Unlocks at Level 15
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Card 5: Championship Tournament */}
-                  <div className="flex flex-col justify-between p-5 rounded-2xl bg-black/40 border border-white/5 opacity-50 relative overflow-hidden min-h-[160px] group">
-                    <div className="absolute top-4 right-4 text-white/30">
-                      <Lock size={12} />
-                    </div>
-                    <div className="flex gap-3 items-start">
-                      <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 shrink-0">
-                        <Shield size={20} />
-                      </div>
-                      <div className="text-left">
-                        <h3 className="font-bold text-white/60 tracking-wider text-xs md:text-sm">CHAMPIONSHIP TOURNAMENT</h3>
-                        <h4 className="text-[8px] text-[#8c7a52] font-bold tracking-widest uppercase mt-0.5">Server Events</h4>
-                        <p className="text-white/40 text-[10px] mt-1.5 leading-relaxed font-sans">
-                          Bracket and reward-based tournaments.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <button
-                        disabled
-                        className="w-full py-2 bg-white/5 border border-white/10 text-white/30 rounded-xl font-bold tracking-widest uppercase text-[8px] font-sans"
-                      >
-                        Unlocks at Level 20
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              )}
 
             </div>
 

@@ -291,10 +291,10 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
             setVoiceAlert("Excellent! That is the correct move!");
           } else {
             setPuzzleState('failed');
-            setVoiceAlert("Incorrect move. Try again!");
+            setVoiceAlert(`Incorrect move. Hint: ${lesson.puzzleInstructions || "Try to find the best path."}`);
             setTimeout(() => {
               resetBoard();
-            }, 2000);
+            }, 3000);
           }
         }
 

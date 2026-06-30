@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use shakmaty::fen::Fen;
@@ -33,6 +34,7 @@ pub struct EngineMoveResponse {
     pub inference_mode: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn move_handler(
     Json(req): Json<EngineMoveRequest>,
 ) -> Result<Json<EngineMoveResponse>, (axum::http::StatusCode, String)> {
@@ -124,6 +126,7 @@ pub struct EngineEvalResponse {
     pub inference_mode: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn eval_handler(
     Json(req): Json<EngineEvalRequest>,
 ) -> Result<Json<EngineEvalResponse>, (axum::http::StatusCode, String)> {
@@ -177,6 +180,7 @@ pub struct SimulateResponse {
     pub duration_ms: u64,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn simulate_handler(Json(req): Json<SimulateRequest>) -> Json<SimulateResponse> {
     let start_time = std::time::Instant::now();
     let mut pos = Chess::default();
@@ -299,6 +303,7 @@ pub struct ValidateMoveResponse {
     pub is_repetition: bool,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn validate_handler(Json(req): Json<ValidateMoveRequest>) -> Json<ValidateMoveResponse> {
     let setup = match Fen::from_str(&req.fen) {
         Ok(s) => s,
@@ -470,6 +475,7 @@ pub struct EngineStatusResponse {
     pub inference_mode: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn status_handler() -> Json<EngineStatusResponse> {
     let is_tensor = crate::engine::nnue::EVALUATOR.model.weights.status
         == crate::engine::nnue::weights::WeightsStatus::Trained;

@@ -143,7 +143,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           }
         }
       } else {
-        next.elo = Math.max(300, next.elo - 5);
+        next.elo = Math.max(0, next.elo - 5);
         next.consecutiveLosses += 1;
         if (next.consecutiveLosses >= 3) {
           if (next.level === 1) {
@@ -172,7 +172,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           }
         }
       } else {
-        next.elo = Math.max(300, next.elo - 10);
+        next.elo = Math.max(0, next.elo - 10);
         next.consecutiveLosses += 1;
         if (next.consecutiveLosses >= 2) {
           if (next.level === 1) {
@@ -203,7 +203,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           }
         }
       } else {
-        next.elo = Math.max(300, next.elo - 20);
+        next.elo = Math.max(0, next.elo - 20);
         if (next.level === 1) {
           next.tier = 'intermediate';
           next.level = 8;
@@ -221,7 +221,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
         next.elo += 40;
         cup.winsInCup += 1;
       } else {
-        next.elo = Math.max(300, next.elo - 15);
+        next.elo = Math.max(0, next.elo - 15);
         cup.lossesInCup += 1;
       }
 
@@ -282,7 +282,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           next.elo += 50;
         } else {
           gm.bossSeriesLosses += 1;
-          next.elo = Math.max(300, next.elo - 25);
+          next.elo = Math.max(0, next.elo - 25);
         }
 
         if (gm.bossSeriesWins === 2) {
@@ -301,7 +301,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           next.elo += 50;
           gm.seasonPoints += 10;
         } else {
-          next.elo = Math.max(300, next.elo - 25);
+          next.elo = Math.max(0, next.elo - 25);
         }
       }
       break;

@@ -12,6 +12,8 @@ import { cn } from '../../lib/utils';
 import { useTranslation } from '../../lib/translations';
 const ChessBoard3D = lazy(() => import('../game/ChessBoard3D'));
 import { ChessLogic } from '../../lib/chess-logic';
+import ChessBoard2D from '../game/ChessBoard2D';
+import { PreviewErrorBoundary } from '../ui/PreviewErrorBoundary';
 
 interface CustomiseScreenProps {
   onNavigate: (screen: AppScreen) => void;
@@ -363,53 +365,71 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
                 <X size={24} />
               </button>
 
-              {/* 3D View */}
+              {/* 3D View with 2D Fallback */}
               <div className="flex-1 relative">
-                <Canvas shadows dpr={[1, 2]}>
-                  <PerspectiveCamera makeDefault position={[8, 8, 8]} fov={45} />
-                  <OrbitControls 
-                    enablePan={false} 
-                    minDistance={5} 
-                    maxDistance={15}
-                    maxPolarAngle={Math.PI / 2.1}
-                  />
-                  
-                  <ambientLight intensity={0.5} />
-                  <pointLight position={[10, 10, 10]} intensity={1} castShadow />
-                  <spotLight position={[-10, 10, 10]} angle={0.15} penumbra={1} intensity={1} castShadow />
-                  
-                  <Suspense fallback={
-                    <Html center>
-                      <div className="bg-slate-900/80 px-4 py-2 rounded-lg text-white/80 font-inter text-sm backdrop-blur-sm border border-white/10 whitespace-nowrap">
-                        Loading 3D Preview...
-                      </div>
-                    </Html>
-                  }>
-                    <ChessBoard3D 
-                      board={previewBoard}
-                      onSquareClick={() => {}}
-                      selectedSquare={null}
-                      validMoves={[]}
-                      lastMove={null}
-                      checkInfo={null}
-                      chess={previewChess}
-                      setBoard={() => {}}
-                      setTurn={() => {}}
-                      setLastMove={() => {}}
-                      updateCheckInfo={() => {}}
-                      checkGameOver={() => {}}
-                      setSelectedSquare={() => {}}
-                      setValidMoves={() => {}}
-                      showHints={false}
-                      selectedPieceSet={pendingData.selectedPieceSet}
-                      boardTheme={pendingData.boardTheme}
-                      capturedPieces={{ w: [], b: [] }}
+                <PreviewErrorBoundary fallback={
+                  <div className="w-full h-full flex flex-col items-center justify-center p-4">
+                    <div className="w-full max-w-[min(70vw,70vh,400px)] aspect-square rounded-2xl overflow-hidden border border-white/10 p-4 bg-black/40 backdrop-blur-xl">
+                      <ChessBoard2D 
+                        board={previewBoard}
+                        selectedSquare={null}
+                        validMoves={[]}
+                        lastMove={null}
+                        onSquareClick={() => {}}
+                        playerColor="w"
+                        checkInfo={null}
+                        turn="w"
+                      />
+                    </div>
+                    <p className="text-white/40 text-xs mt-4">3D Canvas crashed. Displaying 2D preview fallback.</p>
+                  </div>
+                }>
+                  <Canvas shadows dpr={[1, 2]}>
+                    <PerspectiveCamera makeDefault position={[8, 8, 8]} fov={45} />
+                    <OrbitControls 
+                      enablePan={false} 
+                      minDistance={5} 
+                      maxDistance={15}
+                      maxPolarAngle={Math.PI / 2.1}
                     />
-                  </Suspense>
+                    
+                    <ambientLight intensity={0.5} />
+                    <pointLight position={[10, 10, 10]} intensity={1} castShadow />
+                    <spotLight position={[-10, 10, 10]} angle={0.15} penumbra={1} intensity={1} castShadow />
+                    
+                    <Suspense fallback={
+                      <Html center>
+                        <div className="bg-slate-900/80 px-4 py-2 rounded-lg text-white/80 font-inter text-sm backdrop-blur-sm border border-white/10 whitespace-nowrap">
+                          Loading 3D Preview...
+                        </div>
+                      </Html>
+                    }>
+                      <ChessBoard3D 
+                        board={previewBoard}
+                        onSquareClick={() => {}}
+                        selectedSquare={null}
+                        validMoves={[]}
+                        lastMove={null}
+                        checkInfo={null}
+                        chess={previewChess}
+                        setBoard={() => {}}
+                        setTurn={() => {}}
+                        setLastMove={() => {}}
+                        updateCheckInfo={() => {}}
+                        checkGameOver={() => {}}
+                        setSelectedSquare={() => {}}
+                        setValidMoves={() => {}}
+                        showHints={false}
+                        selectedPieceSet={pendingData.selectedPieceSet}
+                        boardTheme={pendingData.boardTheme}
+                        capturedPieces={{ w: [], b: [] }}
+                      />
+                    </Suspense>
 
-                  <Environment preset="apartment" />
-                  <ContactShadows position={[0, 0, 0]} opacity={0.4} scale={20} blur={2} far={4.5} />
-                </Canvas>
+                    <Environment preset="apartment" />
+                    <ContactShadows position={[0, 0, 0]} opacity={0.4} scale={20} blur={2} far={4.5} />
+                  </Canvas>
+                </PreviewErrorBoundary>
 
                 {/* Preview Overlay Info */}
                 <div className="absolute bottom-10 left-10 z-10">

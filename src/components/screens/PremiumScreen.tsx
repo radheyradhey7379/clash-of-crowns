@@ -5,6 +5,7 @@ import { downloadElement, cn } from '../../lib/utils';
 import { AppScreen, PlayerData } from '../../types';
 import { useTranslation } from '../../lib/translations';
 import { playSound } from '../../lib/sounds';
+import { PRICING_CONFIG } from '../../config/pricing';
 
 interface PremiumScreenProps {
   onNavigate: (screen: AppScreen) => void;
@@ -24,13 +25,19 @@ export default function PremiumScreen({ onNavigate, playerData }: PremiumScreenP
 
   const handleUpgradePremium = () => {
     playSound('click');
-    const total = includeUndo ? 348 : 299;
+    const total = includeUndo 
+      ? (PRICING_CONFIG.PREMIUM_MONTHLY + PRICING_CONFIG.UNDO_ADDON_MONTHLY) 
+      : PRICING_CONFIG.PREMIUM_MONTHLY;
     alert(`Redirecting to secure payment gateway for ₹${total} Monthly Plan ${includeUndo ? '(with Undo Add-on)' : ''}...`);
   };
 
   const handleBuyUndoStandalone = (plan: 'day' | 'month' | 'year') => {
     playSound('click');
-    const prices = { day: 29, month: 79, year: 499 };
+    const prices = { 
+      day: PRICING_CONFIG.UNDO_PASS_DAILY, 
+      month: PRICING_CONFIG.UNDO_PASS_MONTHLY, 
+      year: PRICING_CONFIG.UNDO_PASS_YEARLY 
+    };
     const labels = { day: 'Daily', month: 'Monthly', year: 'Yearly' };
     alert(`Redirecting to secure payment gateway for ₹${prices[plan]} ${labels[plan]} Undo Plan...`);
   };
@@ -96,7 +103,7 @@ export default function PremiumScreen({ onNavigate, playerData }: PremiumScreenP
               </div>
               <h3 className="text-[#c084fc] font-serif tracking-[0.3em] uppercase mb-4">PREMIUM ACCESS</h3>
               <div className="flex items-center justify-center gap-1 mb-2">
-                <span className="text-4xl md:text-6xl font-black text-[#f5c518]">₹{includeUndo ? 348 : 299}</span>
+                <span className="text-4xl md:text-6xl font-black text-[#f5c518]">₹{includeUndo ? (PRICING_CONFIG.PREMIUM_MONTHLY + PRICING_CONFIG.UNDO_ADDON_MONTHLY) : PRICING_CONFIG.PREMIUM_MONTHLY}</span>
               </div>
               <p className="text-white/40 text-sm tracking-widest uppercase mb-6">per month</p>
               
@@ -128,7 +135,7 @@ export default function PremiumScreen({ onNavigate, playerData }: PremiumScreenP
                     </div>
                     <div className="text-left">
                       <div className="text-xs font-bold text-white uppercase tracking-wider">Unlimited Undo Add-on</div>
-                      <div className="text-[10px] text-white/40 uppercase tracking-tight">+₹49 / month</div>
+                      <div className="text-[10px] text-white/40 uppercase tracking-tight">+₹{PRICING_CONFIG.UNDO_ADDON_MONTHLY} / month</div>
                     </div>
                   </div>
                   <Zap size={18} className={includeUndo ? 'text-[#f5c518]' : 'text-white/20'} />
@@ -174,7 +181,7 @@ export default function PremiumScreen({ onNavigate, playerData }: PremiumScreenP
                       <div className="text-[10px] text-white/40 uppercase">24 Hours Access</div>
                     </div>
                   </div>
-                  <span className="text-lg font-black text-[#f5c518]">₹29</span>
+                  <span className="text-lg font-black text-[#f5c518]">₹{PRICING_CONFIG.UNDO_PASS_DAILY}</span>
                 </button>
 
                 <button 
@@ -191,7 +198,7 @@ export default function PremiumScreen({ onNavigate, playerData }: PremiumScreenP
                       <div className="text-[10px] text-white/40 uppercase">30 Days Access</div>
                     </div>
                   </div>
-                  <span className="text-lg font-black text-[#f5c518]">₹79</span>
+                  <span className="text-lg font-black text-[#f5c518]">₹{PRICING_CONFIG.UNDO_PASS_MONTHLY}</span>
                 </button>
 
                 <button 
@@ -208,7 +215,7 @@ export default function PremiumScreen({ onNavigate, playerData }: PremiumScreenP
                       <div className="text-[10px] text-white/40 uppercase">Best Value</div>
                     </div>
                   </div>
-                  <span className="text-lg font-black text-[#f5c518]">₹499</span>
+                  <span className="text-lg font-black text-[#f5c518]">₹{PRICING_CONFIG.UNDO_PASS_YEARLY}</span>
                 </button>
               </div>
 

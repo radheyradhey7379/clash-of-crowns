@@ -12,6 +12,7 @@ import { playSound } from '../../lib/sounds';
 import ScreenBackground from '../ui/ScreenBackground';
 import OfflinePackageModal from '../ui/OfflinePackageModal';
 import { getOfflinePackageMetadata } from '../../lib/offline/offlinePackage';
+import { isMultiplayerEnabled } from '../../lib/config/featureFlags';
 import { useEffect } from 'react';
 
 interface HomeScreenProps {
@@ -132,10 +133,12 @@ export default function HomeScreen({ onNavigate, playerData }: HomeScreenProps) 
             playSound('click');
             onNavigate('Premium');
           }} />
-          <NavIconButton icon={<MessageSquare size={18} />} label={t.chat} onClick={() => {
-            playSound('click');
-            onNavigate('Chat');
-          }} />
+          {isMultiplayerEnabled() && (
+            <NavIconButton icon={<MessageSquare size={18} />} label={t.chat} onClick={() => {
+              playSound('click');
+              onNavigate('Chat');
+            }} />
+          )}
           <NavIconButton icon={<Settings size={18} />} label={t.settings} onClick={() => {
             playSound('click');
             onNavigate('Settings');
@@ -148,10 +151,12 @@ export default function HomeScreen({ onNavigate, playerData }: HomeScreenProps) 
             playSound('click');
             onNavigate('Rank');
           }} />
-          <NavIconButton icon={<Trophy size={18} />} label={t.leaderboard} onClick={() => {
-            playSound('click');
-            onNavigate('Leaderboard');
-          }} />
+          {isMultiplayerEnabled() && (
+            <NavIconButton icon={<Trophy size={18} />} label={t.leaderboard} onClick={() => {
+              playSound('click');
+              onNavigate('Leaderboard');
+            }} />
+          )}
         </div>
       </div>
 

@@ -4,7 +4,11 @@ use crate::engine::nnue::EVALUATOR as NNUE_EVALUATOR;
 use crate::engine::quiescence::quiescence_search;
 use shakmaty::fen::Fen;
 use shakmaty::{CastlingMode, Chess, EnPassantMode, Move, MoveList, Position};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(target_arch = "wasm32")]
+use instant::Instant;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 
 const MAX_DEPTH: usize = 64;
 
@@ -61,6 +65,28 @@ fn clean_fen(fen: &str) -> String {
     fen.split_whitespace().take(4).collect::<Vec<_>>().join(" ")
 }
 
+fn simple_hash(s: &str) -> u32 {
+    let mut h: u32 = 5381;
+    for c in s.bytes() {
+        h = (h << 5).wrapping_add(h).wrapping_add(c as u32);
+    }
+    h
+}
+
+fn pseudo_random_noise(error_noise_cp: i32, seed: u32) -> i32 {
+    if error_noise_cp <= 0 {
+        return 0;
+    }
+    // LCG pseudo-random generator
+    let next_seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
+    let val = (next_seed / 65536) % 32768;
+    let range = error_noise_cp * 2;
+    if range <= 0 {
+        return 0;
+    }
+    (val as i32 % range) - error_noise_cp
+}
+
 pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
     let start_time = Instant::now();
     let legals = pos.legal_moves();
@@ -73,9 +99,6 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
             noise_applied: 0,
         };
     }
-    let mut best_move: Option<Move> = legals.first().cloned();
-    let mut best_eval = 0;
-    let mut nodes = 0;
 
     let mut current_pos = pos.clone();
     let hce_evaluator = HceEvaluator::new();
@@ -96,123 +119,127 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
     }
 
     let initial_extension_budget = 3;
+    let mut moves_evals: Vec<(Move, i32, i32)> = Vec::new(); // (Move, raw_eval_with_noise, adjusted_eval_with_penalty)
+    let mut total_nodes = 0;
 
-    if options.error_noise_cp > 0 {
-        // Evaluated search with noise at the root level!
-        let mut moves_evals: Vec<(Move, i32)> = Vec::new();
-        for m in &legals {
-            let mut child_pos = current_pos.clone();
-            child_pos.play_unchecked(m);
-            let (score, _, n) = negamax(
-                &mut child_pos,
-                options.max_depth.saturating_sub(1),
-                -i32::MAX + 1,
-                i32::MAX - 1,
-                start_time,
-                options,
-                &hce_evaluator,
-                1,
-                initial_extension_budget,
+    let mut moves_vec: Vec<_> = legals.clone().into_iter().collect();
+    moves_vec.sort_by_key(|m| -score_move(&current_pos, m));
+
+    for m in moves_vec {
+        let mut child_pos = current_pos.clone();
+        child_pos.play_unchecked(&m);
+        let (score, _, n) = negamax(
+            &mut child_pos,
+            options.max_depth.saturating_sub(1),
+            -i32::MAX + 1,
+            i32::MAX - 1,
+            start_time,
+            options,
+            &hce_evaluator,
+            1,
+            initial_extension_budget,
+        );
+        total_nodes += n;
+
+        // Negamax returns the score from child's perspective, so negate it
+        let eval = -score;
+
+        // Add noise if configured
+        let mut noisy_eval = eval;
+        if options.error_noise_cp > 0 {
+            let m_uci = m.to_uci(CastlingMode::Standard).to_string();
+            let seed = simple_hash(&m_uci).wrapping_add(total_nodes as u32);
+            let noise = pseudo_random_noise(options.error_noise_cp, seed);
+            noisy_eval = eval + noise;
+        }
+
+        // Apply anti-repetition penalties
+        let bot_id = options.bot_profile_id.to_lowercase();
+        let is_beginner_learner = bot_id.contains("beginner") || bot_id.contains("learner") || bot_id.contains("core");
+        let is_grandmaster = bot_id.contains("grandmaster");
+
+        let mut penalty = 0;
+        let m_uci = m.to_uci(CastlingMode::Standard).to_string();
+        let len = options.recent_moves.len();
+
+        // Penalty 1: Immediate reverse of the previous move in the game history
+        if len >= 1 {
+            let last_move = &options.recent_moves[len - 1];
+            if is_reversing(&m_uci, last_move) {
+                if is_beginner_learner {
+                    penalty += 3000;
+                } else if is_grandmaster {
+                    penalty += 12;
+                } else {
+                    penalty += 800;
+                }
+            }
+        }
+
+        // Penalty 2: Immediate reverse of the AI's own previous move (if available)
+        if len >= 2 {
+            let prev_ai_move = &options.recent_moves[len - 2];
+            if is_reversing(&m_uci, prev_ai_move) {
+                if is_beginner_learner {
+                    penalty += 2000;
+                } else if is_grandmaster {
+                    penalty += 10;
+                } else {
+                    penalty += 600;
+                }
+            }
+        }
+
+        // Penalty 3: Recreating a recently occurred FEN position (prevents multi-move cycles)
+        if !options.recent_fens.is_empty() {
+            let child_fen = clean_fen(
+                &Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string(),
             );
-            nodes += n;
-
-            // Negamax returns the score from child's perspective, so negate it
-            let mut eval = -score;
-
-            // Apply low-tier bot repetition penalties
-            let bot_id = options.bot_profile_id.to_lowercase();
-            let is_low_tier = bot_id.starts_with("core_")
-                || bot_id.starts_with("beginner_")
-                || bot_id.starts_with("learner_")
-                || bot_id.contains("core")
-                || bot_id.contains("beginner")
-                || bot_id.contains("learner");
-            if is_low_tier {
-                let m_uci = m.to_uci(CastlingMode::Standard).to_string();
-                let len = options.recent_moves.len();
-                if len >= 2 {
-                    let prev_move = &options.recent_moves[len - 2];
-                    if is_reversing(&m_uci, prev_move) {
-                        eval -= 1000;
+            for past_fen in &options.recent_fens {
+                if clean_fen(past_fen) == child_fen {
+                    if is_beginner_learner {
+                        penalty += 2500;
+                    } else if is_grandmaster {
+                        penalty += 8;
+                    } else {
+                        penalty += 600;
                     }
                 }
-                let prev_move = if len >= 2 {
-                    &options.recent_moves[len - 2]
+            }
+        }
+
+        // Penalty 4: Moving the same piece repeatedly (2-move cycle back-and-forth)
+        if len >= 2 {
+            let prev_move = &options.recent_moves[len - 2];
+            let prev_prev_move = if len >= 4 { &options.recent_moves[len - 4] } else { "" };
+            if is_same_piece(&m_uci, prev_move, prev_prev_move) {
+                if is_beginner_learner {
+                    penalty += 1500;
+                } else if is_grandmaster {
+                    penalty += 6;
                 } else {
-                    ""
-                };
-                let prev_prev_move = if len >= 4 {
-                    &options.recent_moves[len - 4]
-                } else {
-                    ""
-                };
-                if is_same_piece(&m_uci, prev_move, prev_prev_move) {
-                    eval -= 500;
-                }
-                if options.recent_fens.len() >= 2 {
-                    let clean_curr = clean_fen(
-                        &Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string(),
-                    );
-                    for past_fen in &options.recent_fens {
-                        if clean_fen(past_fen) == clean_curr {
-                            eval -= 1000;
-                        }
-                    }
+                    penalty += 400;
                 }
             }
-
-            // Add noise
-            let noise = (rand::random::<f32>() * (options.error_noise_cp as f32) * 2.0)
-                - (options.error_noise_cp as f32);
-            let noisy_eval = eval + noise as i32;
-            moves_evals.push((m.clone(), noisy_eval));
         }
 
-        // Sort moves by noisy evaluation descending
-        moves_evals.sort_by_key(|(_, eval)| -*eval);
-        if let Some((m, eval)) = moves_evals.first() {
-            best_move = Some(m.clone());
-            best_eval = *eval;
-        }
-    } else {
-        // Normal search (Iterative deepening)
-        for depth in 1..=options.max_depth {
-            let (eval, m, n) = negamax(
-                &mut current_pos,
-                depth,
-                -i32::MAX + 1,
-                i32::MAX - 1,
-                start_time,
-                options,
-                &hce_evaluator,
-                0,
-                initial_extension_budget,
-            );
-            nodes += n;
-
-            if start_time.elapsed() >= options.max_time {
-                if let Some(valid_move) = m {
-                    best_move = Some(valid_move);
-                    best_eval = eval;
-                }
-                break;
-            }
-
-            if let Some(valid_move) = m {
-                best_move = Some(valid_move);
-                best_eval = eval;
-            }
-
-            if eval.abs() > 10000 {
-                break; // Mate found
-            }
-        }
+        let adjusted_eval = noisy_eval - penalty;
+        moves_evals.push((m.clone(), noisy_eval, adjusted_eval));
     }
+
+    // Sort moves by adjusted evaluation descending
+    moves_evals.sort_by_key(|(_, _, adjusted)| -*adjusted);
+
+    let (best_move, best_eval) = if let Some((m, noisy, _)) = moves_evals.first() {
+        (Some(m.clone()), *noisy)
+    } else {
+        (legals.first().cloned(), 0)
+    };
 
     SearchResult {
         best_move,
         eval: best_eval,
-        nodes,
+        nodes: total_nodes,
         depth: options.max_depth,
         noise_applied: options.error_noise_cp,
     }

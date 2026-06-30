@@ -77,6 +77,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 }
 
+import { getSession, setSession, clearSession, ProfileType } from './lib/session';
+import { initializeSessionLock, verifySessionLock, releaseSessionLock } from './services/sessionLock';
+
 export default function App() {
   const { status: versionStatus, config: versionConfig, retry: retryVersionCheck, dismissSoftUpdate } = useVersionGate();
   const [screen, setScreen] = useState<AppScreen>('Splash');
@@ -95,6 +98,62 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(false);
   const [rtt, setRtt] = useState<number | null>(null);
   const [performanceAlert, setPerformanceAlert] = useState(false);
+
+  // Guest/user session persistence states
+  const [isSessionHydrated, setIsSessionHydrated] = useState(false);
+  const [activeProfile, setActiveProfile] = useState<ProfileType>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Initialize session from Capacitor Preferences on startup
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const session = await getSession();
+        setActiveProfile(session.activeProfileType);
+        console.log("[App Session] Hydrated session:", session);
+      } catch (err) {
+        console.warn("[App Session] Failed to hydrate session:", err);
+      } finally {
+        setIsSessionHydrated(true);
+      }
+    };
+    initSession();
+  }, []);
+
+  // Session Lock Verification Heartbeat
+  useEffect(() => {
+    if (!auth.currentUser || activeProfile !== 'user' || !isOnlineState) return;
+
+    const interval = setInterval(async () => {
+      const isValid = await verifySessionLock(auth.currentUser!.uid);
+      if (!isValid) {
+        setSessionExpired(true);
+        await clearSession();
+        await releaseSessionLock(auth.currentUser!.uid).catch(() => {});
+        await signOut(auth).catch(() => {});
+        setActiveProfile(null);
+        setScreen('Login');
+      }
+    }, 60000); // Check every 60 seconds
+
+    // Also run an immediate check on reconnect or when app becomes active
+    const checkImmediate = async () => {
+      if (auth.currentUser) {
+        const isValid = await verifySessionLock(auth.currentUser.uid);
+        if (!isValid) {
+          setSessionExpired(true);
+          await clearSession();
+          await releaseSessionLock(auth.currentUser.uid).catch(() => {});
+          await signOut(auth).catch(() => {});
+          setActiveProfile(null);
+          setScreen('Login');
+        }
+      }
+    };
+    checkImmediate();
+
+    return () => clearInterval(interval);
+  }, [auth.currentUser, activeProfile, isOnlineState]);
 
   // Performance Heartbeat (RTT tracking)
   useEffect(() => {
@@ -227,6 +286,11 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
         if (user) {
+          // Sync session preferences
+          await setSession('user', user.uid);
+          setActiveProfile('user');
+          await initializeSessionLock(user.uid);
+          
           // Check for Stripe success
           const urlParams = new URLSearchParams(window.location.search);
           const paymentStatus = urlParams.get('payment');
@@ -253,9 +317,16 @@ export default function App() {
             }
           }
         } else {
-          console.log("No user signed in.");
+          console.log("No user signed in onAuthStateChanged.");
           setIsCloudSyncReady(false);
-          setIsDataSynced(true); // Guest mode
+          setIsDataSynced(true);
+          
+          // If we had a active 'user' profile but Firebase says we are signed out, clear the session.
+          // If it was 'guest', we keep it as guest!
+          if (activeProfile === 'user') {
+            await clearSession();
+            setActiveProfile(null);
+          }
         }
       } catch (err) {
         console.error("Error in onAuthStateChanged handler:", err);
@@ -265,7 +336,7 @@ export default function App() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [activeProfile]);
 
   // Sync Firestore changes back to local state
   useEffect(() => {
@@ -295,15 +366,18 @@ export default function App() {
     triggerDebouncedSync();
   }, [playerData]);
 
+  // Session-aware Splash Routing loading gate
   useEffect(() => {
-    if (isLocalDataReady && splashFinished && screen === 'Splash') {
-      if (auth.currentUser) {
+    if (isLocalDataReady && splashFinished && isSessionHydrated && isAuthReady && screen === 'Splash') {
+      if (activeProfile === 'user' && auth.currentUser) {
+        setScreen('Home');
+      } else if (activeProfile === 'guest') {
         setScreen('Home');
       } else {
         setScreen('Login');
       }
     }
-  }, [isLocalDataReady, splashFinished, screen]);
+  }, [isLocalDataReady, splashFinished, isSessionHydrated, isAuthReady, activeProfile, screen]);
 
   const handleNavigate = (newScreen: AppScreen, characterId: string | null = null, localConfig: any = null, multiConfig: any = null) => {
     if (newScreen === 'Home') {
@@ -329,6 +403,8 @@ export default function App() {
   };
 
   const handleReset = async () => {
+    await clearSession();
+    setActiveProfile(null);
     const resetData = resetPlayerData();
     setPlayerData(resetData);
     setSelectedCharacterId(null);
@@ -420,6 +496,10 @@ export default function App() {
     }
     if (versionStatus === 'maintenance') {
       return <MaintenanceScreen config={versionConfig} onRetry={retryVersionCheck} />;
+    }
+
+    if (!isSessionHydrated || !isAuthReady) {
+      return <SplashScreen onFinish={() => {}} />;
     }
 
     console.log(`Rendering screen: ${screen}`);
@@ -563,6 +643,30 @@ export default function App() {
       </AnimatePresence>
 
       <BGMPlayer musicOn={playerData.musicOn} currentScreen={screen} />
+
+      {/* Session Expired Overlay */}
+      {sessionExpired && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md p-6">
+          <div className="bg-[#110e14] border border-[#d9ad33]/30 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-[#d9ad33]/10">
+            <div className="w-16 h-16 bg-red-950/40 border border-red-500/30 rounded-full flex items-center justify-center mx-auto mb-6 text-red-500">
+              <LogOut size={32} />
+            </div>
+            <h2 className="text-xl font-extrabold text-[#d9ad33] tracking-wider mb-4">SESSION EXPIRED</h2>
+            <p className="text-white/70 text-sm leading-relaxed mb-8">
+              Your account was opened on another device. Please login again to continue.
+            </p>
+            <button
+              onClick={() => {
+                setSessionExpired(false);
+                setScreen('Login');
+              }}
+              className="w-full py-3 bg-[#d9ad33] hover:bg-[#f5d666] text-black font-extrabold rounded-xl transition-all tracking-widest text-xs uppercase shadow-lg shadow-[#d9ad33]/20"
+            >
+              Login Again
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

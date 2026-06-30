@@ -57,6 +57,8 @@ export interface PlayerData {
   totalDraws?: number;
   totalGames?: number;
   currentStreak?: number;
+  streak?: number;
+  bestStreak?: number;
   undoTokens?: number;
   whiteTime: number;
   blackTime: number;

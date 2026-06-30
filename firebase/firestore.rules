@@ -95,6 +95,10 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read, write: if true;
+
+      match /session/current {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // Games collection

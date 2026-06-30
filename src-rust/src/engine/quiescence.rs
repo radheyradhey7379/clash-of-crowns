@@ -2,7 +2,11 @@ use crate::engine::hce::HceEvaluator;
 use crate::engine::move_ordering::score_move;
 use crate::engine::nnue::EVALUATOR as NNUE_EVALUATOR;
 use shakmaty::{Chess, Position};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(target_arch = "wasm32")]
+use instant::Instant;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 
 const MAX_QS_DEPTH: usize = 6;
 

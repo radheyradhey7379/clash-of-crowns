@@ -110,14 +110,14 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
     }
     if (typeof data.rating === 'number' && (!Number.isFinite(data.rating) || isNaN(data.rating) || data.rating < 0 || data.rating > 5000)) {
       data.rating = data.rating < 0 ? 0 : 5000;
-      if (isNaN(data.rating) || !Number.isFinite(data.rating)) data.rating = 100;
+      if (isNaN(data.rating) || !Number.isFinite(data.rating)) data.rating = 0;
     }
   }
 
   // 1. Basic properties
   if (typeof data.rating !== 'number' || data.rating < 0 || data.rating > 5000) {
     const oldVal = data.rating;
-    data.rating = data.rating < 0 ? 0 : data.rating > 5000 ? 5000 : 100;
+    data.rating = data.rating < 0 ? 0 : data.rating > 5000 ? 5000 : 0;
     repaired = true;
     flags.push({
       type: 'invalid_elo_cap',
@@ -197,7 +197,7 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
   if (progress.tier === ('core' as any)) {
     progress.tier = 'beginner';
     progress.level = 1;
-    progress.elo = Math.max(300, progress.elo);
+    progress.elo = Math.max(0, progress.elo);
     repaired = true;
   } else if (progress.tier === ('promotion_trial' as any)) {
     progress.tier = 'learner';
@@ -241,7 +241,7 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
   }
 
   if (typeof progress.elo !== 'number' || progress.elo < 0 || progress.elo > 5000) {
-    progress.elo = progress.elo < 0 ? 0 : progress.elo > 5000 ? 5000 : 300;
+    progress.elo = progress.elo < 0 ? 0 : progress.elo > 5000 ? 5000 : 0;
     repaired = true;
     flags.push({
       type: 'invalid_career_elo',

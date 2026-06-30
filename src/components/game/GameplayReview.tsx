@@ -21,6 +21,7 @@ import { playSound } from '../../lib/sounds';
 import { encryptObject } from '../../lib/encryption';
 import { useDeviceLayout } from '../../hooks/useDeviceLayout';
 import { getApiUrl } from '../../services/apiClient';
+import { PRICING_CONFIG } from '../../config/pricing';
 
 interface HistoryItem {
   fen: string;
@@ -292,10 +293,12 @@ export default function GameplayReview({
   const handleUpgrade = async (type: 'premium' | 'undo_day' | 'undo_month' | 'undo_year') => {
     try {
       const prices = {
-        premium: includeUndo ? 348 : 299,
-        undo_day: 29,
-        undo_month: 79,
-        undo_year: 499
+        premium: includeUndo 
+          ? (PRICING_CONFIG.PREMIUM_MONTHLY + PRICING_CONFIG.UNDO_ADDON_MONTHLY) 
+          : PRICING_CONFIG.PREMIUM_MONTHLY,
+        undo_day: PRICING_CONFIG.UNDO_PASS_DAILY,
+        undo_month: PRICING_CONFIG.UNDO_PASS_MONTHLY,
+        undo_year: PRICING_CONFIG.UNDO_PASS_YEARLY
       };
       
       const labels = {
@@ -1077,7 +1080,7 @@ export default function GameplayReview({
                     <div className="relative bg-[#1a0d2e] border-2 border-[#a855f7] rounded-2xl p-5 text-center shadow-[0_0_30px_rgba(168,85,247,0.2)] flex flex-col">
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#a855f7] to-[#7c3aed] text-white px-3 py-0.5 rounded-full text-[9px] font-serif font-bold tracking-wider whitespace-nowrap">⭐ PRO BUNDLE</div>
                       <div className="font-serif text-[11px] text-[#c084fc] tracking-[0.2em] mb-2 uppercase">PREMIUM</div>
-                      <div className="font-serif text-[36px] font-bold text-[#f5c518]">₹{includeUndo ? 348 : 299}</div>
+                      <div className="font-serif text-[36px] font-bold text-[#f5c518]">₹{includeUndo ? (PRICING_CONFIG.PREMIUM_MONTHLY + PRICING_CONFIG.UNDO_ADDON_MONTHLY) : PRICING_CONFIG.PREMIUM_MONTHLY}</div>
                       <div className="text-[9px] text-[#524e48] uppercase tracking-widest mb-4">per month</div>
                       
                       <div 
@@ -1093,7 +1096,7 @@ export default function GameplayReview({
                           </div>
                           <div className="text-left">
                             <div className="text-[9px] font-bold text-white uppercase">Undo Add-on</div>
-                            <div className="text-[8px] text-white/40">+₹49</div>
+                            <div className="text-[8px] text-white/40">+₹{PRICING_CONFIG.UNDO_ADDON_MONTHLY}</div>
                           </div>
                         </div>
                         <Zap size={14} className={includeUndo ? 'text-[#f5c518]' : 'text-white/20'} />
@@ -1124,7 +1127,7 @@ export default function GameplayReview({
                           )}
                         >
                           <span className="text-[10px] text-white/80">Daily Pass</span>
-                          <span className="text-[11px] font-bold text-[#f5c518]">₹29</span>
+                          <span className="text-[11px] font-bold text-[#f5c518]">₹{PRICING_CONFIG.UNDO_PASS_DAILY}</span>
                         </button>
                         <button 
                           onClick={() => { playSound('click'); setSelectedUndoPlan('month'); }}
@@ -1134,7 +1137,7 @@ export default function GameplayReview({
                           )}
                         >
                           <span className="text-[10px] text-white/80">Monthly Pass</span>
-                          <span className="text-[11px] font-bold text-[#f5c518]">₹79</span>
+                          <span className="text-[11px] font-bold text-[#f5c518]">₹{PRICING_CONFIG.UNDO_PASS_MONTHLY}</span>
                         </button>
                         <button 
                           onClick={() => { playSound('click'); setSelectedUndoPlan('year'); }}
@@ -1144,7 +1147,7 @@ export default function GameplayReview({
                           )}
                         >
                           <span className="text-[10px] text-white/80">Yearly Pass</span>
-                          <span className="text-[11px] font-bold text-[#f5c518]">₹499</span>
+                          <span className="text-[11px] font-bold text-[#f5c518]">₹{PRICING_CONFIG.UNDO_PASS_YEARLY}</span>
                         </button>
                       </div>
                       

@@ -2,6 +2,7 @@ import { AICharacter } from '../../types/aiProgression';
 import { ChessLogic } from '../../lib/chess-logic';
 import { EngineResult, IEngineAdapter } from './types';
 import { RustEngineAdapter } from './adapters/rustEngineAdapter';
+import { WasmEngineAdapter } from './adapters/wasmEngineAdapter';
 import { getEngineForCharacter } from './campaign/progressionRules';
 import { resolveEngine, getBotProfile as resolveBotProfile } from './campaign/botProfiles';
 import { Chess } from 'chess.js';
@@ -16,18 +17,15 @@ export class EngineBrain {
     
     switch (engineType) {
       case 'nnue':
-        adapter = new RustEngineAdapter('nnue');
-        break;
-      case 'stockfish_benchmark':
-        adapter = new StockfishBenchmarkAdapter();
+        adapter = new WasmEngineAdapter('nnue');
         break;
       case 'hce':
       default:
-        adapter = new RustEngineAdapter('hce');
+        adapter = new WasmEngineAdapter('hce');
         break;
     }
     if (import.meta.env.DEV) {
-      console.debug(`[EngineBrain] Routing ${character.tier} bot '${character.id}' -> ${engineType} engine`);
+      console.debug(`[EngineBrain] Routing ${character.tier} bot '${character.id}' -> local Wasm ${engineType} engine`);
       if (engineType === 'nnue' && character.errorNoiseCp === 0) {
         console.debug(`[EngineBrain] Routing Grandmaster bot '${character.id}' with ZERO errorNoiseCp`);
       }
@@ -70,12 +68,29 @@ export class EngineBrain {
     try {
       const result = await this.adapter.computeMove(request);
       if (!result || !result.move) {
-        throw new Error("Primary engine returned no move");
+        throw new Error("Primary Wasm engine returned no move");
       }
       return result;
     } catch (err) {
-      if (err instanceof Error && err.message === 'AbortError') throw err;
+      const errName = (err as any)?.name || (err as any)?.constructor?.name;
+      const errMsg = (err as any)?.message || '';
+      if (errName === 'AbortError' || errMsg === 'AbortError' || errMsg.includes('aborted') || errMsg.includes('abort')) throw err;
       
+      // Fallback: If local Wasm fails, try online backend (RustEngineAdapter) as secondary
+      if (this.adapter instanceof WasmEngineAdapter) {
+        console.warn("Local Wasm engine failed, trying backend server as fallback...", err);
+        try {
+          const engineType = getEngineForCharacter(this.character);
+          const backendAdapter = new RustEngineAdapter(engineType === 'nnue' ? 'nnue' : 'hce');
+          const result = await backendAdapter.computeMove(request);
+          if (result && result.move) {
+            return result;
+          }
+        } catch (backendErr) {
+          console.error("Backend fallback also failed:", backendErr);
+        }
+      }
+
       console.warn("Primary engine failed or returned no move. Playing first legal move as emergency fallback.", err);
       const moves = this.chess.getAllLegalMoves();
       if (moves.length === 0) {

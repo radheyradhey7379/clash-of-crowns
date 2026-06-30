@@ -272,6 +272,8 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     }
     return 'w';
   });
+
+  const effectiveViewMode = (playerColor === 'b') ? '2d' : playerData.viewMode;
   
   // Loading & Performance states
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -472,7 +474,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   // Dismiss loading screen when progress is 100% and 3D board is ready (if 3D mode)
   useEffect(() => {
     if (loadingProgress >= 100) {
-      const is3DMode = playerData.viewMode === '3d';
+      const is3DMode = effectiveViewMode === '3d';
       if (!is3DMode || is3DLoaded) {
         const timer = setTimeout(() => {
           setIsGameLoading(false);
@@ -482,7 +484,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         return () => clearTimeout(timer);
       }
     }
-  }, [loadingProgress, is3DLoaded, playerData.viewMode]);
+  }, [loadingProgress, is3DLoaded, effectiveViewMode]);
 
   // Hide the network warning banner after 2 seconds to avoid match distraction
   useEffect(() => {
@@ -694,14 +696,8 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     let interval: any;
     if (
       gameStarted && 
-      !gameOver && 
-      (playerColor || localGameConfig) && 
-      !showUndoPackModal && 
-      !isMenuOpen && 
-      !showDeclareConfirm && 
-      !showResignConfirm && 
-      !showPromotionPopup && 
-      !showResumePrompt
+      !isGameInteractionBlocked && 
+      (playerColor || localGameConfig)
     ) {
       interval = setInterval(() => {
         if (turn === 'w') {
@@ -714,26 +710,20 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     return () => clearInterval(interval);
   }, [
     turn, 
-    gameOver, 
-    playerColor, 
-    localGameConfig, 
     gameStarted, 
-    showUndoPackModal, 
-    isMenuOpen, 
-    showDeclareConfirm, 
-    showResignConfirm,
-    showPromotionPopup,
-    showResumePrompt
+    isGameInteractionBlocked, 
+    playerColor, 
+    localGameConfig
   ]);
 
   useEffect(() => {
-    if (playerData.viewMode !== '3d' || is3DLoaded) {
+    if (effectiveViewMode !== '3d' || is3DLoaded) {
       setShow3DTimeoutPrompt(false);
       return;
     }
 
     const timer = setTimeout(() => {
-      if (!is3DLoaded && playerData.viewMode === '3d') {
+      if (!is3DLoaded && effectiveViewMode === '3d') {
         onUpdatePlayerData({ viewMode: '2d' });
         setShow3DTimeoutPrompt(false);
         console.warn("Automatically fell back to 2D board due to 5-second 3D loading timeout.");
@@ -741,7 +731,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, [playerData.viewMode, is3DLoaded]);
+  }, [effectiveViewMode, is3DLoaded]);
 
 
   
@@ -1944,21 +1934,23 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                     >
                       <Menu size={16} className="md:w-5 md:h-5" />
                     </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => {
-                        if (isGameInteractionBlocked) return;
-                        playSound('click');
-                        onUpdatePlayerData({ viewMode: playerData.viewMode === '2d' ? '3d' : '2d' });
-                      }}
-                      className="p-1.5 md:p-2.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg md:rounded-xl text-[#d9ad33] hover:bg-white/10 transition-all shadow-2xl flex items-center justify-center min-w-[36px] md:min-w-[50px]"
-                      title={playerData.viewMode === '2d' ? t.view3d : t.view2d}
-                    >
-                      <span className="text-[8px] md:text-[10px] font-black tracking-tighter">
-                        {playerData.viewMode === '2d' ? '3D' : '2D'}
-                      </span>
-                    </motion.button>
+                    {playerColor !== 'b' && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => {
+                          if (isGameInteractionBlocked) return;
+                          playSound('click');
+                          onUpdatePlayerData({ viewMode: playerData.viewMode === '2d' ? '3d' : '2d' });
+                        }}
+                        className="p-1.5 md:p-2.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg md:rounded-xl text-[#d9ad33] hover:bg-white/10 transition-all shadow-2xl flex items-center justify-center min-w-[36px] md:min-w-[50px]"
+                        title={playerData.viewMode === '2d' ? t.view3d : t.view2d}
+                      >
+                        <span className="text-[8px] md:text-[10px] font-black tracking-tighter">
+                          {playerData.viewMode === '2d' ? '3D' : '2D'}
+                        </span>
+                      </motion.button>
+                     )}
                     
                     {/* Latency Indicator */}
                     <div 
@@ -2006,7 +1998,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         {/* Right Side Info */}
         <div className="flex flex-col items-end gap-1 md:gap-3 pointer-events-auto">
           <div className="flex items-center gap-1 md:gap-3">
-            {playerData.viewMode === '3d' && (
+            {effectiveViewMode === '3d' && (
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
@@ -2087,7 +2079,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
 
     {/* Game View (2D or 3D) */}
       <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden pointer-events-none">
-        <div className={cn("w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 pointer-events-auto gap-2 md:gap-3", playerData.viewMode !== '2d' && "hidden")}>
+        <div className={cn("w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 pointer-events-auto gap-2 md:gap-3", effectiveViewMode !== '2d' && "hidden")}>
           {/* Top Tray: Opponent's Captured Pieces (from active player perspective) */}
           <div className="w-full max-w-[min(90vw,90vh,600px)] flex justify-between items-center px-1">
             <span className="text-[9px] md:text-[10px] text-white/40 font-bold tracking-wider uppercase font-sans">
@@ -2123,7 +2115,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
             />
           </div>
         </div>
-        <div className={cn("w-full h-full pointer-events-auto touch-none", playerData.viewMode !== '3d' && "hidden")}>
+        <div className={cn("w-full h-full pointer-events-auto touch-none", effectiveViewMode !== '3d' && "hidden")}>
           <Canvas 
             shadows={{ type: THREE.PCFShadowMap }}
             dpr={[1, 1.5]}
@@ -2147,7 +2139,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
             isCameraLocked={isCameraLocked} 
           />
           <OrbitControls 
-            enabled={playerData.viewMode === '3d' && !isCameraLocked}
+            enabled={effectiveViewMode === '3d' && !isCameraLocked}
             enablePan={false} 
             enableDamping={true}
             dampingFactor={0.05}
@@ -2787,7 +2779,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
             onClose={() => setActiveCommentary(null)}
             characterName={isMultiplayer ? 'Commentator' : (aiCharacter?.name || 'Opponent')}
           />
-          {show3DTimeoutPrompt && playerData.viewMode === '3d' && !is3DLoaded && (
+          {show3DTimeoutPrompt && effectiveViewMode === '3d' && !is3DLoaded && (
             <motion.div
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}

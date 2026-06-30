@@ -1,4 +1,5 @@
 import { AICharacter } from '../../../types/aiProgression';
+import WasmWorker from '../workers/rustWasmEngine.worker?worker';
 
 export interface CupParticipant {
   id: string;
@@ -217,10 +218,53 @@ export async function simulateAiVsAiMatch(
       return data.result as 'white_win' | 'black_win' | 'draw';
     }
   } catch (err) {
-    console.warn("AI simulation failed, falling back to random result", err);
+    console.warn("Backend AI simulation failed, falling back to local WebAssembly simulation...", err);
+  }
+
+  // Local WebAssembly simulation fallback
+  try {
+    const worker = new WasmWorker();
+    const result = await new Promise<'white_win' | 'black_win' | 'draw'>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        worker.terminate();
+        reject(new Error("Wasm simulation timeout"));
+      }, 10000); // 10 seconds timeout
+
+      worker.onmessage = (e) => {
+        const { type, result: data, error } = e.data;
+        if (type === 'success') {
+          clearTimeout(timeout);
+          worker.terminate();
+          if (error) {
+            reject(new Error(error));
+          } else {
+            resolve(data.result as 'white_win' | 'black_win' | 'draw');
+          }
+        }
+      };
+
+      worker.postMessage({
+        id: 1,
+        action: 'simulate_round_robin',
+        payload: JSON.stringify({
+          profile_a_id: ai1.id,
+          profile_a_engine: ai1.engine,
+          profile_a_depth: ai1.depth,
+          profile_a_noise: ai1.errorNoiseCp,
+          profile_b_id: ai2.id,
+          profile_b_engine: ai2.engine,
+          profile_b_depth: ai2.depth,
+          profile_b_noise: ai2.errorNoiseCp,
+          max_moves: 200
+        })
+      });
+    });
+    return result;
+  } catch (wasmErr) {
+    console.error("Local Wasm simulation failed:", wasmErr);
   }
   
-  // Fallback if simulation fails
+  // Last-resort fallback if both simulation methods fail
   const rnd = Math.random();
   if (rnd < 0.4) return 'white_win';
   if (rnd < 0.8) return 'black_win';

@@ -154,7 +154,7 @@ export const matchFlowService = {
     let streak = currentPlayerData.streak || 0;
     if (matchResult.result === 'win') {
       streak += 1;
-    } else {
+    } else if (matchResult.result === 'loss') {
       streak = 0;
     }
     const bestStreak = Math.max(streak, currentPlayerData.bestStreak || 0);

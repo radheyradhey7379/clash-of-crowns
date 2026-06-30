@@ -3,7 +3,7 @@ import { AIProgress } from '../../types/aiProgression';
 export const DEFAULT_AI_PROGRESS: AIProgress = {
   tier: 'beginner',
   level: 1,
-  elo: 300, // Start ELO at 300
+  elo: 0, // Start ELO at 0
   consecutiveLosses: 0,
   unlockedTiers: ['beginner'],
   lockedTiers: ['learner', 'intermediate', 'hard', 'master', 'grandmaster'],

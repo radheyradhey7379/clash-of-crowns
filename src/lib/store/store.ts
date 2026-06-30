@@ -6,7 +6,7 @@ import { loadProtectedPlayerData, saveProtectedPlayerData } from "../protectedSa
 
 export const DEFAULT_PLAYER_DATA: PlayerData = {
   name: "Guest",
-  rating: 300, // Start ELO at 300
+  rating: 0, // Start ELO at 0
   wins: 0,
   losses: 0,
   draws: 0,
@@ -67,7 +67,7 @@ export function migrateAIProgress(data: any): AIProgress {
     if (progress.tier === 'core') {
       progress.tier = 'beginner';
       progress.level = 1;
-      progress.elo = Math.max(300, progress.elo);
+      progress.elo = Math.max(0, progress.elo);
     }
     if (progress.tier === 'promotion_trial') {
       progress.tier = 'learner';
@@ -88,7 +88,7 @@ export function migrateAIProgress(data: any): AIProgress {
   }
 
   const progress = JSON.parse(JSON.stringify(DEFAULT_AI_PROGRESS));
-  progress.elo = data.rating || 300;
+  progress.elo = data.rating !== undefined ? data.rating : 0;
   
   const oldTier = data.tier || 0;
   const oldChar = data.char || 0;

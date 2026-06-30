@@ -22,7 +22,7 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
     expect(next.tier).toBe('beginner');
     expect(next.level).toBe(2);
-    expect(next.elo).toBe(325); // 300 + 25
+    expect(next.elo).toBe(25); // 0 + 25
   });
 
   it('2. Beginner 5 win unlocks Learner', () => {
@@ -40,7 +40,7 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
     expect(next.tier).toBe('beginner');
     expect(next.level).toBe(2);
-    expect(next.elo).toBe(300); // Beginner loss: no ELO drop
+    expect(next.elo).toBe(0); // Beginner loss: no ELO drop
   });
 
   it('4. Learner loss does not drop level unless consecutive losses >= 3', () => {

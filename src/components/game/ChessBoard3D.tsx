@@ -220,8 +220,8 @@ export default function ChessBoard3D({
   return (
     <group position={[0, 1.62, 0]}>
       {/* Captured Pieces Display */}
-      <CapturedPieces pieces={capturedPieces.w} side="left" squareSize={squareSize} color="w" />
-      <CapturedPieces pieces={capturedPieces.b} side="right" squareSize={squareSize} color="b" />
+      <CapturedPieces pieces={capturedPieces.w} side="left" squareSize={squareSize} color="w" pieceSet={selectedPieceSet} />
+      <CapturedPieces pieces={capturedPieces.b} side="right" squareSize={squareSize} color="b" pieceSet={selectedPieceSet} />
       {/* Check Line */}
       {checkInfo && (
         <CheckLine 
@@ -1054,7 +1054,7 @@ export function Room() {
   );
 }
 
-function CapturedPieces({ pieces, side, squareSize, color }: { pieces: string[], side: 'left' | 'right', squareSize: number, color: 'w' | 'b' }) {
+function CapturedPieces({ pieces, side, squareSize, color, pieceSet }: { pieces: string[], side: 'left' | 'right', squareSize: number, color: 'w' | 'b', pieceSet: string }) {
   const rackWidth = squareSize * 1.6;
   const rackHeight = 0.2;
   const rackLength = squareSize * 8.6;
@@ -1087,7 +1087,7 @@ function CapturedPieces({ pieces, side, squareSize, color }: { pieces: string[],
         
         return (
           <group key={i} position={[xPos, rackHeight / 2, zPos]}>
-            <Piece type={type} color={color} position={[0, 0, 0]} pieceSet="classic" scale={0.55} />
+            <Piece type={type} color={color} position={[0, 0, 0]} pieceSet={pieceSet as any} scale={0.55} />
           </group>
         );
       })}

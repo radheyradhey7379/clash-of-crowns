@@ -5,6 +5,7 @@ import { matchFlowService } from '../matchFlowService';
 import { DEFAULT_PLAYER_DATA } from '../../../lib/store/store';
 import { PlayerData } from '../../../types';
 import { AI_CHARACTERS } from '../aiCharacters';
+import { PRICING_CONFIG } from '../../../config/pricing';
 
 // Mock fetch globally
 const originalFetch = global.fetch;
@@ -772,5 +773,46 @@ describe('Gameplay Integration Tests', () => {
     // AI is playing White because player is Black
     const isAITurn = playerColor === 'b' && turn === 'w';
     expect(isAITurn).toBe(true);
+  });
+
+  it('pricing_config_has_correct_structure', () => {
+    expect(PRICING_CONFIG.PREMIUM_MONTHLY).toBe(299);
+    expect(PRICING_CONFIG.UNDO_ADDON_MONTHLY).toBe(49);
+    expect(PRICING_CONFIG.UNDO_PASS_DAILY).toBe(29);
+    expect(PRICING_CONFIG.UNDO_PASS_MONTHLY).toBe(79);
+    expect(PRICING_CONFIG.UNDO_PASS_YEARLY).toBe(499);
+  });
+
+  it('draws_do_not_reset_current_streak', () => {
+    const testPlayerData: PlayerData = JSON.parse(JSON.stringify(DEFAULT_PLAYER_DATA));
+    testPlayerData.wins = 10;
+    testPlayerData.losses = 5;
+    testPlayerData.draws = 2;
+    testPlayerData.totalGames = 17;
+    testPlayerData.streak = 4;
+    testPlayerData.bestStreak = 4;
+    testPlayerData.aiProgress.elo = 1200;
+
+    const result = matchFlowService.processMatchResult({
+      matchId: 'draw_test',
+      characterId: 'beginner_1',
+      result: 'draw',
+      reason: 'draw',
+      eloBefore: 1200,
+      playerColor: 'w'
+    } as any, testPlayerData);
+
+    expect(result.updatedPlayerData.streak).toBe(4); // Unchanged!
+    expect(result.updatedPlayerData.bestStreak).toBe(4);
+  });
+
+  it('abort_error_is_rethrown_by_engine_brain', async () => {
+    const abortErr = new DOMException('The operation was aborted.', 'AbortError');
+    const mockAdapter: any = {
+      computeMove: vi.fn().mockRejectedValue(abortErr)
+    };
+    // EngineBrain constructor takes: character, chess, adapter
+    const brain = new (EngineBrain as any)({ id: 'beginner_1', tier: 'beginner' }, chess, mockAdapter);
+    await expect(brain.computeMove()).rejects.toThrow();
   });
 });

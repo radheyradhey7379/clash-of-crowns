@@ -180,7 +180,7 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
 
       const loaded = loadProtectedPlayerData(DEFAULT_PLAYER_DATA);
       // Reset to default
-      expect(loaded.rating).toBe(300); // DEFAULT rating
+      expect(loaded.rating).toBe(0); // DEFAULT rating
       const flags = loaded.securityFlags || [];
       expect(flags.some(f => f.severity === 'high' && f.type === 'checksum_mismatch')).toBe(true);
     });

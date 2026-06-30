@@ -18,6 +18,7 @@
     "@capacitor/app": "^8.1.0",
     "@capacitor/cli": "^8.3.0",
     "@capacitor/core": "^8.3.0",
+    "@capacitor/preferences": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
     "@fingerprintjs/fingerprintjs": "^5.2.0",
     "@google/genai": "^1.49.0",
@@ -75,6 +76,7 @@
     "@types/recordrtc": "^5.6.15",
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^4.1.14",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "wasm-pack": "^0.15.0"
   }
 }
