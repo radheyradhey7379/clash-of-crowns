@@ -2139,9 +2139,10 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
             }}
           >
           <PerspectiveCamera 
+            key={playerColor}
             makeDefault 
             fov={45} 
-            position={[0, 10, -12]}
+            position={[0, 10, playerColor === 'b' ? 12 : -12]}
           />
           <CameraResetter playerColor={playerColor} />
           <CameraDirector 
@@ -2151,6 +2152,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
             isCameraLocked={isCameraLocked} 
           />
           <OrbitControls 
+            key={playerColor}
             enabled={playerData.viewMode === '3d' && !isCameraLocked}
             enablePan={false} 
             enableDamping={true}
