@@ -82,11 +82,66 @@ function CameraDirector({ turn, playerColor, isLocalVS, isCameraLocked }: { turn
 function CameraResetter({ playerColor }: { playerColor: 'w' | 'b' }) {
   const { camera } = useThree();
   useEffect(() => {
-    camera.position.set(0, 10, -12);
+    if (playerColor === 'b') {
+      camera.position.set(0, 10, 12);
+    } else {
+      camera.position.set(0, 10, -12);
+    }
     camera.lookAt(0, 1.5, 0);
   }, [playerColor, camera]);
   return null;
 }
+const getPieceUnicode = (type: string) => {
+  switch (type) {
+    case 'p': return '♟';
+    case 'n': return '♞';
+    case 'b': return '♝';
+    case 'r': return '♜';
+    case 'q': return '♛';
+    case 'k': return '♚';
+    default: return '';
+  }
+};
+
+const PIECE_VALUES: Record<string, number> = {
+  p: 1,
+  n: 2,
+  b: 3,
+  r: 4,
+  q: 5,
+  k: 6,
+};
+
+const sortCapturedPieces = (pieces: string[]) => {
+  return [...pieces].sort((a, b) => PIECE_VALUES[a] - PIECE_VALUES[b]);
+};
+
+const RenderCaptured2D = ({ pieces, isWhitePiece }: { pieces: string[], isWhitePiece: boolean }) => {
+  const sorted = sortCapturedPieces(pieces);
+  return (
+    <div className="flex items-center gap-1 min-h-[24px] px-2.5 py-0.5 bg-black/45 backdrop-blur-xl border border-white/5 rounded-lg shadow-inner select-none">
+      {sorted.length === 0 ? (
+        <span className="text-[8px] text-white/20 font-sans tracking-wider uppercase font-semibold">No Captures</span>
+      ) : (
+        <div className="flex items-center -space-x-1 sm:-space-x-1.5">
+          {sorted.map((type, idx) => (
+            <span
+              key={idx}
+              className={cn(
+                "text-sm sm:text-base font-normal transition-all leading-none",
+                isWhitePiece 
+                  ? "text-[#ffffff] drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" 
+                  : "text-[#d9ad33] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+              )}
+            >
+              {getPieceUnicode(type)}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 function PerformanceOverlay({ 
   show, 
@@ -451,6 +506,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const [drawOfferReceived, setDrawOfferReceived] = useState<boolean>(false);
   const lastSelectTime = useRef(0);
   const lastClickTimeRef = useRef(0);
+  const undoStackRef = useRef<any[]>([]);
   const initialCharId = selectedCharacterId || getCurrentPlayableCharacterId(playerData.aiProgress);
   const gameStartTime = useRef<number | null>((localGameConfig || initialCharId) ? Date.now() : null);
   const gameId = useRef<string>(!localGameConfig ? `ai_${initialCharId}_${playerData.uid}` : `local_${Date.now()}_${playerData.uid}`);
@@ -500,12 +556,25 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       
       // Only update if it's not our own optimistic move (or if it's an AI move)
       if (chess.getFen() !== fen) {
-        chess.load(fen);
+        const moveResult = chess.makeMove(move);
+        if (!moveResult) {
+          chess.load(fen);
+        } else if (moveResult.captured) {
+          setCapturedPieces(prev => {
+            const next = { w: [...prev.w], b: [...prev.b] };
+            if (moveResult.color === 'w') {
+              next.b.push(moveResult.captured);
+            } else {
+              next.w.push(moveResult.captured);
+            }
+            return next;
+          });
+        }
         setBoard(chess.getBoard());
         setTurn(turn);
         setLastMove({ from: move.from, to: move.to });
         updateCheckInfo();
-        recordMove(move);
+        recordMove(moveResult || move);
         playSound('move');
       }
 
@@ -974,6 +1043,21 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         }
       }
 
+      if (isValidMove) {
+        undoStackRef.current.push({
+          fen: chess.getFen(),
+          history: [...history],
+          capturedPieces: {
+            w: [...capturedPieces.w],
+            b: [...capturedPieces.b]
+          },
+          turn: chess.getTurn(),
+          whiteTime,
+          blackTime,
+          lastMove
+        });
+      }
+
       if (isPawn && isPromotionRank && isValidMove) {
         setPendingPromotion({ from: selectedSquare, to: square });
         setShowPromotionPopup(true);
@@ -983,6 +1067,17 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       // Optimistic update
       const moveResult = chess.makeMove({ from: selectedSquare, to: square, promotion: 'q' });
       if (moveResult) {
+        if (moveResult.captured) {
+          setCapturedPieces(prev => {
+            const next = { w: [...prev.w], b: [...prev.b] };
+            if (moveResult.color === 'w') {
+              next.b.push(moveResult.captured);
+            } else {
+              next.w.push(moveResult.captured);
+            }
+            return next;
+          });
+        }
         setBoard(chess.getBoard());
         setTurn(chess.getTurn());
         setLastMove({ from: selectedSquare, to: square });
@@ -1084,6 +1179,17 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     // Optimistic update
     const moveResult = chess.makeMove({ from: pendingPromotion.from, to: pendingPromotion.to, promotion: pieceType });
     if (moveResult) {
+      if (moveResult.captured) {
+        setCapturedPieces(prev => {
+          const next = { w: [...prev.w], b: [...prev.b] };
+          if (moveResult.color === 'w') {
+            next.b.push(moveResult.captured);
+          } else {
+            next.w.push(moveResult.captured);
+          }
+          return next;
+        });
+      }
       setBoard(chess.getBoard());
       setTurn(chess.getTurn());
       setLastMove({ from: pendingPromotion.from, to: pendingPromotion.to });
@@ -1399,6 +1505,17 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
           if (result.move) {
             const move = chess.makeMove(result.move);
             if (move) {
+              if (move.captured) {
+                setCapturedPieces(prev => {
+                  const next = { w: [...prev.w], b: [...prev.b] };
+                  if (move.color === 'w') {
+                    next.b.push(move.captured);
+                  } else {
+                    next.w.push(move.captured);
+                  }
+                  return next;
+                });
+              }
               setBoard(chess.getBoard());
               setTurn(chess.getTurn());
               setLastMove({ from: move.from, to: move.to });
@@ -1539,19 +1656,29 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
 
   const handleUndo = () => {
     if (gameOver || isMultiplayer) return;
-    if (history.length < 2) return;
     if (isAIThinking) return; // Block undo while AI is actively thinking to avoid race conditions!
+
+    const depth = isLocalVS ? 2 : 1;
+    if (undoStackRef.current.length < depth) return;
 
     if (isLocalVS) {
       playSound('click');
-      chess.undo();
-      chess.undo();
-      setBoard(chess.getBoard());
-      setTurn(chess.getTurn());
-      setLastMove(null);
+      let snapshot: any = null;
+      for (let i = 0; i < depth; i++) {
+        snapshot = undoStackRef.current.pop();
+      }
+      if (snapshot) {
+        chess.load(snapshot.fen);
+        setBoard(chess.getBoard());
+        setTurn(snapshot.turn);
+        setLastMove(snapshot.lastMove);
+        setHistory(snapshot.history);
+        setCapturedPieces(snapshot.capturedPieces);
+        setWhiteTime(snapshot.whiteTime);
+        setBlackTime(snapshot.blackTime);
+      }
       setSelectedSquare(null);
       setValidMoves([]);
-      setHistory(prev => prev.slice(0, -2));
       updateCheckInfo();
       return;
     }
@@ -1594,14 +1721,19 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     setFreeUndosUsed(newFreeUndosUsed);
 
     playSound('click');
-    chess.undo();
-    chess.undo(); // Revert both player move and AI response
-    setBoard(chess.getBoard());
-    setTurn(chess.getTurn());
-    setLastMove(null);
+    const snapshot = undoStackRef.current.pop();
+    if (snapshot) {
+      chess.load(snapshot.fen);
+      setBoard(chess.getBoard());
+      setTurn(snapshot.turn);
+      setLastMove(snapshot.lastMove);
+      setHistory(snapshot.history);
+      setCapturedPieces(snapshot.capturedPieces);
+      setWhiteTime(snapshot.whiteTime);
+      setBlackTime(snapshot.blackTime);
+    }
     setSelectedSquare(null);
     setValidMoves([]);
-    setHistory(prev => prev.slice(0, -2));
     setIsAIThinking(false);
     updateCheckInfo();
   };
@@ -1623,6 +1755,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     setLastMove(null);
     setHistory([]);
     setCapturedPieces({ w: [], b: [] });
+    undoStackRef.current = [];
     setWhiteTime(0);
     setBlackTime(0);
     setGameStarted(false);
@@ -1958,7 +2091,18 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
 
     {/* Game View (2D or 3D) */}
       <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden pointer-events-none">
-        <div className={cn("w-full h-full flex items-center justify-center p-2 sm:p-4 md:p-8 pointer-events-auto", playerData.viewMode !== '2d' && "hidden")}>
+        <div className={cn("w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 pointer-events-auto gap-2 md:gap-3", playerData.viewMode !== '2d' && "hidden")}>
+          {/* Top Tray: Opponent's Captured Pieces (from active player perspective) */}
+          <div className="w-full max-w-[min(90vw,90vh,600px)] flex justify-between items-center px-1">
+            <span className="text-[9px] md:text-[10px] text-white/40 font-bold tracking-wider uppercase font-sans">
+              {isLocalVS ? (turn === 'w' ? "Black's Captures" : "White's Captures") : "Opponent's Captures"}
+            </span>
+            <RenderCaptured2D 
+              pieces={playerColor === 'b' ? capturedPieces.b : capturedPieces.w} 
+              isWhitePiece={playerColor === 'b'} 
+            />
+          </div>
+
           <div className="w-full max-w-[min(90vw,90vh,600px)] aspect-square">
             <ChessBoard2D
               board={board}
@@ -1969,6 +2113,17 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               playerColor={isLocalVS ? turn : playerColor}
               checkInfo={checkInfo}
               turn={turn}
+            />
+          </div>
+
+          {/* Bottom Tray: Player's Captured Pieces */}
+          <div className="w-full max-w-[min(90vw,90vh,600px)] flex justify-between items-center px-1">
+            <span className="text-[9px] md:text-[10px] text-[#d9ad33]/70 font-bold tracking-wider uppercase font-sans">
+              {isLocalVS ? (turn === 'w' ? "White's Captures" : "Black's Captures") : "Your Captures"}
+            </span>
+            <RenderCaptured2D 
+              pieces={playerColor === 'b' ? capturedPieces.w : capturedPieces.b} 
+              isWhitePiece={playerColor !== 'b'} 
             />
           </div>
         </div>

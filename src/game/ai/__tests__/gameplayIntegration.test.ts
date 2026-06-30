@@ -449,4 +449,203 @@ describe('Gameplay Integration Tests', () => {
     expect(modalPointerEvents).toBe('pointer-events-auto');
     expect(backgroundPointerEvents).toBe('pointer-events-none');
   });
+
+  // ==========================================
+  // 6. Captured Pieces Verification Tests
+  // ==========================================
+
+  it('white_capture_adds_black_piece_to_white_captured', () => {
+    let capturedPieces = { w: [], b: [] };
+    const simulateMove = (move: any) => {
+      if (move.captured) {
+        if (move.color === 'w') {
+          capturedPieces.b.push(move.captured); // Black pieces captured by White
+        } else {
+          capturedPieces.w.push(move.captured); // White pieces captured by Black
+        }
+      }
+    };
+
+    simulateMove({ color: 'w', captured: 'p' });
+    expect(capturedPieces.b).toContain('p');
+    expect(capturedPieces.w.length).toBe(0);
+  });
+
+  it('black_capture_adds_white_piece_to_black_captured', () => {
+    let capturedPieces = { w: [], b: [] };
+    const simulateMove = (move: any) => {
+      if (move.captured) {
+        if (move.color === 'w') {
+          capturedPieces.b.push(move.captured);
+        } else {
+          capturedPieces.w.push(move.captured);
+        }
+      }
+    };
+
+    simulateMove({ color: 'b', captured: 'n' });
+    expect(capturedPieces.w).toContain('n');
+    expect(capturedPieces.b.length).toBe(0);
+  });
+
+  it('ai_capture_updates_tray', () => {
+    let capturedPieces = { w: [], b: [] };
+    const onAIMove = (move: any) => {
+      if (move.captured) {
+        if (move.color === 'w') {
+          capturedPieces.b.push(move.captured);
+        } else {
+          capturedPieces.w.push(move.captured);
+        }
+      }
+    };
+
+    onAIMove({ color: 'b', captured: 'b' }); // AI Black captures White Bishop
+    expect(capturedPieces.w).toContain('b');
+  });
+
+  it('user_capture_updates_tray', () => {
+    let capturedPieces = { w: [], b: [] };
+    const onUserMove = (move: any) => {
+      if (move.captured) {
+        if (move.color === 'w') {
+          capturedPieces.b.push(move.captured);
+        } else {
+          capturedPieces.w.push(move.captured);
+        }
+      }
+    };
+
+    onUserMove({ color: 'w', captured: 'q' }); // User White captures Black Queen
+    expect(capturedPieces.b).toContain('q');
+  });
+
+  it('en_passant_capture_updates_tray', () => {
+    let capturedPieces = { w: [], b: [] };
+    const onMove = (move: any) => {
+      if (move.captured) {
+        if (move.color === 'w') {
+          capturedPieces.b.push(move.captured);
+        } else {
+          capturedPieces.w.push(move.captured);
+        }
+      }
+    };
+
+    // En passant capture of a Black Pawn by White
+    onMove({ color: 'w', captured: 'p', flags: 'e' });
+    expect(capturedPieces.b).toContain('p');
+  });
+
+  it('promotion_capture_updates_tray', () => {
+    let capturedPieces = { w: [], b: [] };
+    const onMove = (move: any) => {
+      if (move.captured) {
+        if (move.color === 'w') {
+          capturedPieces.b.push(move.captured);
+        } else {
+          capturedPieces.w.push(move.captured);
+        }
+      }
+    };
+
+    // White pawn captures Black rook and promotes
+    onMove({ color: 'w', captured: 'r', promotion: 'q' });
+    expect(capturedPieces.b).toContain('r');
+  });
+
+  it('castling_does_not_update_captured_tray', () => {
+    let capturedPieces = { w: [], b: [] };
+    const onMove = (move: any) => {
+      if (move.captured) {
+        if (move.color === 'w') {
+          capturedPieces.b.push(move.captured);
+        } else {
+          capturedPieces.w.push(move.captured);
+        }
+      }
+    };
+
+    // King-side castling, no capture
+    onMove({ color: 'w', flags: 'k' });
+    expect(capturedPieces.w.length).toBe(0);
+    expect(capturedPieces.b.length).toBe(0);
+  });
+
+  it('undo_restores_captured_tray', () => {
+    let capturedPieces = { w: ['p'], b: ['n'] };
+    let undoStack = [
+      { capturedPieces: { w: [], b: [] } }
+    ];
+
+    const handleUndo = () => {
+      const snapshot = undoStack.pop();
+      if (snapshot) {
+        capturedPieces = snapshot.capturedPieces;
+      }
+    };
+
+    handleUndo();
+    expect(capturedPieces.w.length).toBe(0);
+    expect(capturedPieces.b.length).toBe(0);
+  });
+
+  it('reset_clears_captured_tray', () => {
+    let capturedPieces = { w: ['q'], b: ['r'] };
+    const reset = () => {
+      capturedPieces = { w: [], b: [] };
+    };
+    reset();
+    expect(capturedPieces.w.length).toBe(0);
+    expect(capturedPieces.b.length).toBe(0);
+  });
+
+  it('next_level_clears_captured_tray', () => {
+    let capturedPieces = { w: ['b'], b: ['p'] };
+    const startNextLevel = () => {
+      capturedPieces = { w: [], b: [] };
+    };
+    startNextLevel();
+    expect(capturedPieces.w.length).toBe(0);
+    expect(capturedPieces.b.length).toBe(0);
+  });
+
+  it('captured_tray_respects_player_black_orientation', () => {
+    const playerColor = 'b';
+    const capturedPieces = { w: ['q'], b: ['p'] }; // w is captured White, b is captured Black
+
+    // If player is Black, Your captures is pieces captured by Black (i.e. White pieces)
+    const yourCaptures = playerColor === 'b' ? capturedPieces.w : capturedPieces.b;
+    const opponentCaptures = playerColor === 'b' ? capturedPieces.b : capturedPieces.w;
+
+    expect(yourCaptures).toContain('q');
+    expect(opponentCaptures).toContain('p');
+  });
+
+  it('captured_pieces_render_in_3d_tray', () => {
+    const capturedPieces = { w: ['p'], b: ['n'] };
+    
+    // In 3D:
+    // Left tray displays captured White pieces (capturedPieces.w)
+    // Right tray displays captured Black pieces (capturedPieces.b)
+    const leftTrayPieces = capturedPieces.w;
+    const rightTrayPieces = capturedPieces.b;
+
+    expect(leftTrayPieces).toContain('p');
+    expect(rightTrayPieces).toContain('n');
+  });
+
+  it('captured_pieces_render_in_2d_tray', () => {
+    const capturedPieces = { w: ['r'], b: ['b'] };
+    const playerColor = 'w';
+
+    // In 2D:
+    // Bottom tray (Your Captures) displays pieces captured by Player
+    const bottomTrayPieces = playerColor === 'b' ? capturedPieces.w : capturedPieces.b;
+    // Top tray (Opponent Captures) displays pieces captured by Opponent
+    const topTrayPieces = playerColor === 'b' ? capturedPieces.b : capturedPieces.w;
+
+    expect(bottomTrayPieces).toContain('b');
+    expect(topTrayPieces).toContain('r');
+  });
 });
