@@ -359,7 +359,12 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
   return (
     <div className="screen-root w-full h-full flex flex-col bg-[#000] relative overflow-hidden">
       {/* Top Bar */}
-      <div className="h-20 flex items-center justify-between px-8 z-30 border-b border-white/5 bg-black/40 backdrop-blur-xl">
+      <div 
+        className="h-20 flex items-center justify-between z-30 border-b border-white/5 bg-black/40 backdrop-blur-xl game-header-bar"
+        style={{
+          paddingBottom: '0.5rem'
+        }}
+      >
         <motion.button
           whileHover={{ scale: 1.05, x: -5 }}
           whileTap={{ scale: 0.95 }}
@@ -380,18 +385,18 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowLangMenu(!showLangMenu)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${
+              className={`flex items-center gap-2 p-2 sm:px-4 sm:py-2 rounded-xl border transition-all ${
                 isNarrating 
                   ? 'bg-[#d9ad33] text-[#030204] border-[#d9ad33]' 
                   : 'bg-white/5 text-[#d9ad33] border-white/10 hover:border-[#d9ad33]/50'
               }`}
             >
               {isNarrating ? (
-                <Loader2 size={18} className="animate-spin" />
+                <Loader2 size={16} className="animate-spin" />
               ) : (
-                <Volume2 size={18} />
+                <Volume2 size={16} />
               )}
-              <span className="text-[10px] font-bold tracking-widest uppercase">
+              <span className="hidden md:inline text-[10px] font-bold tracking-widest uppercase">
                 {isNarrating ? `Narrating (${narrationLang})` : 'Narration'}
               </span>
             </motion.button>
@@ -538,8 +543,8 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
           <div 
             className="w-full aspect-square relative z-10 flex items-center justify-center"
             style={{ 
-              maxWidth: 'min(70vw, 72vh, 450px)', 
-              maxHeight: 'min(70vw, 72vh, 450px)' 
+              maxWidth: 'min(70vw, var(--board-max-height, 72vh), 450px)', 
+              maxHeight: 'min(70vw, var(--board-max-height, 72vh), 450px)' 
             }}
           >
             <div className="w-full h-full max-h-full max-w-full">

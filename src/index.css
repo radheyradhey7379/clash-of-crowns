@@ -18,6 +18,7 @@
   --button-height: clamp(42px, 7vh, 92px);
   --button-radius: clamp(12px, 2vw, 28px);
   --icon-size: clamp(22px, 3vw, 44px);
+  --board-max-height: 72vh;
 }
 
 @media (max-width: 950px) and (orientation: landscape) {
@@ -31,6 +32,7 @@
     --button-height: clamp(36px, 8vh, 58px);
     --button-radius: 16px;
     --icon-size: clamp(18px, 2.4vw, 30px);
+    --board-max-height: 52vh;
   }
 }
 
@@ -259,4 +261,32 @@
   height: 100% !important;
   object-fit: cover !important;
 }
+
+/* Header Padding Classes with safe-area insets */
+.game-header-bar {
+  padding-left: calc(0.5rem + env(safe-area-inset-left));
+  padding-right: calc(0.5rem + env(safe-area-inset-right));
+  padding-top: calc(0.5rem + env(safe-area-inset-top));
+}
+
+.home-header-bar {
+  padding-left: calc(1rem + env(safe-area-inset-left));
+  padding-right: calc(1rem + env(safe-area-inset-right));
+  padding-top: calc(0.5rem + env(safe-area-inset-top));
+}
+
+@media (min-width: 768px) {
+  .game-header-bar {
+    padding-left: calc(1.5rem + env(safe-area-inset-left));
+    padding-right: calc(1.5rem + env(safe-area-inset-right));
+    padding-top: calc(1.5rem + env(safe-area-inset-top));
+  }
+
+  .home-header-bar {
+    padding-left: calc(2rem + env(safe-area-inset-left));
+    padding-right: calc(2rem + env(safe-area-inset-right));
+    padding-top: calc(0.5rem + env(safe-area-inset-top));
+  }
+}
+
 

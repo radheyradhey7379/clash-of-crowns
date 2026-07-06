@@ -1902,12 +1902,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       {/* Top Header Bar */}
       {!showReview && (
         <div 
-          className="absolute top-0 left-0 w-full flex justify-between items-start z-30 pointer-events-none"
-          style={{
-            paddingLeft: 'calc(1.5rem + env(safe-area-inset-left))',
-            paddingRight: 'calc(1.5rem + env(safe-area-inset-right))',
-            paddingTop: 'calc(1.5rem + env(safe-area-inset-top))'
-          }}
+          className="absolute top-0 left-0 w-full flex justify-between items-start z-30 pointer-events-none game-header-bar"
         >
         {/* Left Side Actions */}
         <div className="flex gap-1 md:gap-2 pointer-events-auto">
