@@ -109,6 +109,8 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
         ...DEFAULT_PLAYER_DATA,
         rating: 1500,
         coins: 2000,
+        wins: 1,
+        totalGames: 1,
         aiProgress: {
           ...DEFAULT_PLAYER_DATA.aiProgress,
           elo: 1500
@@ -127,6 +129,8 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
         ...DEFAULT_PLAYER_DATA,
         rating: 1400,
         coins: 1500,
+        wins: 1,
+        totalGames: 1,
         aiProgress: {
           ...DEFAULT_PLAYER_DATA.aiProgress,
           elo: 1400
@@ -160,6 +164,8 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
       const data: PlayerData = {
         ...DEFAULT_PLAYER_DATA,
         rating: 1800,
+        wins: 1,
+        totalGames: 1,
         aiProgress: {
           ...DEFAULT_PLAYER_DATA.aiProgress,
           elo: 1800
@@ -217,6 +223,8 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
         rating: 6000, // max 5000
         coins: 25000000, // max 10,000,000
         xp: 80000000, // max 50,000,000
+        wins: 1,
+        totalGames: 1,
         badges: 'not_an_array' as any,
         aiProgress: {
           ...DEFAULT_PLAYER_DATA.aiProgress,
@@ -450,6 +458,8 @@ describe('Save Security & Anti-Cheat System (Phase 17)', () => {
       const originalData: PlayerData = {
         ...DEFAULT_PLAYER_DATA,
         rating: 1300,
+        wins: 1,
+        totalGames: 1,
         deviceId: originalDeviceId,
         aiProgress: {
           ...DEFAULT_PLAYER_DATA.aiProgress,

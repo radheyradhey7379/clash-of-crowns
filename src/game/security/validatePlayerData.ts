@@ -91,7 +91,7 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
   const wins = data.wins || 0;
   const losses = data.losses || 0;
   const draws = data.draws || 0;
-  const totalGames = data.totalGames !== undefined ? data.totalGames : (wins + losses + draws);
+  const totalGames = Math.max(data.totalGames || 0, wins + losses + draws);
   const hasPlayed = totalGames > 0;
 
   if (!hasPlayed) {

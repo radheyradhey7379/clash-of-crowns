@@ -182,6 +182,7 @@ mod simulate_tests {
             bot_profile_id: None,
             recent_moves: None,
             recent_fens: None,
+            ..Default::default()
         };
         let response: Json<EngineMoveResponse> = move_handler(Json(req)).await.unwrap();
         assert_eq!(response.weights_status, "not_applicable");
@@ -200,6 +201,7 @@ mod simulate_tests {
             bot_profile_id: None,
             recent_moves: None,
             recent_fens: None,
+            ..Default::default()
         };
         let response: Json<EngineMoveResponse> = move_handler(Json(req)).await.unwrap();
         // Just verify it's one of the two modes, meaning it exposes it correctly.
@@ -220,6 +222,7 @@ mod simulate_tests {
             bot_profile_id: None,
             recent_moves: None,
             recent_fens: None,
+            ..Default::default()
         };
         let res = move_handler(Json(req)).await.unwrap();
         assert!(res.eval_cp != 0 || res.eval_cp == 0); // Just ensure it returns
@@ -462,6 +465,7 @@ mod phase9_tactical_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -486,6 +490,7 @@ mod phase9_tactical_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
         let result = search(&pos, &opts);
         let m = result.best_move.expect("Should find a move");
@@ -508,6 +513,7 @@ mod phase9_tactical_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
         let result = search(&pos, &opts);
         assert!(result.eval < 10000);
@@ -530,6 +536,7 @@ mod phase9_tactical_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
         let result = search(&pos, &opts);
         if let Some(m) = result.best_move {
@@ -553,6 +560,7 @@ mod phase9_tactical_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
         let result = search(&pos, &opts);
         assert!(result.nodes >= 0);
@@ -583,6 +591,7 @@ mod phase10a_safety_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
 
         let start = Instant::now();
@@ -613,6 +622,7 @@ mod phase10a_safety_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -637,6 +647,7 @@ mod phase10a_safety_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
 
         let start = Instant::now();
@@ -668,6 +679,7 @@ mod phase10a_safety_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -691,6 +703,7 @@ mod phase10a_safety_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -716,6 +729,7 @@ mod phase10a_safety_tests {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ..Default::default()
         };
 
         let start = Instant::now();
@@ -749,6 +763,7 @@ mod anti_repetition_tests {
             bot_profile_id: "core_1".to_string(),
             recent_moves: vec!["a1a2".to_string(), "e8e7".to_string()],
             recent_fens: vec![],
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -780,6 +795,7 @@ mod anti_repetition_tests {
                 "e7e8".to_string(),
             ],
             recent_fens: vec![],
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -806,6 +822,7 @@ mod anti_repetition_tests {
             bot_profile_id: "core_1".to_string(),
             recent_moves: vec!["b1a1".to_string(), "k8b8".to_string()],
             recent_fens: vec![],
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -833,6 +850,7 @@ mod anti_repetition_tests {
             bot_profile_id: "core_1".to_string(),
             recent_moves: vec![],
             recent_fens: vec![],
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -854,6 +872,7 @@ mod anti_repetition_tests {
             bot_profile_id: "beginner_1".to_string(),
             recent_moves: vec!["e2a2".to_string(), "e8e7".to_string()],
             recent_fens: vec![],
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -880,6 +899,7 @@ mod anti_repetition_tests {
             bot_profile_id: "intermediate_1".to_string(),
             recent_moves: vec!["e2a2".to_string(), "e8e7".to_string()],
             recent_fens: vec![],
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -906,6 +926,7 @@ mod anti_repetition_tests {
             bot_profile_id: "grandmaster_1".to_string(),
             recent_moves: vec!["e2a2".to_string(), "e8e7".to_string()],
             recent_fens: vec![],
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);
@@ -933,6 +954,7 @@ mod anti_repetition_tests {
             bot_profile_id: "beginner_1".to_string(),
             recent_moves: vec!["b1a1".to_string(), "k8b8".to_string()],
             recent_fens: vec![],
+            ..Default::default()
         };
 
         let result = search(&pos, &opts);

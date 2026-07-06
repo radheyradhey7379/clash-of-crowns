@@ -27,6 +27,25 @@ pub struct SearchOptions {
     pub current_ply: usize,
 }
 
+impl Default for SearchOptions {
+    fn default() -> Self {
+        SearchOptions {
+            max_depth: 64,
+            max_time: Duration::from_secs(5),
+            error_noise_cp: 0,
+            engine_type: "hce".to_string(),
+            bot_profile_id: String::new(),
+            recent_moves: Vec::new(),
+            recent_fens: Vec::new(),
+            ai_move_history: Vec::new(),
+            full_move_history: Vec::new(),
+            bot_tier: "beginner".to_string(),
+            player_color: "w".to_string(),
+            current_ply: 0,
+        }
+    }
+}
+
 pub struct SearchResult {
     pub best_move: Option<Move>,
     pub eval: i32,

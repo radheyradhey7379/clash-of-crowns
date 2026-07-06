@@ -224,6 +224,8 @@ describe('Cloud Save & Firebase Sync System (Phase 19)', () => {
         coins: 200,
         xp: 100,
         rating: 1200,
+        wins: 1,
+        totalGames: 1,
         aiProgress: { ...DEFAULT_PLAYER_DATA.aiProgress, elo: 1200 },
         badges: ['badge_local'],
         musicOn: true // Local setting
@@ -236,6 +238,8 @@ describe('Cloud Save & Firebase Sync System (Phase 19)', () => {
         coins: 1000, // higher
         xp: 500, // higher
         rating: 1100, // local is higher, so we merge to 1200
+        wins: 1,
+        totalGames: 1,
         aiProgress: { ...DEFAULT_PLAYER_DATA.aiProgress, elo: 1100 },
         badges: ['badge_cloud'],
         musicOn: false // Cloud setting

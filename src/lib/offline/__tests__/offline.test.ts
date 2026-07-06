@@ -201,6 +201,8 @@ describe('Offline Mode & Capabilities System', () => {
         ...defaultData,
         rating: 1420,
         coins: 888,
+        wins: 1,
+        totalGames: 1,
         aiProgress: {
           ...defaultData.aiProgress,
           elo: 1420

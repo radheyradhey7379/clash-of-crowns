@@ -40,7 +40,7 @@ export async function syncUserProgress(user: any, localData: PlayerData): Promis
         email: user.email,
         photoURL: user.photoURL || "",
         createdAt: serverTimestamp(),
-        rating: 300, // Initial rating
+        rating: 0, // Initial rating
         wins: 0,
         losses: 0,
         draws: 0,

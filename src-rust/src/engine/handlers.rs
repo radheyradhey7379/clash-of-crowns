@@ -26,6 +26,26 @@ pub struct EngineMoveRequest {
     pub current_ply: Option<usize>,
 }
 
+impl Default for EngineMoveRequest {
+    fn default() -> Self {
+        EngineMoveRequest {
+            fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string(),
+            engine_type: "hce".to_string(),
+            depth: 1,
+            error_noise_cp: 0,
+            max_think_time_ms: 1000,
+            bot_profile_id: None,
+            recent_moves: None,
+            recent_fens: None,
+            ai_move_history: None,
+            full_move_history: None,
+            bot_tier: None,
+            player_color: None,
+            current_ply: None,
+        }
+    }
+}
+
 #[derive(Serialize)]
 pub struct EngineMoveResponse {
     pub move_str: String,

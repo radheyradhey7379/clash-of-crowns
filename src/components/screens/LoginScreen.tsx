@@ -115,7 +115,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 createdAt: serverTimestamp(),
                 deviceId: visitorId,
                 lastLogin: serverTimestamp(),
-                rating: 300,
+                rating: 0,
                 wins: 0,
                 losses: 0,
                 draws: 0,
