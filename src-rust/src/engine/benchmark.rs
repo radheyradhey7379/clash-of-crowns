@@ -19,6 +19,11 @@ pub fn run_benchmark_on_fen(fen: &str) {
         bot_profile_id: String::new(),
         recent_moves: Vec::new(),
         recent_fens: Vec::new(),
+        ai_move_history: Vec::new(),
+        full_move_history: Vec::new(),
+        bot_tier: String::new(),
+        player_color: String::new(),
+        current_ply: 0,
     };
 
     let nnue_options = SearchOptions {
@@ -29,6 +34,11 @@ pub fn run_benchmark_on_fen(fen: &str) {
         bot_profile_id: String::new(),
         recent_moves: Vec::new(),
         recent_fens: Vec::new(),
+        ai_move_history: Vec::new(),
+        full_move_history: Vec::new(),
+        bot_tier: String::new(),
+        player_color: String::new(),
+        current_ply: 0,
     };
 
     println!("Benchmarking FEN: {}", fen);

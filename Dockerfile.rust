@@ -20,9 +20,8 @@ RUN touch src-rust/src/main.rs && \
     cd src-rust && \
     cargo build --release
 
-# Download the best_model.nnue weights file to be packaged inside the runner container
-RUN apt-get update && apt-get install -y curl && \
-    curl -L -o best_model.nnue https://filebin.net/clash-of-crowns-nnue/best_model.nnue
+# Copy the best_model.nnue weights file from repository
+COPY data/nnue/exports/best_model.nnue ./best_model.nnue
 
 # Production runner stage
 FROM debian:bookworm-slim AS runner

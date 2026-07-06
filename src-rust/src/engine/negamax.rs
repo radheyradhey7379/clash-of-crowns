@@ -20,6 +20,11 @@ pub struct SearchOptions {
     pub bot_profile_id: String,
     pub recent_moves: Vec<String>,
     pub recent_fens: Vec<String>,
+    pub ai_move_history: Vec<String>,
+    pub full_move_history: Vec<String>,
+    pub bot_tier: String,
+    pub player_color: String,
+    pub current_ply: usize,
 }
 
 pub struct SearchResult {
