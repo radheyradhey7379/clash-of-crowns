@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AppScreen } from '../../types';
 
 interface BGMPlayerProps {
@@ -8,21 +8,83 @@ interface BGMPlayerProps {
 
 export default function BGMPlayer({ musicOn, currentScreen }: BGMPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioSrc, setAudioSrc] = useState<string>('/homebgm2.mp3');
+
+  // Load the BGM audio file locally as a Blob/Object URL to prevent network streaming lag
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let isMounted = true;
+
+    const loadLocalBGM = async () => {
+      try {
+        if (typeof window === 'undefined') return;
+
+        // Try to fetch from the offline Cache Storage API first
+        if (typeof caches !== 'undefined') {
+          const cache = await caches.open('clash-offline-assets').catch(() => null);
+          if (cache) {
+            const cachedResponse = await cache.match('./homebgm2.mp3').catch(() => null) || 
+                                   await cache.match('/homebgm2.mp3').catch(() => null);
+            if (cachedResponse) {
+              const blob = await cachedResponse.blob();
+              if (isMounted) {
+                objectUrl = URL.createObjectURL(blob);
+                setAudioSrc(objectUrl);
+                console.log("🎵 BGM loaded successfully from local Cache Storage Blob.");
+                return;
+              }
+            }
+          }
+        }
+
+        // Fallback: fetch from network and resolve to blob URL to avoid streaming lag
+        const response = await fetch('/homebgm2.mp3');
+        if (response.ok) {
+          const blob = await response.blob();
+          if (isMounted) {
+            objectUrl = URL.createObjectURL(blob);
+            setAudioSrc(objectUrl);
+            console.log("🎵 BGM fetched and converted to local Blob URL.");
+          }
+        }
+      } catch (err) {
+        console.warn("⚠️ Failed to load BGM as local blob, using default path:", err);
+      }
+    };
+
+    loadLocalBGM();
+
+    return () => {
+      isMounted = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let activeListeners = false;
+    const audio = audioRef.current;
 
     // Define the interaction handler inside the effect to cleanly attach/remove
     const handleInteraction = () => {
-      if (audioRef.current && audioRef.current.paused) {
-        console.log("🔊 User interacted. Resuming background music...");
-        audioRef.current.play()
-          .then(() => {
-            removeListeners();
-          })
-          .catch((err) => {
-            console.warn("⚠️ BGM play failed even after user interaction:", err);
-          });
+      if (audio && audio.paused) {
+        const isAcademy = currentScreen === 'Learn';
+        const isGame = currentScreen === 'Game';
+        const shouldPlay = musicOn && !isAcademy && !isGame;
+
+        if (shouldPlay) {
+          console.log("🔊 User interacted. Resuming background music...");
+          audio.play()
+            .then(() => {
+              removeListeners();
+            })
+            .catch((err) => {
+              console.warn("⚠️ BGM play failed even after user interaction:", err);
+            });
+        } else {
+          removeListeners();
+        }
       } else {
         removeListeners();
       }
@@ -49,19 +111,18 @@ export default function BGMPlayer({ musicOn, currentScreen }: BGMPlayerProps) {
     };
 
     const playAudio = async () => {
-      if (!audioRef.current) return;
+      if (!audio) return;
 
-      // Lower default volume to be atmospheric and pleasant
-      audioRef.current.volume = 0.35;
+      audio.volume = 0.35;
 
       const isAcademy = currentScreen === 'Learn';
       const isGame = currentScreen === 'Game';
       const shouldPlay = musicOn && !isAcademy && !isGame;
 
       if (shouldPlay) {
-        if (audioRef.current.paused) {
+        if (audio.paused) {
           try {
-            await audioRef.current.play();
+            await audio.play();
             console.log("🎵 Background music started successfully.");
           } catch (e) {
             console.log("🔇 BGM auto-play blocked by browser policy. Awaiting user interaction...");
@@ -69,28 +130,56 @@ export default function BGMPlayer({ musicOn, currentScreen }: BGMPlayerProps) {
           }
         }
       } else {
-        if (!audioRef.current.paused) {
+        if (!audio.paused) {
           console.log("⏸️ Pausing background music (moving to non-music screen or toggled off).");
-          audioRef.current.pause();
+          audio.pause();
         }
         removeListeners();
       }
     };
 
+    // Handle visibility/focus changes to pause music when minimized or tab closed/hidden
+    const handleVisibilityChange = () => {
+      if (!audio) return;
+      const isAcademy = currentScreen === 'Learn';
+      const isGame = currentScreen === 'Game';
+      const shouldPlay = musicOn && !isAcademy && !isGame;
+
+      if (document.hidden) {
+        if (!audio.paused) {
+          console.log("⏸️ Tab hidden. Pausing background music.");
+          audio.pause();
+        }
+      } else {
+        if (shouldPlay && audio.paused) {
+          console.log("▶️ Tab visible. Resuming background music.");
+          audio.play().catch(() => attachListeners());
+        }
+      }
+    };
+
     playAudio();
 
-    // Clean up event listeners on unmount or when screen/music state changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handleVisibilityChange);
+
+    // Clean up event listeners and PAUSE the audio on unmount or screen/music change
     return () => {
       removeListeners();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handleVisibilityChange);
+      if (audio && !audio.paused) {
+        audio.pause();
+      }
     };
-  }, [musicOn, currentScreen]);
+  }, [musicOn, currentScreen, audioSrc]);
 
   return (
     <audio
       ref={audioRef}
-      src="/homebgm2.mp3"
+      src={audioSrc}
       loop
-      preload="none"
+      preload="auto"
       style={{ display: 'none' }}
     />
   );
