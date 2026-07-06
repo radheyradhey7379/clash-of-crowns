@@ -19,6 +19,11 @@ pub struct EngineMoveRequest {
     pub bot_profile_id: Option<String>,
     pub recent_moves: Option<Vec<String>>,
     pub recent_fens: Option<Vec<String>>,
+    pub ai_move_history: Option<Vec<String>>,
+    pub full_move_history: Option<Vec<String>>,
+    pub bot_tier: Option<String>,
+    pub player_color: Option<String>,
+    pub current_ply: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -60,6 +65,11 @@ pub async fn move_handler(
         bot_profile_id: req.bot_profile_id.clone().unwrap_or_default(),
         recent_moves: req.recent_moves.clone().unwrap_or_default(),
         recent_fens: req.recent_fens.clone().unwrap_or_default(),
+        ai_move_history: req.ai_move_history.clone().unwrap_or_default(),
+        full_move_history: req.full_move_history.clone().unwrap_or_default(),
+        bot_tier: req.bot_tier.clone().unwrap_or_default(),
+        player_color: req.player_color.clone().unwrap_or_default(),
+        current_ply: req.current_ply.unwrap_or_default(),
     };
 
     let result = search(&pos, &options);
@@ -253,6 +263,11 @@ pub async fn simulate_handler(Json(req): Json<SimulateRequest>) -> Json<Simulate
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ai_move_history: Vec::new(),
+            full_move_history: Vec::new(),
+            bot_tier: String::new(),
+            player_color: String::new(),
+            current_ply: 0,
         };
 
         let search_res = search(&pos, &options);

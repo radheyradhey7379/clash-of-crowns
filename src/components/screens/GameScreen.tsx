@@ -600,14 +600,22 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       const { winner, reason, fen } = data;
       if (fen) chess.load(fen);
       setGameOver(`${winner.toUpperCase()} ${t.victory} - ${reason.toUpperCase()}`);
-      playSound('gameover');
-      if (winner.toLowerCase() === (playerColor === 'w' ? 'white' : 'black')) {
+      
+      const isWin = winner.toLowerCase() === (playerColor === 'w' ? 'white' : 'black');
+      const isLoss = winner.toLowerCase() === (playerColor === 'w' ? 'black' : 'white');
+      
+      if (isWin) {
+        playSound('victory');
         playSound('clapping');
         confetti({ particleCount: 200, spread: 90, origin: { y: 0.5 }, colors: ['#d9ad33', '#ffffff', '#a855f7'] });
+      } else if (isLoss) {
+        playSound('defeat');
+      } else {
+        playSound('gameover');
       }
 
       if (!isLocalVS && activeCharacterId && playerData.aiProgress) {
-        const playerWon = winner.toLowerCase() === (playerColor === 'w' ? 'white' : 'black');
+        const playerWon = isWin;
         handleMatchCompletion(
           playerWon ? 'win' : 'loss',
           reason === 'resignation' ? 'resign' : 'checkmate'
@@ -1328,10 +1336,14 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         addMultiplayerHistoryItem(playerData, historyItem);
 
         setGameOver(`${winText} - ${reason.toUpperCase()}`);
-        playSound('gameover');
         if (winnerUid === user.uid) {
+          playSound('victory');
           playSound('clapping');
           confetti({ particleCount: 200, spread: 90, origin: { y: 0.5 }, colors: ['#d9ad33', '#ffffff', '#a855f7'] });
+        } else if (winnerUid) {
+          playSound('defeat');
+        } else {
+          playSound('gameover');
         }
       },
       onOpponentPresence: (online) => {
@@ -1571,13 +1583,15 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
 
   const checkGameOver = () => {
     if (chess.isCheckmate()) {
-      playSound('gameover');
       const winner = chess.getTurn() === 'w' ? 'Black' : 'White';
       const playerWon = isLocalVS ? true : (playerColor === 'w' && winner === 'White') || (playerColor === 'b' && winner === 'Black');
       
       if (playerWon) {
+        playSound('victory');
         playSound('clapping');
         confetti({ particleCount: 200, spread: 90, origin: { y: 0.5 }, colors: ['#d9ad33', '#ffffff', '#a855f7'] });
+      } else {
+        playSound('defeat');
       }
 
       triggerEndMatchCommentary(playerWon ? 'win' : 'loss');

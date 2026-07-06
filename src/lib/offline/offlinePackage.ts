@@ -16,7 +16,10 @@ const MANIFEST_HASH = 'hash_v1_assets_core';
 const CORE_ASSETS = [
   './sf.js',
   './sf.wasm',
-  './bgm.mp3',
+  './homebgm2.mp3',
+  './piecesound.mp3',
+  './victory.mp3',
+  './defeat.mp3',
   './home-bg-mobile.webp'
 ];
 

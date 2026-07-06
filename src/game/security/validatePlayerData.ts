@@ -86,6 +86,29 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
 
   // Deep clone data to keep it immutable during repair
   let data = JSON.parse(JSON.stringify(playerData)) as PlayerData;
+
+  // ELO Zero Migration & Safe Recovery logic
+  const wins = data.wins || 0;
+  const losses = data.losses || 0;
+  const draws = data.draws || 0;
+  const totalGames = data.totalGames !== undefined ? data.totalGames : (wins + losses + draws);
+  const hasPlayed = totalGames > 0;
+
+  if (!hasPlayed) {
+    if (data.rating !== 0) {
+      data.rating = 0;
+      repaired = true;
+      flags.push({
+        type: 'zero_game_elo_migration',
+        severity: 'low',
+        message: 'Migrated unplayed user rating to 0 ELO'
+      });
+    }
+    if (data.aiProgress && data.aiProgress.elo !== 0) {
+      data.aiProgress.elo = 0;
+      repaired = true;
+    }
+  }
   
   // Phase 32B Detection
   const detection = detectSuspiciousSave(data);

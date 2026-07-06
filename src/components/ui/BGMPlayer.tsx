@@ -88,7 +88,7 @@ export default function BGMPlayer({ musicOn, currentScreen }: BGMPlayerProps) {
   return (
     <audio
       ref={audioRef}
-      src="/bgm.mp3"
+      src="/homebgm2.mp3"
       loop
       preload="none"
       style={{ display: 'none' }}
