@@ -44,26 +44,33 @@ public class PlayBillingPlugin extends Plugin {
     }
 
     private void connectToGooglePlay() {
-        billingClient.startConnection(new BillingClientStateListener() {
-            @Override
-            public void onBillingSetupFinished(@NonNull BillingResult billingResult) {
-                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                    Log.d(TAG, "BillingClient connection established successfully.");
-                    isClientReady = true;
-                } else {
-                    Log.w(TAG, "BillingClient setup failed with response code: " + billingResult.getResponseCode());
-                    isClientReady = false;
+        try {
+            billingClient.startConnection(new BillingClientStateListener() {
+                @Override
+                public void onBillingSetupFinished(@NonNull BillingResult billingResult) {
+                    if (billingResult != null && billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                        Log.d(TAG, "BillingClient connection established successfully.");
+                        isClientReady = true;
+                    } else {
+                        Log.w(TAG, "BillingClient setup failed.");
+                        isClientReady = false;
+                    }
                 }
-            }
 
-            @Override
-            public void onBillingServiceDisconnected() {
-                Log.w(TAG, "BillingClient disconnected. Reconnecting...");
-                isClientReady = false;
-                // Reconnection logic
-                getBridge().executeOnMainThread(() -> connectToGooglePlay());
-            }
-        });
+                @Override
+                public void onBillingServiceDisconnected() {
+                    Log.w(TAG, "BillingClient disconnected. Reconnecting...");
+                    isClientReady = false;
+                    try {
+                        getBridge().executeOnMainThread(() -> connectToGooglePlay());
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to schedule reconnection on main thread", e);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start BillingClient connection", e);
+        }
     }
 
     private void ensureBillingClientConnection(Runnable onConnected, Runnable onError) {
@@ -76,23 +83,35 @@ public class PlayBillingPlugin extends Plugin {
             initBillingClient();
         }
 
-        billingClient.startConnection(new BillingClientStateListener() {
-            @Override
-            public void onBillingSetupFinished(@NonNull BillingResult billingResult) {
-                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                    isClientReady = true;
-                    onConnected.run();
-                } else {
-                    isClientReady = false;
-                    onError.run();
+        try {
+            billingClient.startConnection(new BillingClientStateListener() {
+                @Override
+                public void onBillingSetupFinished(@NonNull BillingResult billingResult) {
+                    if (billingResult != null && billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                        isClientReady = true;
+                        onConnected.run();
+                    } else {
+                        isClientReady = false;
+                        onError.run();
+                    }
                 }
-            }
 
-            @Override
-            public void onBillingServiceDisconnected() {
-                isClientReady = false;
-            }
-        });
+                @Override
+                public void onBillingServiceDisconnected() {
+                    isClientReady = false;
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to establish connection inside ensureBillingClientConnection", e);
+            onError.run();
+        }
+    }
+
+    private String getProductType(String productId) {
+        if (productId.equals("premium_analysis_monthly") || productId.equals("premium_undo_addon_monthly")) {
+            return BillingClient.ProductType.SUBS;
+        }
+        return BillingClient.ProductType.INAPP;
     }
 
     @PluginMethod
@@ -106,16 +125,17 @@ public class PlayBillingPlugin extends Plugin {
         ensureBillingClientConnection(() -> {
             List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
             try {
-                List<String> ids = productIdsArray.toList();
-                for (String id : ids) {
-                    // Determine if it is subscription or in-app
-                    String type = id.contains("monthly") ? BillingClient.ProductType.SUBS : BillingClient.ProductType.INAPP;
-                    productList.add(
-                        QueryProductDetailsParams.Product.newBuilder()
-                            .setProductId(id)
-                            .setProductType(type)
-                            .build()
-                    );
+                for (int i = 0; i < productIdsArray.length(); i++) {
+                    String id = productIdsArray.getString(i);
+                    if (id != null) {
+                        String type = getProductType(id);
+                        productList.add(
+                            QueryProductDetailsParams.Product.newBuilder()
+                                .setProductId(id)
+                                .setProductType(type)
+                                .build()
+                        );
+                    }
                 }
             } catch (Exception e) {
                 call.reject("Failed to parse productIds: " + e.getMessage());
@@ -126,44 +146,64 @@ public class PlayBillingPlugin extends Plugin {
                 .setProductList(productList)
                 .build();
 
-            billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsResult) -> {
-                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                    JSArray resultArr = new JSArray();
-                    List<ProductDetails> productDetailsList = productDetailsResult.getProductDetailsList();
-                    if (productDetailsList != null) {
-                        for (ProductDetails details : productDetailsList) {
-                            JSObject obj = new JSObject();
-                        obj.put("productId", details.getProductId());
-                        obj.put("title", details.getTitle());
-                        obj.put("description", details.getDescription());
-                        obj.put("type", details.getProductType());
+            try {
+                billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsResult) -> {
+                    try {
+                        if (billingResult == null) {
+                            call.reject("Billing result is null");
+                            return;
+                        }
+                        if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                            JSArray resultArr = new JSArray();
+                            if (productDetailsResult != null) {
+                                List<ProductDetails> productDetailsList = productDetailsResult.getProductDetailsList();
+                                if (productDetailsList != null) {
+                                    for (ProductDetails details : productDetailsList) {
+                                        if (details != null) {
+                                            JSObject obj = new JSObject();
+                                            obj.put("productId", details.getProductId());
+                                            obj.put("title", details.getTitle());
+                                            obj.put("description", details.getDescription());
+                                            obj.put("type", details.getProductType());
 
-                        // Get formatted pricing details
-                        if (details.getProductType().equals(BillingClient.ProductType.INAPP)) {
-                            ProductDetails.OneTimePurchaseOfferDetails offer = details.getOneTimePurchaseOfferDetails();
-                            if (offer != null) {
-                                obj.put("price", offer.getFormattedPrice());
-                            }
-                        } else {
-                            List<ProductDetails.SubscriptionOfferDetails> offers = details.getSubscriptionOfferDetails();
-                            if (offers != null && !offers.isEmpty()) {
-                                ProductDetails.SubscriptionOfferDetails firstOffer = offers.get(0);
-                                List<ProductDetails.PricingPhase> phases = firstOffer.getPricingPhases().getPricingPhaseList();
-                                if (!phases.isEmpty()) {
-                                    obj.put("price", phases.get(0).getFormattedPrice());
+                                            // Get formatted pricing details
+                                            if (details.getProductType().equals(BillingClient.ProductType.INAPP)) {
+                                                ProductDetails.OneTimePurchaseOfferDetails offer = details.getOneTimePurchaseOfferDetails();
+                                                if (offer != null) {
+                                                    obj.put("price", offer.getFormattedPrice());
+                                                }
+                                            } else {
+                                                List<ProductDetails.SubscriptionOfferDetails> offers = details.getSubscriptionOfferDetails();
+                                                if (offers != null && !offers.isEmpty()) {
+                                                    ProductDetails.SubscriptionOfferDetails firstOffer = offers.get(0);
+                                                    if (firstOffer != null && firstOffer.getPricingPhases() != null) {
+                                                        List<ProductDetails.PricingPhase> phases = firstOffer.getPricingPhases().getPricingPhaseList();
+                                                        if (phases != null && !phases.isEmpty()) {
+                                                            obj.put("price", phases.get(0).getFormattedPrice());
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            resultArr.put(obj);
+                                        }
+                                    }
                                 }
                             }
+                            JSObject response = new JSObject();
+                            response.put("products", resultArr);
+                            call.resolve(response);
+                        } else {
+                            call.reject("Failed to query products from Google Play: " + billingResult.getDebugMessage());
                         }
-                        resultArr.put(obj);
-                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error in queryProductDetailsAsync callback", e);
+                        call.reject("Internal error parsing product details: " + e.getMessage());
                     }
-                    JSObject response = new JSObject();
-                    response.put("products", resultArr);
-                    call.resolve(response);
-                } else {
-                    call.reject("Failed to query products from Google Play: " + billingResult.getDebugMessage());
-                }
-            });
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error initiating queryProductDetailsAsync", e);
+                call.reject("Failed to initiate query: " + e.getMessage());
+            }
         }, () -> call.reject("Google Play Billing client not connected"));
     }
 
@@ -176,7 +216,7 @@ public class PlayBillingPlugin extends Plugin {
         }
 
         ensureBillingClientConnection(() -> {
-            String productType = productId.contains("monthly") ? BillingClient.ProductType.SUBS : BillingClient.ProductType.INAPP;
+            String productType = getProductType(productId);
             List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
             productList.add(
                 QueryProductDetailsParams.Product.newBuilder()
@@ -189,43 +229,72 @@ public class PlayBillingPlugin extends Plugin {
                 .setProductList(productList)
                 .build();
 
-            billingClient.queryProductDetailsAsync(detailsParams, (billingResult, productDetailsResult) -> {
-                List<ProductDetails> productDetailsList = productDetailsResult.getProductDetailsList();
-                if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK || productDetailsList == null || productDetailsList.isEmpty()) {
-                    call.reject("Product details not found for: " + productId);
-                    return;
-                }
-
-                ProductDetails details = productDetailsList.get(0);
-                List<BillingFlowParams.ProductDetailsParams> flowProductParams = new ArrayList<>();
-                BillingFlowParams.ProductDetailsParams.Builder flowBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
-                    .setProductDetails(details);
-
-                if (productType.equals(BillingClient.ProductType.SUBS)) {
-                    List<ProductDetails.SubscriptionOfferDetails> offers = details.getSubscriptionOfferDetails();
-                    if (offers != null && !offers.isEmpty()) {
-                        flowBuilder.setOfferToken(offers.get(0).getOfferToken());
-                    }
-                }
-
-                flowProductParams.add(flowBuilder.build());
-
-                BillingFlowParams flowParams = BillingFlowParams.newBuilder()
-                    .setProductDetailsParamsList(flowProductParams)
-                    .build();
-
-                getBridge().executeOnMainThread(() -> {
-                    Activity activity = getActivity();
-                    if (activity != null) {
-                        synchronized (pendingPurchaseCalls) {
-                            pendingPurchaseCalls.add(call);
+            try {
+                billingClient.queryProductDetailsAsync(detailsParams, (billingResult, productDetailsResult) -> {
+                    try {
+                        if (billingResult == null) {
+                            call.reject("Billing result is null");
+                            return;
                         }
-                        billingClient.launchBillingFlow(activity, flowParams);
-                    } else {
-                        call.reject("App activity is currently unavailable");
+                        
+                        List<ProductDetails> productDetailsList = null;
+                        if (productDetailsResult != null) {
+                            productDetailsList = productDetailsResult.getProductDetailsList();
+                        }
+                        
+                        if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK || productDetailsList == null || productDetailsList.isEmpty()) {
+                            call.reject("Product details not found for: " + productId);
+                            return;
+                        }
+
+                        ProductDetails details = productDetailsList.get(0);
+                        if (details == null) {
+                            call.reject("Product details item is null");
+                            return;
+                        }
+                        
+                        List<BillingFlowParams.ProductDetailsParams> flowProductParams = new ArrayList<>();
+                        BillingFlowParams.ProductDetailsParams.Builder flowBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
+                            .setProductDetails(details);
+
+                        if (productType.equals(BillingClient.ProductType.SUBS)) {
+                            List<ProductDetails.SubscriptionOfferDetails> offers = details.getSubscriptionOfferDetails();
+                            if (offers != null && !offers.isEmpty() && offers.get(0) != null) {
+                                flowBuilder.setOfferToken(offers.get(0).getOfferToken());
+                            }
+                        }
+
+                        flowProductParams.add(flowBuilder.build());
+
+                        BillingFlowParams flowParams = BillingFlowParams.newBuilder()
+                            .setProductDetailsParamsList(flowProductParams)
+                            .build();
+
+                        getBridge().executeOnMainThread(() -> {
+                            try {
+                                Activity activity = getActivity();
+                                if (activity != null) {
+                                    synchronized (pendingPurchaseCalls) {
+                                        pendingPurchaseCalls.add(call);
+                                    }
+                                    billingClient.launchBillingFlow(activity, flowParams);
+                                } else {
+                                    call.reject("App activity is currently unavailable");
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error launching billing flow on main thread", e);
+                                call.reject("Failed to launch billing UI: " + e.getMessage());
+                            }
+                        });
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error in purchaseProduct query callback", e);
+                        call.reject("Internal error in purchase initiation: " + e.getMessage());
                     }
                 });
-            });
+            } catch (Exception e) {
+                Log.e(TAG, "Error initiating purchase query", e);
+                call.reject("Failed to initiate purchase: " + e.getMessage());
+            }
         }, () -> call.reject("Google Play Billing client not connected"));
     }
 
@@ -240,21 +309,43 @@ public class PlayBillingPlugin extends Plugin {
             final int[] pendingQueries = { 2 };
 
             for (QueryPurchasesParams params : paramsList) {
-                billingClient.queryPurchasesAsync(params, (billingResult, purchasesList) -> {
-                    if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                        for (Purchase purchase : purchasesList) {
-                            if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
-                                for (String pId : purchase.getProducts()) {
-                                    JSObject obj = new JSObject();
-                                    obj.put("productId", pId);
-                                    obj.put("purchaseToken", purchase.getPurchaseToken());
-                                    obj.put("orderId", purchase.getOrderId());
-                                    purchasesArr.put(obj);
+                try {
+                    billingClient.queryPurchasesAsync(params, (billingResult, purchasesList) -> {
+                        try {
+                            if (billingResult == null) {
+                                return;
+                            }
+                            if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK && purchasesList != null) {
+                                for (Purchase purchase : purchasesList) {
+                                    if (purchase != null && purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                                        List<String> products = purchase.getProducts();
+                                        if (products != null) {
+                                            for (String pId : products) {
+                                                JSObject obj = new JSObject();
+                                                obj.put("productId", pId);
+                                                obj.put("purchaseToken", purchase.getPurchaseToken());
+                                                obj.put("orderId", purchase.getOrderId());
+                                                purchasesArr.put(obj);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error processing queryPurchases callback", e);
+                        } finally {
+                            synchronized (pendingQueries) {
+                                pendingQueries[0]--;
+                                if (pendingQueries[0] == 0) {
+                                    JSObject response = new JSObject();
+                                    response.put("purchases", purchasesArr);
+                                    call.resolve(response);
                                 }
                             }
                         }
-                    }
-
+                    });
+                } catch (Exception e) {
+                    Log.e(TAG, "Error initiating queryPurchasesAsync", e);
                     synchronized (pendingQueries) {
                         pendingQueries[0]--;
                         if (pendingQueries[0] == 0) {
@@ -263,7 +354,7 @@ public class PlayBillingPlugin extends Plugin {
                             call.resolve(response);
                         }
                     }
-                });
+                }
             }
         }, () -> call.reject("Google Play Billing client not connected"));
     }
@@ -275,31 +366,44 @@ public class PlayBillingPlugin extends Plugin {
             pendingPurchaseCalls.clear();
         }
 
+        if (billingResult == null) {
+            for (PluginCall call : callsToResolve) {
+                call.reject("Purchase result is null");
+            }
+            return;
+        }
+
         int responseCode = billingResult.getResponseCode();
         for (PluginCall call : callsToResolve) {
-            if (responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
-                for (Purchase purchase : purchases) {
-                    if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
-                        JSObject obj = new JSObject();
-                        obj.put("status", "success");
-                        obj.put("productId", purchase.getProducts().get(0));
-                        obj.put("purchaseToken", purchase.getPurchaseToken());
-                        obj.put("orderId", purchase.getOrderId());
-                        call.resolve(obj);
-                        return;
+            try {
+                if (responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
+                    for (Purchase purchase : purchases) {
+                        if (purchase != null && purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                            JSObject obj = new JSObject();
+                            obj.put("status", "success");
+                            List<String> products = purchase.getProducts();
+                            obj.put("productId", (products != null && !products.isEmpty()) ? products.get(0) : "");
+                            obj.put("purchaseToken", purchase.getPurchaseToken());
+                            obj.put("orderId", purchase.getOrderId());
+                            call.resolve(obj);
+                            return;
+                        }
                     }
+                    call.reject("Purchase completed but status is not purchased yet.");
+                } else if (responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
+                    JSObject obj = new JSObject();
+                    obj.put("status", "canceled");
+                    obj.put("message", "Purchase cancelled.");
+                    call.resolve(obj);
+                } else {
+                    JSObject obj = new JSObject();
+                    obj.put("status", "error");
+                    obj.put("message", "Purchase failed: " + billingResult.getDebugMessage());
+                    call.resolve(obj);
                 }
-                call.reject("Purchase completed but status is not purchased yet.");
-            } else if (responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
-                JSObject obj = new JSObject();
-                obj.put("status", "canceled");
-                obj.put("message", "Purchase cancelled.");
-                call.resolve(obj);
-            } else {
-                JSObject obj = new JSObject();
-                obj.put("status", "error");
-                obj.put("message", "Purchase failed: " + billingResult.getDebugMessage());
-                call.resolve(obj);
+            } catch (Exception e) {
+                Log.e(TAG, "Error in handlePurchasesUpdated callback logic", e);
+                call.reject("Purchase processing failed: " + e.getMessage());
             }
         }
     }
