@@ -510,7 +510,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const [show3DTimeoutPrompt, setShow3DTimeoutPrompt] = useState(false);
   const [latencyText, setLatencyText] = useState<string>('Ping...');
   const [showNetworkWarning, setShowNetworkWarning] = useState(true);
-  const [freeUndosUsed, setFreeUndosUsed] = useState(0);
+
   const [showUndoPackModal, setShowUndoPackModal] = useState(false);
   const [latencyColorClass, setLatencyColorClass] = useState<string>('bg-yellow-500/20 border-yellow-500/30 text-yellow-500');
   const lastPongReceivedTime = useRef<number>(Date.now());
@@ -1857,19 +1857,20 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       return;
     }
 
-    let requiresToken = false;
-    let newFreeUndosUsed = freeUndosUsed;
-
     const hasActiveUndoPass = entitlements?.hasUndoAccess === true;
+    let requiresToken = false;
+    let newDailyUndoCount = playerData.dailyUndoCount !== undefined ? playerData.dailyUndoCount : 0;
+    const todayStr = new Date().toDateString();
+    const isNewDay = playerData.lastUndoDate !== todayStr;
+
+    if (isNewDay) {
+      newDailyUndoCount = 0;
+    }
 
     if (!hasActiveUndoPass) {
-      if (tier === 'beginner' || tier === 'learner') {
-        if (freeUndosUsed < 1) {
-          newFreeUndosUsed = 1;
-        } else {
-          requiresToken = true;
-        }
-      } else if (tier === 'intermediate' || tier === 'hard') {
+      if (newDailyUndoCount < 2) {
+        newDailyUndoCount += 1;
+      } else {
         requiresToken = true;
       }
     }
@@ -1880,13 +1881,17 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         setShowUndoPackModal(true);
         return;
       }
-      // Decrement token
       onUpdatePlayerData({
-        undoTokens: currentTokens - 1
+        undoTokens: currentTokens - 1,
+        dailyUndoCount: newDailyUndoCount,
+        lastUndoDate: todayStr
+      });
+    } else {
+      onUpdatePlayerData({
+        dailyUndoCount: newDailyUndoCount,
+        lastUndoDate: todayStr
       });
     }
-
-    setFreeUndosUsed(newFreeUndosUsed);
 
     playSound('click');
     const snapshot = undoStackRef.current.pop();

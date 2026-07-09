@@ -21,6 +21,7 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
   const t = useTranslation(playerData.language || 'en');
   const isRtl = playerData.language === 'ur' || playerData.language === 'ar';
   const [selectedUndoPlan, setSelectedUndoPlan] = useState<'day' | 'month' | 'year'>('month');
+  const [includeUndo, setIncludeUndo] = useState(false);
 
   // Billing state
   const [products, setProducts] = useState<PlayBillingProduct[]>([]);
@@ -38,7 +39,8 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
         BILLING_PRODUCTS.UNDO_DAILY,
         BILLING_PRODUCTS.UNDO_MONTHLY,
         BILLING_PRODUCTS.UNDO_YEARLY,
-        BILLING_PRODUCTS.PREMIUM_ANALYSIS_MONTHLY
+        BILLING_PRODUCTS.PREMIUM_ANALYSIS_MONTHLY,
+        BILLING_PRODUCTS.PREMIUM_UNDO_ADDON
       ];
       const loaded = await playBillingService.loadProducts(productIds);
       setProducts(loaded);
@@ -65,16 +67,11 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
     }, 5000);
   };
 
-  const handlePurchase = async (productId: string) => {
-    if (purchaseLoading) return; // Prevent double taps
-
-    playSound('click');
-
-    // Guest user guard
+  const handlePurchaseFlow = async (productId: string): Promise<'success' | 'failed'> => {
     const user = auth.currentUser;
     if (!user || user.isAnonymous) {
       showStatus("Please sign in to save and restore your purchase.", "error");
-      return;
+      return 'failed';
     }
 
     setPurchaseLoading(productId);
@@ -85,27 +82,53 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
       
       if (result.status === 'canceled') {
         showStatus("Purchase cancelled.", "info");
+        return 'failed';
       } else if (result.status === 'pending') {
         showStatus("Purchase pending. Access will unlock after payment is completed.", "info");
+        return 'failed';
       } else if (result.status === 'already_owned') {
         showStatus("You already own this. Restoring access...", "info");
         await handleRestore();
+        return 'success';
       } else if (result.status === 'success' && result.purchaseToken) {
         showStatus("Verifying purchase with Google...", "info");
         const verifyRes = await purchaseVerificationService.verifyPurchase(productId, result.purchaseToken);
         if (verifyRes.ok && verifyRes.active) {
           showStatus("Purchase successful! Entitlements unlocked.", "success");
+          return 'success';
         } else {
           showStatus(verifyRes.message || "Purchase verification failed. Please contact support.", "error");
+          return 'failed';
         }
       } else {
         showStatus(result.message || "Purchase failed. Please try again.", "error");
+        return 'failed';
       }
     } catch (err: any) {
       showStatus("Purchase failed. Please try again.", "error");
+      return 'failed';
     } finally {
       setPurchaseLoading(null);
     }
+  };
+
+  const handlePremiumPurchase = async () => {
+    playSound('click');
+    if (includeUndo) {
+      showStatus("Starting Premium Access purchase...", "info");
+      const res = await handlePurchaseFlow(BILLING_PRODUCTS.PREMIUM_ANALYSIS_MONTHLY);
+      if (res === 'success') {
+        showStatus("Premium unlocked! Starting Undo Add-on purchase...", "info");
+        await handlePurchaseFlow(BILLING_PRODUCTS.PREMIUM_UNDO_ADDON);
+      }
+    } else {
+      await handlePurchaseFlow(BILLING_PRODUCTS.PREMIUM_ANALYSIS_MONTHLY);
+    }
+  };
+
+  const handlePurchase = async (productId: string) => {
+    playSound('click');
+    await handlePurchaseFlow(productId);
   };
 
   const handleRestore = async () => {
@@ -248,15 +271,15 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8 mb-8 md:mb-16">
-              {/* Premium Bundle Card */}
+              {/* Premium Access Card */}
               <motion.div
                 whileHover={{ y: -5 }}
                 className="bg-gradient-to-br from-[#1a0d2e] to-[#0d0620] border-2 border-[#a855f7] rounded-3xl p-4 sm:p-6 md:p-8 text-center shadow-[0_0_50px_rgba(168,85,247,0.2)] relative overflow-hidden flex flex-col premium-card-bundle"
               >
                 <div className="absolute top-0 right-0 p-3 sm:p-4">
-                  <div className="bg-[#a855f7] text-white text-[8px] sm:text-[10px] font-black px-2 py-0.5 sm:px-3 sm:py-1 rounded-full tracking-widest uppercase shadow-lg">PRO SUBSCRIPTION</div>
+                  <div className="bg-[#a855f7] text-white text-[8px] sm:text-[10px] font-black px-2 py-0.5 sm:px-3 sm:py-1 rounded-full tracking-widest uppercase shadow-lg">PRO BUNDLE</div>
                 </div>
-                <h3 className="text-[#c084fc] font-serif tracking-[0.3em] uppercase mb-2 sm:mb-4 text-xs sm:text-sm">PREMIUM ANALYSIS</h3>
+                <h3 className="text-[#c084fc] font-serif tracking-[0.3em] uppercase mb-2 sm:mb-4 text-xs sm:text-sm">PREMIUM ACCESS</h3>
                 
                 {entitlements.hasPremiumAnalysis ? (
                   <div className="my-6 p-4 bg-green-500/10 border border-green-500/20 rounded-2xl flex flex-col items-center justify-center gap-1.5">
@@ -269,7 +292,11 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
                 ) : (
                   <>
                     <div className="flex items-center justify-center gap-1 mb-1 sm:mb-2">
-                      <span className="text-2xl sm:text-4xl md:text-6xl font-black text-[#f5c518]">{getProductPrice(BILLING_PRODUCTS.PREMIUM_ANALYSIS_MONTHLY, "₹149")}</span>
+                      <span className="text-2xl sm:text-4xl md:text-6xl font-black text-[#f5c518]">
+                        ₹{includeUndo 
+                          ? (PRICING_CONFIG.PREMIUM_MONTHLY + PRICING_CONFIG.UNDO_ADDON_MONTHLY) 
+                          : PRICING_CONFIG.PREMIUM_MONTHLY}
+                      </span>
                     </div>
                     <p className="text-white/40 text-[9px] sm:text-sm tracking-widest uppercase mb-4 sm:mb-6">per month</p>
                   </>
@@ -282,16 +309,37 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3 text-white/80 text-xs sm:text-sm premium-benefit-item">
                     <CheckCircle2 size={14} className="text-[#a855f7] shrink-0" />
-                    <span>Mistake, Inaccuracy & Blunder Review</span>
+                    <span>HD Video Export (1080p)</span>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3 text-white/80 text-xs sm:text-sm premium-benefit-item">
                     <CheckCircle2 size={14} className="text-[#a855f7] shrink-0" />
-                    <span>Move-by-Move Suggestion & Details</span>
+                    <span>King Safety & Piece Heatmaps</span>
                   </div>
-                  <div className="flex items-center gap-2 sm:gap-3 text-white/80 text-xs sm:text-sm premium-benefit-item">
-                    <CheckCircle2 size={14} className="text-[#a855f7] shrink-0" />
-                    <span>Detailed King Safety Heatmaps & Stats</span>
-                  </div>
+
+                  {!entitlements.hasPremiumAnalysis && (
+                    <div 
+                      onClick={() => {
+                        playSound('click');
+                        setIncludeUndo(!includeUndo);
+                      }}
+                      className={`mt-4 p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                        includeUndo ? 'border-[#a855f7] bg-[#a855f7]/10' : 'border-white/10 bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                          includeUndo ? 'bg-[#a855f7] border-[#a855f7]' : 'border-white/20'
+                        }`}>
+                          {includeUndo && <CheckCircle2 size={14} className="text-white" />}
+                        </div>
+                        <div className="text-left">
+                          <div className="text-xs font-bold text-white uppercase tracking-wider">Unlimited Undo Add-on</div>
+                          <div className="text-[10px] text-white/40">+₹{PRICING_CONFIG.UNDO_ADDON_MONTHLY} / Month</div>
+                        </div>
+                      </div>
+                      <Zap size={16} className={includeUndo ? 'text-[#a855f7]' : 'text-white/20'} />
+                    </div>
+                  )}
                 </div>
 
                 {!entitlements.hasPremiumAnalysis && (
@@ -299,10 +347,13 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     disabled={purchaseLoading !== null}
-                    onClick={() => handlePurchase(BILLING_PRODUCTS.PREMIUM_ANALYSIS_MONTHLY)}
+                    onClick={handlePremiumPurchase}
                     className="w-full py-3 sm:py-4 bg-gradient-to-r from-[#a855f7] to-[#7c3aed] text-white font-black tracking-[0.2em] rounded-xl sm:rounded-2xl shadow-xl hover:brightness-110 disabled:opacity-50 transition-all uppercase text-[9px] sm:text-sm"
                   >
-                    {purchaseLoading === BILLING_PRODUCTS.PREMIUM_ANALYSIS_MONTHLY ? "Processing..." : "Get Analysis Bundle"}
+                    {purchaseLoading === BILLING_PRODUCTS.PREMIUM_ANALYSIS_MONTHLY || 
+                     purchaseLoading === BILLING_PRODUCTS.PREMIUM_UNDO_ADDON 
+                      ? "Processing..." 
+                      : "Get Premium Bundle"}
                   </motion.button>
                 )}
               </motion.div>
@@ -366,7 +417,7 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
                         <div className="text-[8px] sm:text-[10px] text-white/40 uppercase">30 Days Access</div>
                       </div>
                     </div>
-                    <span className="text-sm sm:text-lg font-black text-[#f5c518]">{getProductPrice(BILLING_PRODUCTS.UNDO_MONTHLY, "₹79")}</span>
+                    <span className="text-sm sm:text-lg font-black text-[#f5c518]">{getProductPrice(BILLING_PRODUCTS.UNDO_MONTHLY, "₹199")}</span>
                   </button>
 
                   <button 
@@ -384,7 +435,7 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
                         <div className="text-[8px] sm:text-[10px] text-white/40 uppercase">365 Days Access</div>
                       </div>
                     </div>
-                    <span className="text-sm sm:text-lg font-black text-[#f5c518]">{getProductPrice(BILLING_PRODUCTS.UNDO_YEARLY, "₹299")}</span>
+                    <span className="text-sm sm:text-lg font-black text-[#f5c518]">{getProductPrice(BILLING_PRODUCTS.UNDO_YEARLY, "₹399")}</span>
                   </button>
                 </div>
 

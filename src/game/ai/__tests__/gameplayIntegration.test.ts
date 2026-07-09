@@ -776,10 +776,11 @@ describe('Gameplay Integration Tests', () => {
   });
 
   it('pricing_config_has_correct_structure', () => {
-    expect(PRICING_CONFIG.PREMIUM_MONTHLY).toBe(149);
+    expect(PRICING_CONFIG.PREMIUM_MONTHLY).toBe(349);
+    expect(PRICING_CONFIG.UNDO_ADDON_MONTHLY).toBe(149);
     expect(PRICING_CONFIG.UNDO_PASS_DAILY).toBe(21);
-    expect(PRICING_CONFIG.UNDO_PASS_MONTHLY).toBe(79);
-    expect(PRICING_CONFIG.UNDO_PASS_YEARLY).toBe(299);
+    expect(PRICING_CONFIG.UNDO_PASS_MONTHLY).toBe(199);
+    expect(PRICING_CONFIG.UNDO_PASS_YEARLY).toBe(399);
   });
 
   it('draws_do_not_reset_current_streak', () => {
