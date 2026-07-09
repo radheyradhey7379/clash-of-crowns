@@ -7,7 +7,18 @@ interface ScreenBackgroundProps {
 }
 
 export default function ScreenBackground({ playerData, opacity = 0.3 }: ScreenBackgroundProps) {
-  const homeAnim = playerData.homeAnimation || 'bg1.mp4';
+  let homeAnim = playerData.homeAnimation || 'bg1.mp4';
+  
+  // Fallback for old/existing users who have deleted animations stored in their preferences
+  if (
+    homeAnim === 'homeanimation.mp4' || 
+    homeAnim === 'homeanimation2.mp4' || 
+    homeAnim === '/homeanimation.mp4' || 
+    homeAnim === '/homeanimation2.mp4'
+  ) {
+    homeAnim = 'bg1.mp4';
+  }
+  
   const animPath = homeAnim.startsWith('/') ? homeAnim : `/${homeAnim}`;
 
   return (
@@ -19,7 +30,10 @@ export default function ScreenBackground({ playerData, opacity = 0.3 }: ScreenBa
         loop
         playsInline
         className="w-full h-full object-cover home-background"
-        style={{ opacity }}
+        style={{ 
+          opacity: opacity * 1.3, // Slightly increase opacity for better visibility
+          filter: 'brightness(1.25) contrast(1.05)' // Boost brightness and contrast for premium visual clarity
+        }}
       >
         <source src={animPath} type="video/mp4" />
       </video>
