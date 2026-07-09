@@ -145,6 +145,16 @@ export function loadPlayerData(): PlayerData {
 
   const data = loadProtectedPlayerData(DEFAULT_PLAYER_DATA);
 
+  // Auto-migrate deleted homeAnimation settings to the new bg1.mp4
+  if (
+    data.homeAnimation === 'homeanimation.mp4' || 
+    data.homeAnimation === 'homeanimation2.mp4' || 
+    data.homeAnimation === '/homeanimation.mp4' || 
+    data.homeAnimation === '/homeanimation2.mp4'
+  ) {
+    data.homeAnimation = 'bg1.mp4';
+  }
+
   // On mobile, if the user has not manually set their graphics preference, force lowGraphics default
   if (!data.graphicsPreferenceSet && isMobileDevice) {
     data.lowGraphics = true;

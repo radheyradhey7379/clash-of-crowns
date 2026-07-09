@@ -24,13 +24,25 @@ export async function syncUserProgress(user: any, localData: PlayerData): Promis
       // Merge logic: prefer server data for critical stats (rating, wins, losses)
       // but keep local settings (music, sfx, etc.) if they are newer?
       // For now, let's just use server data as source of truth for stats.
-      return {
+      const mergedData = {
         ...localData,
         ...serverData,
         uid: user.uid,
         name: user.displayName || serverData.name || localData.name,
         photoURL: user.photoURL || serverData.photoURL || ""
       };
+      
+      // Auto-migrate deleted homeAnimation settings to the new bg1.mp4
+      if (
+        mergedData.homeAnimation === 'homeanimation.mp4' || 
+        mergedData.homeAnimation === 'homeanimation2.mp4' || 
+        mergedData.homeAnimation === '/homeanimation.mp4' || 
+        mergedData.homeAnimation === '/homeanimation2.mp4'
+      ) {
+        mergedData.homeAnimation = 'bg1.mp4';
+      }
+      
+      return mergedData;
     } else {
       // Create new user profile
       const newData = {
