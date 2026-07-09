@@ -55,6 +55,7 @@ export default function LearnScreen({ onNavigate, playerData }: LearnScreenProps
       <LearnDetailScreen 
         lesson={selectedLesson} 
         onBack={() => {
+          isNavigatingRef.current = false;
           setSelectedLesson(null);
           refreshCompletedList();
         }} 

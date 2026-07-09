@@ -11,6 +11,92 @@ import { sendPokeChallenge } from '../../game/social/challengeService';
 import { isChallengeMatchEnabled, isSocialPokeEnabled, getDisabledFeatureMessage } from '../../lib/config/featureFlags';
 import { isOnline, subscribeToNetworkChanges } from '../../lib/offline/networkStatus';
 
+const MOCK_COMP_ENTRIES: LeaderboardEntry[] = [
+  {
+    uid: "mock_ai_1",
+    displayName: "Magnus Bot",
+    mode: "comp_kings",
+    score: 2850,
+    updatedAt: Date.now(),
+    compStats: { compElo: 2850, compTier: "grandmaster", compWins: 540, compMatches: 600, compWinStreak: 25, completedMasterCups: 5, grandmasterDefeated: true }
+  },
+  {
+    uid: "mock_ai_2",
+    displayName: "Hikaru AI",
+    mode: "comp_kings",
+    score: 2820,
+    updatedAt: Date.now(),
+    compStats: { compElo: 2820, compTier: "grandmaster", compWins: 510, compMatches: 580, compWinStreak: 12, completedMasterCups: 4, grandmasterDefeated: true }
+  },
+  {
+    uid: "mock_ai_3",
+    displayName: "Kasparov Bot",
+    mode: "comp_kings",
+    score: 2800,
+    updatedAt: Date.now(),
+    compStats: { compElo: 2800, compTier: "grandmaster", compWins: 490, compMatches: 550, compWinStreak: 8, completedMasterCups: 3, grandmasterDefeated: true }
+  },
+  {
+    uid: "mock_ai_4",
+    displayName: "Stockfish Lite",
+    mode: "comp_kings",
+    score: 2750,
+    updatedAt: Date.now(),
+    compStats: { compElo: 2750, compTier: "master", compWins: 450, compMatches: 520, compWinStreak: 5, completedMasterCups: 2, grandmasterDefeated: true }
+  },
+  {
+    uid: "mock_ai_5",
+    displayName: "Master-Chef",
+    mode: "comp_kings",
+    score: 2400,
+    updatedAt: Date.now(),
+    compStats: { compElo: 2400, compTier: "master", compWins: 320, compMatches: 410, compWinStreak: 4, completedMasterCups: 1, grandmasterDefeated: false }
+  }
+];
+
+const MOCK_ARENA_ENTRIES: LeaderboardEntry[] = [
+  {
+    uid: "mock_player_1",
+    displayName: "PawnCrusher",
+    mode: "arena_kings",
+    score: 2100,
+    updatedAt: Date.now(),
+    arenaStats: { arenaRating: 2100, arenaWins: 120, arenaLosses: 30, arenaDraws: 10, arenaWinRate: 75, arenaMatches: 160 }
+  },
+  {
+    uid: "mock_player_2",
+    displayName: "CastleKnight",
+    mode: "arena_kings",
+    score: 1950,
+    updatedAt: Date.now(),
+    arenaStats: { arenaRating: 1950, arenaWins: 95, arenaLosses: 35, arenaDraws: 15, arenaWinRate: 65, arenaMatches: 145 }
+  },
+  {
+    uid: "mock_player_3",
+    displayName: "QueenGambiteer",
+    mode: "arena_kings",
+    score: 1800,
+    updatedAt: Date.now(),
+    arenaStats: { arenaRating: 1800, arenaWins: 80, arenaLosses: 40, arenaDraws: 20, arenaWinRate: 57, arenaMatches: 140 }
+  },
+  {
+    uid: "mock_player_4",
+    displayName: "DoubleCheck",
+    mode: "arena_kings",
+    score: 1650,
+    updatedAt: Date.now(),
+    arenaStats: { arenaRating: 1650, arenaWins: 65, arenaLosses: 45, arenaDraws: 15, arenaWinRate: 52, arenaMatches: 125 }
+  },
+  {
+    uid: "mock_player_5",
+    displayName: "RookRider",
+    mode: "arena_kings",
+    score: 1500,
+    updatedAt: Date.now(),
+    arenaStats: { arenaRating: 1500, arenaWins: 50, arenaLosses: 50, arenaDraws: 10, arenaWinRate: 45, arenaMatches: 110 }
+  }
+];
+
 export default function LeaderboardScreen({ onNavigate, playerData }: { onNavigate: (screen: AppScreen) => void, playerData: PlayerData }) {
   const [activeTab, setActiveTab] = useState(0); // 0 = Comp Kings, 1 = Arena Kings
   const [loading, setLoading] = useState(true);
@@ -40,42 +126,72 @@ export default function LeaderboardScreen({ onNavigate, playerData }: { onNaviga
   useEffect(() => {
     let active = true;
     async function fetchData() {
-      if (!isOnline()) {
-        setErrorMsg("Internet required for leaderboard.");
-        setEntries([]);
-        setMyRank(-1);
-        setLoading(false);
-        return;
-      }
-
       setLoading(true);
       setErrorMsg(null);
+      
+      const compCacheKey = 'coc_cached_leaderboard_comp';
+      const arenaCacheKey = 'coc_cached_leaderboard_arena';
+      const myCompRankKey = 'coc_cached_my_comp_rank';
+      const myArenaRankKey = 'coc_cached_my_arena_rank';
+
       try {
-        if (activeTab === 0) {
-          const fetchedEntries = await getTopCompKings(20);
-          if (active) {
-            setEntries(fetchedEntries);
-            if (playerData.uid) {
-              const rank = await getMyCompRank(playerData.uid);
-              setMyRank(rank);
+        if (isDeviceOnline) {
+          if (activeTab === 0) {
+            const fetchedEntries = await getTopCompKings(20);
+            if (active) {
+              setEntries(fetchedEntries);
+              localStorage.setItem(compCacheKey, JSON.stringify(fetchedEntries));
+              if (playerData.uid) {
+                const rank = await getMyCompRank(playerData.uid);
+                setMyRank(rank);
+                localStorage.setItem(myCompRankKey, rank.toString());
+              }
+            }
+          } else {
+            const fetchedEntries = await getTopArenaKings(20);
+            if (active) {
+              setEntries(fetchedEntries);
+              localStorage.setItem(arenaCacheKey, JSON.stringify(fetchedEntries));
+              if (playerData.uid) {
+                const rank = await getMyArenaRank(playerData.uid);
+                setMyRank(rank);
+                localStorage.setItem(myArenaRankKey, rank.toString());
+              }
             }
           }
         } else {
-          const fetchedEntries = await getTopArenaKings(20);
-          if (active) {
-            setEntries(fetchedEntries);
-            if (playerData.uid) {
-              const rank = await getMyArenaRank(playerData.uid);
-              setMyRank(rank);
+          // Device is offline, try to load from localStorage cache
+          const cachedJson = localStorage.getItem(activeTab === 0 ? compCacheKey : arenaCacheKey);
+          if (cachedJson) {
+            const parsed = JSON.parse(cachedJson);
+            if (active) {
+              setEntries(parsed);
+              const cachedMyRank = localStorage.getItem(activeTab === 0 ? myCompRankKey : myArenaRankKey);
+              setMyRank(cachedMyRank ? parseInt(cachedMyRank, 10) : -1);
+            }
+          } else {
+            // No cache found, load fallback mock data
+            if (active) {
+              setEntries(activeTab === 0 ? MOCK_COMP_ENTRIES : MOCK_ARENA_ENTRIES);
+              setMyRank(-1);
             }
           }
         }
       } catch (err) {
         if (active) {
-          console.warn('[LeaderboardScreen] Fetch error:', err);
-          setErrorMsg("Unable to load leaderboard. Try again.");
-          setEntries([]);
-          setMyRank(-1);
+          console.warn('[LeaderboardScreen] Fetch error, trying cache/mock fallback:', err);
+          // Try loading from cache on error
+          const cachedJson = localStorage.getItem(activeTab === 0 ? compCacheKey : arenaCacheKey);
+          if (cachedJson) {
+            const parsed = JSON.parse(cachedJson);
+            setEntries(parsed);
+            const cachedMyRank = localStorage.getItem(activeTab === 0 ? myCompRankKey : myArenaRankKey);
+            setMyRank(cachedMyRank ? parseInt(cachedMyRank, 10) : -1);
+          } else {
+            // Mock fallback
+            setEntries(activeTab === 0 ? MOCK_COMP_ENTRIES : MOCK_ARENA_ENTRIES);
+            setMyRank(-1);
+          }
         }
       } finally {
         if (active) {
@@ -147,7 +263,12 @@ export default function LeaderboardScreen({ onNavigate, playerData }: { onNaviga
         </motion.button>
         <div className="flex items-center gap-3">
           <Trophy size={24} className="text-[#d9ad33]" />
-          <h1 className="text-2xl font-bold text-[#d9ad33] tracking-[0.3em] font-serif uppercase">LEADERBOARD</h1>
+          <div className="flex flex-col items-start">
+            <h1 className="text-2xl font-bold text-[#d9ad33] tracking-[0.3em] font-serif uppercase">LEADERBOARD</h1>
+            {!isDeviceOnline && (
+              <span className="text-[7px] font-black tracking-widest text-orange-400 uppercase bg-orange-500/10 border border-orange-500/25 px-2 py-0.5 rounded-full mt-1.5 animate-pulse">Offline Mode</span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <motion.button

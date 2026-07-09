@@ -8,8 +8,8 @@ import { playSound } from '../../lib/sounds';
 import { BILLING_PRODUCTS } from '../../config/products';
 import { playBillingService } from '../../services/billing/playBillingService';
 import { purchaseVerificationService } from '../../services/billing/purchaseVerificationService';
-import { UserEntitlements, PlayBillingProduct } from '../../types/billingTypes';
 import { auth } from '../../firebase';
+import { PRICING_CONFIG } from '../../config/pricing';
 
 interface PremiumScreenProps {
   onNavigate: (screen: AppScreen) => void;

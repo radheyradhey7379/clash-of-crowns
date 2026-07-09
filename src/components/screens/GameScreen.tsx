@@ -76,7 +76,7 @@ interface GameScreenProps {
 }
 
 function CameraDirector({ turn, playerColor, isLocalVS, isCameraLocked, isMobile, isCameraAutoRotate }: { turn: 'w' | 'b', playerColor: 'w' | 'b' | null, isLocalVS: boolean, isCameraLocked: boolean, isMobile: boolean, isCameraAutoRotate: boolean }) {
-  const { camera } = useThree();
+  const { camera, controls } = useThree();
   const lastTargetPerspective = useRef<'w' | 'b'>(playerColor || 'w');
   const [isRotating, setIsRotating] = useState(false);
 
@@ -86,10 +86,12 @@ function CameraDirector({ turn, playerColor, isLocalVS, isCameraLocked, isMobile
       if (isCameraAutoRotate && !isMobile) {
         return turn; // Auto-rotate by active turn in local friend mode
       }
-      return playerColor || 'w'; // Fixed side
+      return 'w'; // Fixed side
     } else {
-      // Comp Career, VS Computer, or Multiplayer: always lock to player's color perspective
-      return playerColor || 'w';
+      // Comp Career, VS Computer, or Multiplayer: board is already physically flipped using shouldFlip
+      // when playing as Black, so we must always keep the camera at White's perspective (Z = -12)
+      // to let the flipped board display correctly.
+      return 'w';
     }
   };
 
@@ -103,28 +105,40 @@ function CameraDirector({ turn, playerColor, isLocalVS, isCameraLocked, isMobile
   }, [targetSide]);
 
   useFrame(() => {
-    if (!isRotating || isCameraLocked) return;
+    if (isRotating && !isCameraLocked) {
+      const isWhiteTarget = targetSide === 'w';
+      const targetZ = isWhiteTarget ? -12 : 12;
+      const targetX = 0;
+      const targetY = 10;
 
-    const isWhiteTarget = targetSide === 'w';
-    const targetZ = isWhiteTarget ? -12 : 12;
-    const targetX = 0;
-    const targetY = 10;
+      // Disable orbit controls while rotating so they don't fight
+      if (controls) {
+        (controls as any).enabled = false;
+      }
 
-    // Smoothly interpolate camera position
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.05);
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, 0.05);
-    camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, 0.05);
-    
-    camera.lookAt(0, 1.5, 0);
+      // Smoothly interpolate camera position
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.05);
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, 0.05);
+      camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, 0.05);
+      
+      camera.lookAt(0, 1.5, 0);
 
-    // If close enough to target, finish rotating
-    const dist = Math.sqrt(
-      Math.pow(camera.position.x - targetX, 2) +
-      Math.pow(camera.position.y - targetY, 2) +
-      Math.pow(camera.position.z - targetZ, 2)
-    );
-    if (dist < 0.05) {
-      setIsRotating(false);
+      if (controls) {
+        (controls as any).update();
+      }
+
+      // If close enough to target, finish rotating and re-enable controls
+      const dist = Math.sqrt(
+        Math.pow(camera.position.x - targetX, 2) +
+        Math.pow(camera.position.y - targetY, 2) +
+        Math.pow(camera.position.z - targetZ, 2)
+      );
+      if (dist < 0.05) {
+        setIsRotating(false);
+        if (controls) {
+          (controls as any).enabled = true;
+        }
+      }
     }
   });
 
@@ -132,12 +146,15 @@ function CameraDirector({ turn, playerColor, isLocalVS, isCameraLocked, isMobile
 }
 
 function CameraResetter({ playerColor }: { playerColor: 'w' | 'b' | null }) {
-  const { camera } = useThree();
+  const { camera, controls } = useThree();
   useEffect(() => {
-    const isBlack = playerColor === 'b';
-    camera.position.set(0, 10, isBlack ? 12 : -12);
+    // Camera always starts at Z = -12 because board is flipped using shouldFlip
+    camera.position.set(0, 10, -12);
     camera.lookAt(0, 1.5, 0);
-  }, [playerColor, camera]);
+    if (controls) {
+      (controls as any).update();
+    }
+  }, [camera, controls]);
   return null;
 }
 const getPieceUnicode = (type: string) => {
