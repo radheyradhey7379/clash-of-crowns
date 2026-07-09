@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PlayerData } from '../../types';
 
 interface ScreenBackgroundProps {
@@ -7,6 +7,8 @@ interface ScreenBackgroundProps {
 }
 
 export default function ScreenBackground({ playerData, opacity = 0.3 }: ScreenBackgroundProps) {
+  const [isReady, setIsReady] = useState(false);
+  
   let homeAnim = playerData.homeAnimation || 'bg1.mp4';
   
   // Fallback for old/existing users who have deleted animations stored in their preferences
@@ -23,15 +25,40 @@ export default function ScreenBackground({ playerData, opacity = 0.3 }: ScreenBa
 
   return (
     <div className="absolute inset-0 z-0 bg-[#000]">
+      {/* Inject custom CSS rules to completely hide Android WebView and iOS Safari media play button overlays */}
+      <style>{`
+        video::-webkit-media-controls {
+          display: none !important;
+        }
+        video::-webkit-media-controls-start-playback-button {
+          display: none !important;
+          -webkit-appearance: none;
+        }
+        video::-webkit-media-controls-panel {
+          display: none !important;
+          -webkit-appearance: none;
+        }
+        video::-webkit-media-controls-play-button {
+          display: none !important;
+          -webkit-appearance: none;
+        }
+        video::-webkit-media-controls-overlay-play-button {
+          display: none !important;
+          -webkit-appearance: none;
+        }
+      `}</style>
       <video
         key={animPath}
         autoPlay
         muted
         loop
         playsInline
+        webkit-playsinline="true"
+        onPlaying={() => setIsReady(true)}
         className="w-full h-full object-cover home-background"
         style={{ 
-          opacity: opacity * 1.3, // Slightly increase opacity for better visibility
+          opacity: isReady ? opacity * 1.3 : 0, 
+          transition: 'opacity 0.6s ease-in-out', // Smooth premium fade-in once video playback starts
           filter: 'brightness(1.25) contrast(1.05)' // Boost brightness and contrast for premium visual clarity
         }}
       >
