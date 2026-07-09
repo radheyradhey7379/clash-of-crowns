@@ -123,18 +123,24 @@ public class PlayBillingPlugin extends Plugin {
         }
 
         ensureBillingClientConnection(() -> {
-            List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
+            List<QueryProductDetailsParams.Product> subsList = new ArrayList<>();
+            List<QueryProductDetailsParams.Product> inappList = new ArrayList<>();
+            
             try {
                 for (int i = 0; i < productIdsArray.length(); i++) {
                     String id = productIdsArray.getString(i);
                     if (id != null) {
                         String type = getProductType(id);
-                        productList.add(
-                            QueryProductDetailsParams.Product.newBuilder()
-                                .setProductId(id)
-                                .setProductType(type)
-                                .build()
-                        );
+                        QueryProductDetailsParams.Product product = QueryProductDetailsParams.Product.newBuilder()
+                            .setProductId(id)
+                            .setProductType(type)
+                            .build();
+                        
+                        if (type.equals(BillingClient.ProductType.SUBS)) {
+                            subsList.add(product);
+                        } else {
+                            inappList.add(product);
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -142,23 +148,41 @@ public class PlayBillingPlugin extends Plugin {
                 return;
             }
 
-            QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
-                .setProductList(productList)
-                .build();
+            final JSArray combinedArr = new JSArray();
+            final int[] pendingQueries = { 0 };
+            if (!subsList.isEmpty()) pendingQueries[0]++;
+            if (!inappList.isEmpty()) pendingQueries[0]++;
 
-            try {
-                billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsResult) -> {
-                    try {
-                        if (billingResult == null) {
-                            call.reject("Billing result is null");
-                            return;
-                        }
-                        if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                            JSArray resultArr = new JSArray();
-                            if (productDetailsResult != null) {
-                                List<ProductDetails> productDetailsList = productDetailsResult.getProductDetailsList();
-                                if (productDetailsList != null) {
-                                    for (ProductDetails details : productDetailsList) {
+            if (pendingQueries[0] == 0) {
+                JSObject response = new JSObject();
+                response.put("products", combinedArr);
+                call.resolve(response);
+                return;
+            }
+
+            Runnable checkCompletion = () -> {
+                synchronized (pendingQueries) {
+                    pendingQueries[0]--;
+                    if (pendingQueries[0] <= 0) {
+                        JSObject response = new JSObject();
+                        response.put("products", combinedArr);
+                        call.resolve(response);
+                    }
+                }
+            };
+
+            // Query SUBS (Google Play Billing does not support mixing INAPP and SUBS in setProductList)
+            if (!subsList.isEmpty()) {
+                QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
+                    .setProductList(subsList)
+                    .build();
+                try {
+                    billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsResult) -> {
+                        try {
+                            if (billingResult != null && billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK && productDetailsResult != null) {
+                                List<ProductDetails> detailsList = productDetailsResult.getProductDetailsList();
+                                if (detailsList != null) {
+                                    for (ProductDetails details : detailsList) {
                                         if (details != null) {
                                             JSObject obj = new JSObject();
                                             obj.put("productId", details.getProductId());
@@ -166,44 +190,77 @@ public class PlayBillingPlugin extends Plugin {
                                             obj.put("description", details.getDescription());
                                             obj.put("type", details.getProductType());
 
-                                            // Get formatted pricing details
-                                            if (details.getProductType().equals(BillingClient.ProductType.INAPP)) {
-                                                ProductDetails.OneTimePurchaseOfferDetails offer = details.getOneTimePurchaseOfferDetails();
-                                                if (offer != null) {
-                                                    obj.put("price", offer.getFormattedPrice());
-                                                }
-                                            } else {
-                                                List<ProductDetails.SubscriptionOfferDetails> offers = details.getSubscriptionOfferDetails();
-                                                if (offers != null && !offers.isEmpty()) {
-                                                    ProductDetails.SubscriptionOfferDetails firstOffer = offers.get(0);
-                                                    if (firstOffer != null && firstOffer.getPricingPhases() != null) {
-                                                        List<ProductDetails.PricingPhase> phases = firstOffer.getPricingPhases().getPricingPhaseList();
-                                                        if (phases != null && !phases.isEmpty()) {
-                                                            obj.put("price", phases.get(0).getFormattedPrice());
-                                                        }
+                                            List<ProductDetails.SubscriptionOfferDetails> offers = details.getSubscriptionOfferDetails();
+                                            if (offers != null && !offers.isEmpty()) {
+                                                ProductDetails.SubscriptionOfferDetails firstOffer = offers.get(0);
+                                                if (firstOffer != null && firstOffer.getPricingPhases() != null) {
+                                                    List<ProductDetails.PricingPhase> phases = firstOffer.getPricingPhases().getPricingPhaseList();
+                                                    if (phases != null && !phases.isEmpty()) {
+                                                        obj.put("price", phases.get(0).getFormattedPrice());
                                                     }
                                                 }
                                             }
-                                            resultArr.put(obj);
+                                            synchronized (combinedArr) {
+                                                combinedArr.put(obj);
+                                            }
                                         }
                                     }
                                 }
                             }
-                            JSObject response = new JSObject();
-                            response.put("products", resultArr);
-                            call.resolve(response);
-                        } else {
-                            call.reject("Failed to query products from Google Play: " + billingResult.getDebugMessage());
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error parsing SUBS product details callback", e);
+                        } finally {
+                            checkCompletion.run();
                         }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in queryProductDetailsAsync callback", e);
-                        call.reject("Internal error parsing product details: " + e.getMessage());
-                    }
-                });
-            } catch (Exception e) {
-                Log.e(TAG, "Error initiating queryProductDetailsAsync", e);
-                call.reject("Failed to initiate query: " + e.getMessage());
+                    });
+                } catch (Exception e) {
+                    Log.e(TAG, "Error initiating SUBS queryProductDetailsAsync", e);
+                    checkCompletion.run();
+                }
             }
+
+            // Query INAPP
+            if (!inappList.isEmpty()) {
+                QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
+                    .setProductList(inappList)
+                    .build();
+                try {
+                    billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsResult) -> {
+                        try {
+                            if (billingResult != null && billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK && productDetailsResult != null) {
+                                List<ProductDetails> detailsList = productDetailsResult.getProductDetailsList();
+                                if (detailsList != null) {
+                                    for (ProductDetails details : detailsList) {
+                                        if (details != null) {
+                                            JSObject obj = new JSObject();
+                                            obj.put("productId", details.getProductId());
+                                            obj.put("title", details.getTitle());
+                                            obj.put("description", details.getDescription());
+                                            obj.put("type", details.getProductType());
+
+                                            ProductDetails.OneTimePurchaseOfferDetails offer = details.getOneTimePurchaseOfferDetails();
+                                            if (offer != null) {
+                                                obj.put("price", offer.getFormattedPrice());
+                                            }
+                                            synchronized (combinedArr) {
+                                                combinedArr.put(obj);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error parsing INAPP product details callback", e);
+                        } finally {
+                            checkCompletion.run();
+                        }
+                    });
+                } catch (Exception e) {
+                    Log.e(TAG, "Error initiating INAPP queryProductDetailsAsync", e);
+                    checkCompletion.run();
+                }
+            }
+
         }, () -> call.reject("Google Play Billing client not connected"));
     }
 
