@@ -44,7 +44,7 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   dailyUndoCount: 0,
   lastUndoDate: new Date().toDateString(),
   selectedPieceSet: 'classic',
-  homeAnimation: 'homeanimation.mp4',
+  homeAnimation: 'bg1.mp4',
   boardTheme: 'classic',
   preferredSide: 'w',
   lowGraphics: false,

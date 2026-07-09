@@ -53,8 +53,7 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
   ] as const;
 
   const animations = [
-    { id: '/homeanimation.mp4', name: 'Default', description: 'Standard cinematic view' },
-    { id: '/homeanimation2.mp4', name: 'Cinematic', description: 'Dramatic camera angles' },
+    { id: '/bg1.mp4', name: 'Royal Palace', description: 'Cinematic animated background' },
   ];
 
   const handlePendingUpdate = (key: keyof typeof pendingData, value: any) => {

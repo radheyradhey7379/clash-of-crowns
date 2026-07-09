@@ -20,7 +20,7 @@ const CORE_ASSETS = [
   './piecesound.mp3',
   './victory.mp3',
   './defeat.mp3',
-  './home-bg-mobile.webp'
+  './bg1.mp4'
 ];
 
 export function getOfflinePackageMetadata(): OfflinePackageMetadata {
