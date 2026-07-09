@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Text, Sparkles, Float, Environment } from '@react-three/drei';
 import * as THREE from 'three';
+import CheckAttackOverlay3D from '../board/CheckAttackOverlay3D';
 
 interface ChessBoard3DProps {
   board: any[][];
@@ -10,6 +11,7 @@ interface ChessBoard3DProps {
   validMoves: any[];
   lastMove: { from: string; to: string } | null;
   checkInfo: { king: string; checker: string } | null;
+  checkVisual?: { isCheck: boolean; kingSquare: string | null; attackerSquares: string[] };
   chess: any;
   setBoard: (board: any) => void;
   setTurn: (turn: 'w' | 'b') => void;
@@ -38,6 +40,7 @@ export default function ChessBoard3D({
   validMoves,
   lastMove,
   checkInfo,
+  checkVisual,
   chess,
   setBoard,
   setTurn,
@@ -222,14 +225,15 @@ export default function ChessBoard3D({
       {/* Captured Pieces Display */}
       <CapturedPieces pieces={capturedPieces.w} side="left" squareSize={squareSize} color="w" pieceSet={selectedPieceSet} />
       <CapturedPieces pieces={capturedPieces.b} side="right" squareSize={squareSize} color="b" pieceSet={selectedPieceSet} />
-      {/* Check Line */}
-      {checkInfo && (
-        <CheckLine 
-          from={checkInfo.checker} 
-          to={checkInfo.king} 
-          squareSize={squareSize} 
+      {/* Check Attack Overlay 3D */}
+      {checkVisual && (
+        <CheckAttackOverlay3D
+          squareSize={squareSize}
+          shouldFlip={shouldFlip}
+          attackerSquares={checkVisual.attackerSquares}
+          kingSquare={checkVisual.kingSquare}
+          isCheck={checkVisual.isCheck}
           lowGraphics={lowGraphics}
-          isAIThinking={isAIThinking}
         />
       )}
 
@@ -765,148 +769,7 @@ function KingModel({ material, lowGraphics }: { material: any, lowGraphics?: boo
   );
 }
 
-function CheckLine({ from, to, squareSize, lowGraphics, isAIThinking }: { from: string, to: string, squareSize: number, lowGraphics?: boolean, isAIThinking?: boolean }) {
-  const fromPos = React.useMemo(() => new THREE.Vector3(
-    (from.charCodeAt(0) - 97 - 3.5) * squareSize,
-    0.5,
-    (parseInt(from[1]) - 1 - 3.5) * squareSize
-  ), [from, squareSize]);
 
-  const toPos = React.useMemo(() => new THREE.Vector3(
-    (to.charCodeAt(0) - 97 - 3.5) * squareSize,
-    0.5,
-    (parseInt(to[1]) - 1 - 3.5) * squareSize
-  ), [to, squareSize]);
-
-  const curve = React.useMemo(() => new THREE.CatmullRomCurve3([
-    fromPos,
-    new THREE.Vector3().lerpVectors(fromPos, toPos, 0.5).add(new THREE.Vector3(0, 2.5, 0)),
-    toPos
-  ]), [fromPos, toPos]);
-
-  const midPos = React.useMemo(() => new THREE.Vector3().lerpVectors(fromPos, toPos, 0.5).add(new THREE.Vector3(0, 1, 0)), [fromPos, toPos]);
-  const lightPos = React.useMemo(() => toPos.clone().add(new THREE.Vector3(0, 1, 0)), [toPos]);
-  const impactPos = React.useMemo(() => [toPos.x, 1.63, toPos.z] as [number, number, number], [toPos]);
-  const swirlPos = React.useMemo(() => toPos.clone().add(new THREE.Vector3(0, 0.8, 0)), [toPos]);
-
-  const ringRef1 = useRef<THREE.Group>(null);
-  const ringRef2 = useRef<THREE.Group>(null);
-  const beamRef = useRef<THREE.Group>(null);
-
-  useFrame((state) => {
-    if (lowGraphics || isAIThinking) return; // Skip animations in lowGraphics or during AI thinking to save CPU cycles!
-    const t = state.clock.elapsedTime;
-    if (ringRef1.current) {
-      ringRef1.current.rotation.z = t * 2;
-      ringRef1.current.rotation.y = t * 1.5;
-      ringRef1.current.scale.setScalar(1 + Math.sin(t * 4) * 0.1);
-    }
-    if (ringRef2.current) {
-      ringRef2.current.rotation.z = -t * 2.5;
-      ringRef2.current.rotation.x = t * 1.2;
-      ringRef2.current.scale.setScalar(0.8 + Math.cos(t * 3) * 0.15);
-    }
-    if (beamRef.current) {
-      beamRef.current.rotation.y = t * 5;
-    }
-  });
-
-  return (
-    <group>
-      {lowGraphics ? (
-        <mesh>
-          <tubeGeometry args={[curve, 16, 0.02, 4, false]} />
-          <meshBasicMaterial color="#d9ad33" transparent opacity={0.3} />
-        </mesh>
-      ) : (
-        <>
-          <group ref={beamRef}>
-            {[0, 1, 2].map((i) => (
-              <mesh key={i} rotation={[0, (i * Math.PI * 2) / 3, 0]}>
-                <tubeGeometry args={[curve, 64, 0.02, 8, false]} />
-                <meshStandardMaterial 
-                  color="#d9ad33" 
-                  emissive="#8c661a" 
-                  emissiveIntensity={0.5} 
-                  transparent 
-                  opacity={0.3} 
-                />
-              </mesh>
-            ))}
-          </group>
-
-          <mesh>
-            <tubeGeometry args={[curve, 64, 0.08, 8, false]} />
-            <meshStandardMaterial 
-              color="#d9ad33" 
-              emissive="#d9ad33" 
-              emissiveIntensity={0.3} 
-              transparent 
-              opacity={0.1} 
-              blending={THREE.AdditiveBlending}
-            />
-          </mesh>
-
-          {!lowGraphics && !isAIThinking && (
-            <Sparkles 
-              count={30} 
-              scale={[squareSize * 4, 3, squareSize * 4]} 
-              position={midPos}
-              color="#d9ad33" 
-              size={1} 
-              speed={0.2} 
-              noise={1} 
-            />
-          )}
-
-          <group position={swirlPos}>
-            <group ref={ringRef1}>
-              <mesh>
-                <torusGeometry args={[0.6, 0.01, 16, 100]} />
-                <meshStandardMaterial color="#d9ad33" emissive="#d9ad33" emissiveIntensity={0.5} transparent opacity={0.4} />
-              </mesh>
-            </group>
-            <group ref={ringRef2}>
-              <mesh rotation={[Math.PI / 2, 0, 0]}>
-                <torusGeometry args={[0.45, 0.008, 16, 100]} />
-                <meshStandardMaterial color="#f5d666" emissive="#d9ad33" emissiveIntensity={0.8} transparent opacity={0.3} />
-              </mesh>
-            </group>
-            
-            <Float speed={isAIThinking ? 0 : 5} rotationIntensity={0} floatIntensity={isAIThinking ? 0 : 2}>
-              <mesh position={[0, 0.2, 0]}>
-                <cylinderGeometry args={[0.05, 0.3, 1.5, 32, 1, true]} />
-                <meshStandardMaterial 
-                  color="#d9ad33" 
-                  emissive="#d9ad33" 
-                  emissiveIntensity={1} 
-                  transparent 
-                  opacity={0.1} 
-                  blending={THREE.AdditiveBlending}
-                  side={THREE.DoubleSide}
-                />
-              </mesh>
-            </Float>
-          </group>
-
-          <mesh position={impactPos} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[1.5, 1.5]} />
-            <meshStandardMaterial 
-              color="#d9ad33" 
-              emissive="#d9ad33" 
-              emissiveIntensity={0.5} 
-              transparent 
-              opacity={0.1} 
-              blending={THREE.AdditiveBlending}
-            />
-          </mesh>
-
-          <pointLight position={lightPos} color="#d9ad33" intensity={2} distance={5} />
-        </>
-      )}
-    </group>
-  );
-}
 
 export function CameraGuard() {
   const { camera } = useThree();
@@ -1040,7 +903,7 @@ export function Room() {
             <sphereGeometry args={[0.3, 16, 16]} />
             <meshStandardMaterial emissive="#ffbd52" emissiveIntensity={2} color="#fff" />
           </mesh>
-          <pointLight intensity={3} distance={50} color="#ffbd52" castShadow />
+          <pointLight intensity={3} distance={50} color="#ffbd52" />
         </group>
       ))}
 

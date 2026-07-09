@@ -26,13 +26,13 @@ pub enum ClientMessage {
 
     SubmitMove {
         room_id: String,
-        move_number: u32,
-        from: String,
-        to: String,
-        promotion: Option<String>,
-        fen_after: String,
-        san: Option<String>,
-        client_message_id: Option<String>,
+        match_id: String,
+        player_id: String,
+        session_id: String,
+        move_uci: String,
+        client_move_number: u32,
+        client_fen_before: String,
+        timestamp: u64,
     },
 
     OfferDraw {
@@ -154,5 +154,10 @@ pub enum ServerMessage {
 
     Pong {
         server_time: i64,
+    },
+
+    ResyncRequired {
+        official_fen: String,
+        move_number: u32,
     },
 }

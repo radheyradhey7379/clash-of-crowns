@@ -8,6 +8,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        registerPlugin(PlayBillingPlugin.class);
         super.onCreate(savedInstanceState);
         
         // Force background colors and layout under cutout

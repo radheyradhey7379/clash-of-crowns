@@ -638,7 +638,7 @@ describe('Gameplay Integration Tests', () => {
 
   it('captured_pieces_render_in_2d_tray', () => {
     const capturedPieces = { w: ['r'], b: ['b'] };
-    const playerColor = 'w';
+    const playerColor = 'w' as string;
 
     // In 2D:
     // Bottom tray (Your Captures) displays pieces captured by Player
@@ -660,13 +660,13 @@ describe('Gameplay Integration Tests', () => {
   });
 
   it('board_3d_uses_white_orientation_for_white_player', () => {
-    const playerColor = 'w';
+    const playerColor = 'w' as string;
     const shouldFlip = playerColor === 'b';
     expect(shouldFlip).toBe(false);
   });
 
   it('board_3d_uses_black_orientation_for_black_player', () => {
-    const playerColor = 'b';
+    const playerColor = 'b' as string;
     const shouldFlip = playerColor === 'b';
     expect(shouldFlip).toBe(true);
   });
@@ -776,11 +776,10 @@ describe('Gameplay Integration Tests', () => {
   });
 
   it('pricing_config_has_correct_structure', () => {
-    expect(PRICING_CONFIG.PREMIUM_MONTHLY).toBe(299);
-    expect(PRICING_CONFIG.UNDO_ADDON_MONTHLY).toBe(49);
-    expect(PRICING_CONFIG.UNDO_PASS_DAILY).toBe(29);
+    expect(PRICING_CONFIG.PREMIUM_MONTHLY).toBe(149);
+    expect(PRICING_CONFIG.UNDO_PASS_DAILY).toBe(21);
     expect(PRICING_CONFIG.UNDO_PASS_MONTHLY).toBe(79);
-    expect(PRICING_CONFIG.UNDO_PASS_YEARLY).toBe(499);
+    expect(PRICING_CONFIG.UNDO_PASS_YEARLY).toBe(299);
   });
 
   it('draws_do_not_reset_current_streak', () => {

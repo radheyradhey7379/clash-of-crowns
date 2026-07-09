@@ -251,17 +251,26 @@ export class RealtimeClient {
     });
   }
 
-  public submitRealtimeMove(payload: RealtimeMovePayload) {
+  public submitRealtimeMove(payload: {
+    roomId: string;
+    matchId: string;
+    playerId: string;
+    sessionId: string;
+    moveUci: string;
+    clientMoveNumber: number;
+    clientFenBefore: string;
+    timestamp: number;
+  }) {
     this.sendMessage({
       type: 'submit_move',
       room_id: payload.roomId,
-      move_number: payload.moveNumber,
-      from: payload.from,
-      to: payload.to,
-      promotion: payload.promotion || null,
-      fen_after: payload.fenAfter,
-      san: payload.san || null,
-      client_message_id: payload.clientMessageId || null,
+      match_id: payload.matchId,
+      player_id: payload.playerId,
+      session_id: payload.sessionId,
+      move_uci: payload.moveUci,
+      client_move_number: payload.clientMoveNumber,
+      client_fen_before: payload.clientFenBefore,
+      timestamp: payload.timestamp,
     });
   }
 

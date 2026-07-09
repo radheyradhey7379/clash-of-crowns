@@ -29,10 +29,29 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isMounted = useRef(true);
   const narrationTimeoutRef = useRef<any>(null);
+  const sentenceTimeoutRef = useRef<any>(null);
+  const isNarratingRef = useRef(false);
+  const isDemoPlayingRef = useRef(false);
+
+  // Auto-save completed lesson state to localStorage on puzzle success
+  useEffect(() => {
+    if (puzzleState === 'success') {
+      try {
+        const completed = JSON.parse(localStorage.getItem('clash_academy_completed_lessons') || '[]');
+        if (!completed.includes(lesson.id)) {
+          completed.push(lesson.id);
+          localStorage.setItem('clash_academy_completed_lessons', JSON.stringify(completed));
+        }
+      } catch (err) {
+        console.error('Failed to save lesson progress:', err);
+      }
+    }
+  }, [puzzleState, lesson.id]);
 
   // Reset logic when lesson changes
   useEffect(() => {
     isMounted.current = true;
+    isDemoPlayingRef.current = false;
     setLogic(new ChessLogic(lesson.fen));
     setSelectedSquare(null);
     setValidMoves([]);
@@ -44,6 +63,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
 
     return () => {
       isMounted.current = false;
+      isDemoPlayingRef.current = false;
       stopNarration();
     };
   }, [lesson]);
@@ -63,9 +83,17 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
   }, []);
 
   const stopNarration = () => {
+    isNarratingRef.current = false;
     if (narrationTimeoutRef.current) {
       clearTimeout(narrationTimeoutRef.current);
       narrationTimeoutRef.current = null;
+    }
+    if (sentenceTimeoutRef.current) {
+      clearTimeout(sentenceTimeoutRef.current);
+      sentenceTimeoutRef.current = null;
+    }
+    if (typeof window !== 'undefined') {
+      (window as any).activeUtterances = [];
     }
     if (audioRef.current) {
       audioRef.current.pause();
@@ -91,12 +119,15 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
 
     try {
       window.speechSynthesis.cancel();
+      isNarratingRef.current = true;
       
       let targetLang = 'en-US';
       if (lang === 'hi') {
         targetLang = 'hi-IN';
       } else if (lang === 'ar') {
         targetLang = 'ar-SA';
+      } else if (lang === 'ur') {
+        targetLang = 'ur-PK';
       }
       
       // Select matching voice
@@ -109,50 +140,110 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
         if (lang === 'ar') {
           return vLang.startsWith('ar');
         }
+        if (lang === 'ur') {
+          return vLang.startsWith('ur');
+        }
         return vLang === targetLang.toLowerCase() || vLang.startsWith(targetLang.split('-')[0].toLowerCase());
       });
       
+      const localTransText = lang !== 'en' ? getLocalLessonText(lesson.id, lang) : '';
+      const uiText = alternativeTranslatedText || localTransText || text;
+      
       let speechText = "";
       if (matchingVoice) {
-        const localTransText = lang !== 'en' ? getLocalLessonText(lesson.id, lang) : '';
-        speechText = alternativeTranslatedText || localTransText || text;
+        speechText = uiText;
       } else {
         // Fallback: If no native voice is installed on user's system, read English text in English
         speechText = text;
         targetLang = 'en-US';
         if (lang !== 'en') {
-          setVoiceAlert("Native Hindi/Arabic voice not found on this device. Narrating in English.");
+          const langNames = { hi: 'Hindi', ar: 'Arabic', ur: 'Urdu', en: 'English' };
+          const langName = langNames[lang] || lang;
+          setVoiceAlert(`Native ${langName} voice not found on this device. Narrating in English.`);
           setTimeout(() => {
             if (isMounted.current) setVoiceAlert(null);
           }, 5000);
         }
       }
 
-      setNarrationText(speechText);
+      setNarrationText(uiText);
       setIsFallback(true);
 
-      const utterance = new SpeechSynthesisUtterance(speechText);
-      utterance.lang = targetLang;
+      // Split the text into smaller sentences to avoid browser speech truncation bugs (including Urdu full stop '۔')
+      const sentences = speechText
+        .split(/[।\.!\?۔]/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
 
-      if (matchingVoice) {
-        utterance.voice = matchingVoice;
+      if (sentences.length === 0) {
+        stopNarration();
+        return false;
       }
 
-      utterance.onend = () => {
-        if (isMounted.current) {
-          stopNarration();
-        }
-      };
+      const speakSentence = (index: number) => {
+        if (!isMounted.current || !isNarratingRef.current) return;
 
-      utterance.onerror = (e) => {
-        console.error("SpeechSynthesis utterance error:", e);
-        if (isMounted.current) {
+        if (index >= sentences.length) {
           stopNarration();
+          return;
         }
+
+        if (sentenceTimeoutRef.current) {
+          clearTimeout(sentenceTimeoutRef.current);
+          sentenceTimeoutRef.current = null;
+        }
+
+        const sentenceText = sentences[index];
+        const utterance = new SpeechSynthesisUtterance(sentenceText);
+        utterance.lang = targetLang;
+        if (matchingVoice) {
+          utterance.voice = matchingVoice;
+        }
+
+        // Keep a strong reference to the utterance object to prevent Google Chrome garbage collecting it mid-speech
+        (window as any).activeUtterances = (window as any).activeUtterances || [];
+        (window as any).activeUtterances.push(utterance);
+
+        let hasEnded = false;
+        const triggerNext = () => {
+          if (hasEnded) return;
+          hasEnded = true;
+          if (sentenceTimeoutRef.current) {
+            clearTimeout(sentenceTimeoutRef.current);
+            sentenceTimeoutRef.current = null;
+          }
+          if ((window as any).activeUtterances) {
+            const idx = (window as any).activeUtterances.indexOf(utterance);
+            if (idx > -1) {
+              (window as any).activeUtterances.splice(idx, 1);
+            }
+          }
+          if (isMounted.current && isNarratingRef.current) {
+            speakSentence(index + 1);
+          }
+        };
+
+        utterance.onend = () => {
+          triggerNext();
+        };
+
+        utterance.onerror = (e) => {
+          console.error("SpeechSynthesis utterance error:", e);
+          triggerNext();
+        };
+
+        // Safety backup timer to automatically progress if onend fails to fire (150ms per character + 1.5s buffer)
+        const estimatedDuration = (sentenceText.length * 150) + 1500;
+        sentenceTimeoutRef.current = setTimeout(() => {
+          console.warn("[SpeechSynthesis] Backup progress timer fired for sentence:", index);
+          triggerNext();
+        }, estimatedDuration);
+
+        window.speechSynthesis.speak(utterance);
       };
 
       window.speechSynthesis.resume();
-      window.speechSynthesis.speak(utterance);
+      speakSentence(0);
       return true;
     } catch (err) {
       console.error("Failed to play speechSynthesis:", err);
@@ -174,6 +265,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
     
     setNarrationLang(lang);
     setIsFallback(false);
+    isNarratingRef.current = true;
     
     const rulesPrefix = lang === 'hi' ? 'नियम' : lang === 'ar' ? 'القواعد' : 'Rules';
     const fullText = `${lesson.title}. ${lesson.description}. ${rulesPrefix}: ${lesson.rules.join('. ')}`;
@@ -306,15 +398,19 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
 
   const playDemo = async () => {
     if (!lesson.demoMoves || lesson.demoMoves.length === 0) return;
-    
+    if (isDemoPlayingRef.current) return;
+    isDemoPlayingRef.current = true;
     setIsDemoPlaying(true);
+    
     const demoLogic = new ChessLogic(lesson.fen);
     setLogic(demoLogic);
     setLastMove(null);
     setPuzzleState('playing');
     
     for (const moveStr of lesson.demoMoves) {
+      if (!isMounted.current || !isDemoPlayingRef.current) break;
       await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!isMounted.current || !isDemoPlayingRef.current) break;
       const move = demoLogic.makeMove(moveStr);
       if (move) {
         setLastMove({ from: move.from, to: move.to });
@@ -322,10 +418,12 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
       }
     }
     
+    isDemoPlayingRef.current = false;
     setIsDemoPlaying(false);
   };
 
   const resetBoard = () => {
+    isDemoPlayingRef.current = false;
     setLogic(new ChessLogic(lesson.fen));
     setSelectedSquare(null);
     setValidMoves([]);
@@ -438,12 +536,12 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
         </div>
       </div>
 
-      <div className="flex-1 flex flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col-reverse md:flex-row overflow-hidden academy-main-container">
         {/* Left Side: Rules & Info (Scrollable) */}
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="w-[140px] xs:w-[180px] sm:w-[300px] md:w-[400px] lg:w-[450px] flex-shrink-0 border-r border-white/5 flex flex-col bg-black/40 backdrop-blur-md"
+          className="w-full md:w-[400px] lg:w-[450px] flex-shrink-0 border-t md:border-t-0 md:border-r border-white/5 flex flex-col bg-black/40 backdrop-blur-md academy-rules-panel"
         >
           <div className="flex-1 overflow-y-auto p-3 xs:p-4 sm:p-6 md:p-8 custom-scrollbar">
             <div className="mb-6 sm:mb-8">
@@ -525,7 +623,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="flex-1 bg-[#09090b] p-2 xs:p-4 sm:p-8 lg:p-12 flex flex-col items-center justify-center relative overflow-hidden"
+          className="flex-1 bg-[#09090b] p-2 xs:p-4 sm:p-8 lg:p-12 flex flex-col items-center justify-center relative overflow-hidden academy-board-panel"
         >
           {/* Decorative Elements */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -541,7 +639,7 @@ export default function LearnDetailScreen({ lesson, onBack }: LearnDetailScreenP
           )}
 
           <div 
-            className="w-full aspect-square relative z-10 flex items-center justify-center"
+            className="w-full aspect-square relative z-10 flex items-center justify-center academy-board-wrapper"
             style={{ 
               maxWidth: 'min(70vw, var(--board-max-height, 72vh), 450px)', 
               maxHeight: 'min(70vw, var(--board-max-height, 72vh), 450px)' 

@@ -94,11 +94,28 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && 
+                      (!('role' in request.resource.data) || request.resource.data.role == 'player') &&
+                      (!('rating' in request.resource.data) || request.resource.data.rating == 1200 || request.resource.data.rating == 0);
+      allow update: if isOwner(userId) && 
+                      (!('role' in request.resource.data) || request.resource.data.role == resource.data.role) &&
+                      (!('rating' in request.resource.data) || request.resource.data.rating == resource.data.rating);
+      allow delete: if isOwner(userId);
 
       match /session/current {
         allow read, write: if isOwner(userId);
       }
+    }
+
+    // Security Events collection (Admin only)
+    match /securityEvents/{eventId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Admin Notifications collection (Admin only)
+    match /adminNotifications/{notificationId} {
+      allow read, write: if isAdmin();
     }
 
     // Games collection
@@ -123,6 +140,17 @@ service cloud.firestore {
       allow write: if isAdmin(); // Only server/admin can record payments
     }
 
+    // User Entitlements collection (Read own, Write none)
+    match /users/{userId}/entitlements/{productId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // Purchase Tokens collection (Read none, Write none)
+    match /purchaseTokens/{tokenHash} {
+      allow read, write: if false;
+    }
+
     // Cloud Saves collection
     match /cloudSaves/{userId} {
       allow read, write: if isOwner(userId);
@@ -135,6 +163,7 @@ service cloud.firestore {
                    request.resource.data.score is number && 
                    request.resource.data.score >= 0 && 
                    request.resource.data.score <= 10000000;
+      allow delete: if isOwner(userId);
     }
 
     // Challenge Requests collection

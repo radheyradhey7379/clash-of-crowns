@@ -347,7 +347,7 @@ Text to translate: "${text}"`;
 
   // Session Token Endpoint
   app.post("/api/auth/session-token", async (req, res) => {
-    const { idToken, guest, guestUid } = req.body;
+    const { idToken, guest, guestUid, sessionId } = req.body;
     try {
       let uid: string;
       
@@ -375,13 +375,26 @@ Text to translate: "${text}"`;
           const decodedToken = await admin.auth().verifyIdToken(idToken);
           uid = decodedToken.uid;
         }
+
+        // Validate sessionId against Firestore active session lock
+        if (hasAdmin && uid) {
+          const sessionRef = db.collection('users').doc(uid).collection('session').doc('current');
+          const snap = await sessionRef.get();
+          if (snap.exists) {
+            const data = snap.data();
+            if (data.activeSessionId && data.activeSessionId !== sessionId) {
+              return res.status(401).json({ error: "Invalid session lock. Session mismatch." });
+            }
+          }
+        }
       }
 
+      const tokenSessionId = sessionId || "no_session";
       const expiresAt = Date.now() + 15 * 60 * 1000; // 15 mins validity
       const secret = process.env.SESSION_TOKEN_SECRET || "default_session_secret";
       
       const crypto = await import("crypto");
-      const dataToSign = `${uid}:${expiresAt}`;
+      const dataToSign = `${uid}:${tokenSessionId}:${expiresAt}`;
       const signature = crypto.createHmac("sha256", secret).update(dataToSign).digest("hex");
       const sessionToken = `${dataToSign}:${signature}`;
 
@@ -389,6 +402,313 @@ Text to translate: "${text}"`;
     } catch (err: any) {
       console.error("Failed to verify Firebase ID token:", err);
       res.status(401).json({ error: "Invalid Firebase ID token" });
+    }
+  });
+
+  // Google Play Developer API access token generator
+  async function generateGoogleAccessToken(serviceAccount: any): Promise<string> {
+    const crypto = await import("crypto");
+    return new Promise((resolve, reject) => {
+      const jwtHeader = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+      const now = Math.floor(Date.now() / 1000);
+      const jwtPayload = Buffer.from(JSON.stringify({
+        iss: serviceAccount.client_email,
+        scope: "https://www.googleapis.com/auth/androidpublisher",
+        aud: "https://oauth2.googleapis.com/token",
+        exp: now + 3600,
+        iat: now
+      })).toString("base64url");
+
+      const signInput = `${jwtHeader}.${jwtPayload}`;
+      try {
+        const sign = crypto.createSign("RSA-SHA256");
+        sign.update(signInput);
+        const signature = sign.sign(serviceAccount.private_key, "base64url");
+        const assertion = `${signInput}.${signature}`;
+
+        // Exchange JWT for access token
+        const tokenUrl = "https://oauth2.googleapis.com/token";
+        const params = new URLSearchParams();
+        params.append("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
+        params.append("assertion", assertion);
+
+        fetch(tokenUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params.toString()
+        })
+        .then(res => res.json())
+        .then((data: any) => {
+          if (data.access_token) {
+            resolve(data.access_token);
+          } else {
+            reject(new Error(data.error_description || data.error || "Token exchange failed"));
+          }
+        })
+        .catch(reject);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  // Google Play Billing verification route
+  app.post("/api/billing/verify", async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ ok: false, errorCode: "UNAUTHORIZED", message: "Missing Authorization header." });
+    }
+    const idToken = authHeader.split("Bearer ")[1];
+    
+    let uid: string;
+    try {
+      if (admin.apps.length > 0 && db !== null) {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        uid = decodedToken.uid;
+      } else {
+        if (process.env.NODE_ENV !== "production") {
+          uid = idToken; // mock uid in dev
+        } else {
+          return res.status(500).json({ ok: false, errorCode: "SERVER_ERROR", message: "Firebase Admin is not configured." });
+        }
+      }
+    } catch (err) {
+      return res.status(401).json({ ok: false, errorCode: "UNAUTHORIZED", message: "Invalid ID token." });
+    }
+
+    const { productId, purchaseToken, platform, packageName } = req.body;
+
+    if (!productId || !purchaseToken || !platform || !packageName) {
+      return res.status(400).json({ ok: false, errorCode: "BAD_REQUEST", message: "Missing required fields." });
+    }
+
+    if (platform !== "android") {
+      return res.status(400).json({ ok: false, errorCode: "BAD_REQUEST", message: "Platform must be android." });
+    }
+
+    if (packageName !== "com.clashofcrowns.game") {
+      return res.status(400).json({ ok: false, errorCode: "BAD_REQUEST", message: "Package name mismatch." });
+    }
+
+    // Check product ID validity
+    const validProducts = [
+      "undo_daily_pass",
+      "undo_monthly_pass",
+      "undo_yearly_pass",
+      "premium_analysis_monthly"
+    ];
+    if (!validProducts.includes(productId)) {
+      return res.status(400).json({ ok: false, errorCode: "INVALID_PRODUCT", message: "Unknown product ID." });
+    }
+
+    // SHA-256 hash of purchaseToken to prevent duplicate claims
+    const crypto = await import("crypto");
+    const purchaseTokenHash = crypto.createHash("sha256").update(purchaseToken).digest("hex");
+
+    if (db) {
+      // Double claim check
+      const tokenRef = db.collection("purchaseTokens").doc(purchaseTokenHash);
+      const tokenSnap = await tokenRef.get();
+      if (tokenSnap.exists) {
+        const existingData = tokenSnap.data();
+        if (existingData.uid !== uid) {
+          return res.status(409).json({
+            ok: false,
+            errorCode: "TOKEN_ALREADY_USED",
+            message: "This purchase token has already been claimed by another account."
+          });
+        }
+        // If same user, make verification idempotent
+      }
+    }
+
+    let active = false;
+    let expiresAt = 0;
+    let orderId = "";
+
+    // Load Google Service Account
+    let serviceAccountJson = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64;
+    let serviceAccount: any = null;
+    if (serviceAccountJson) {
+      try {
+        serviceAccount = JSON.parse(Buffer.from(serviceAccountJson, "base64").toString("utf-8"));
+      } catch (err) {
+        console.error("Failed to parse GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64:", err);
+      }
+    }
+
+    if (!serviceAccount) {
+      // Sandbox mock verification for testing or missing config
+      if (process.env.NODE_ENV !== "production" || purchaseToken.startsWith("mock_token_")) {
+        console.log(`[BillingVerify] Sandbox mock verification for: ${productId}`);
+        active = true;
+        orderId = `GPA.mock-${Date.now()}`;
+        const now = Date.now();
+        if (productId === "undo_daily_pass") {
+          expiresAt = now + 24 * 60 * 60 * 1000;
+        } else if (productId === "undo_monthly_pass") {
+          expiresAt = now + 30 * 24 * 60 * 60 * 1000;
+        } else if (productId === "undo_yearly_pass") {
+          expiresAt = now + 365 * 24 * 60 * 60 * 1000;
+        } else if (productId === "premium_analysis_monthly") {
+          expiresAt = now + 30 * 24 * 60 * 60 * 1000;
+        }
+      } else {
+        return res.status(503).json({
+          ok: false,
+          errorCode: "BILLING_NOT_CONFIGURED",
+          message: "Billing verification not configured on the server."
+        });
+      }
+    } else {
+      // Real verification with Google Play Developer API
+      try {
+        const accessToken = await generateGoogleAccessToken(serviceAccount);
+        const isSubscription = productId === "premium_analysis_monthly";
+        
+        let verifyUrl = "";
+        if (isSubscription) {
+          verifyUrl = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/purchases/subscriptions/${productId}/tokens/${purchaseToken}`;
+        } else {
+          verifyUrl = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/purchases/products/${productId}/tokens/${purchaseToken}`;
+        }
+
+        const verifyRes = await fetch(verifyUrl, {
+          headers: { "Authorization": `Bearer ${accessToken}` }
+        });
+
+        if (!verifyRes.ok) {
+          const errText = await verifyRes.text();
+          console.error(`Google API verification failed: ${verifyRes.status} - ${errText}`);
+          return res.status(400).json({
+            ok: false,
+            errorCode: "INVALID_PURCHASE_TOKEN",
+            message: "Purchase could not be verified with Google Play."
+          });
+        }
+
+        const verifyData: any = await verifyRes.json();
+        orderId = verifyData.orderId || "";
+
+        if (isSubscription) {
+          expiresAt = parseInt(verifyData.expiryTimeMillis, 10);
+          active = expiresAt > Date.now() && verifyData.paymentState === 1; // 1 = Payment received
+        } else {
+          active = verifyData.purchaseState === 0; // 0 = Purchased
+          const now = Date.now();
+          if (productId === "undo_daily_pass") {
+            expiresAt = now + 24 * 60 * 60 * 1000;
+          } else if (productId === "undo_monthly_pass") {
+            expiresAt = now + 30 * 24 * 60 * 60 * 1000;
+          } else if (productId === "undo_yearly_pass") {
+            expiresAt = now + 365 * 24 * 60 * 60 * 1000;
+          }
+
+          // Acknowledge one-time purchase if not acknowledged
+          if (active && verifyData.acknowledgementState === 0) {
+            const ackUrl = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/purchases/products/${productId}/tokens/${purchaseToken}:acknowledge`;
+            await fetch(ackUrl, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${accessToken}`,
+                "Content-Type": "application/json"
+              }
+            });
+          }
+        }
+      } catch (err: any) {
+        console.error("Google Play verification process error:", err);
+        return res.status(500).json({
+          ok: false,
+          errorCode: "SERVER_ERROR",
+          message: "Internal server error during Google Play verification."
+        });
+      }
+    }
+
+    if (active && db) {
+      const now = Date.now();
+      
+      // Write to purchaseTokens mapping for index
+      await db.collection("purchaseTokens").doc(purchaseTokenHash).set({
+        uid,
+        productId,
+        createdAt: now,
+        lastVerifiedAt: now,
+        status: "active"
+      });
+
+      // Write to user entitlements
+      const entitlementType = productId === "premium_analysis_monthly" ? "premium_analysis" : "undo";
+      await db.collection("users").doc(uid).collection("entitlements").doc(productId).set({
+        active: true,
+        productId,
+        source: serviceAccount ? "google_play" : "mock",
+        platform: "android",
+        packageName,
+        purchaseTokenHash,
+        orderId,
+        purchaseState: "PURCHASED",
+        entitlementType,
+        expiresAt,
+        lastVerifiedAt: now,
+        updatedAt: now,
+        createdAt: now
+      });
+
+      // Update user document if needed (for legacy compatibility)
+      if (productId === "premium_analysis_monthly") {
+        await db.collection("users").doc(uid).update({
+          isPremium: true
+        }).catch(() => {});
+      }
+    }
+
+    res.json({
+      ok: true,
+      productId,
+      active,
+      entitlementType: productId === "premium_analysis_monthly" ? "premium_analysis" : "undo",
+      expiresAt
+    });
+  });
+
+  // Security Event Endpoint
+  app.post("/api/security/event", async (req, res) => {
+    const { eventType, severity, userId, roomId, matchId, sessionId, payloadSummary } = req.body;
+    try {
+      const crypto = await import("crypto");
+      const event = {
+        eventType,
+        severity,
+        userId: userId || null,
+        roomId: roomId || null,
+        matchId: matchId || null,
+        sessionId: sessionId || null,
+        payloadSummary: payloadSummary || "",
+        createdAt: Date.now(),
+        ipHash: req.ip ? crypto.createHash("sha256").update(req.ip).digest("hex") : null,
+        userAgent: req.headers["user-agent"] || null
+      };
+
+      console.warn(`[SECURITY EVENT] ${severity.toUpperCase()}: ${eventType} - ${payloadSummary}`);
+
+      if (db) {
+        await db.collection("securityEvents").add(event);
+        
+        // Write to adminNotifications if high/critical
+        if (severity === "high" || severity === "critical") {
+          await db.collection("adminNotifications").add({
+            ...event,
+            read: false,
+            triggeredAt: Date.now()
+          });
+        }
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Failed to log security event:", err);
+      res.status(500).json({ error: "Failed to log event" });
     }
   });
 

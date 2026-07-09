@@ -18,7 +18,11 @@ export type AppScreen =
   | 'Chat'
   | 'Premium'
   | 'Customise'
-  | 'Tournament';
+  | 'Tournament'
+  | 'HelpSupport'
+  | 'YourData'
+  | 'PrivacyPolicy'
+  | 'TermsOfService';
 
 export type Language = 'en' | 'hi' | 'ur' | 'ar';
 
@@ -57,8 +61,6 @@ export interface PlayerData {
   totalDraws?: number;
   totalGames?: number;
   currentStreak?: number;
-  streak?: number;
-  bestStreak?: number;
   undoTokens?: number;
   whiteTime: number;
   blackTime: number;

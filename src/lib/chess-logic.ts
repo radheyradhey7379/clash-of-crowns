@@ -140,6 +140,10 @@ export class ChessLogic {
     this.initAccumulator();
   }
 
+  getGameInstance(): Chess {
+    return this.game;
+  }
+
   // --- Requested Function Aliases (from HTML/JS version) ---
   initBoard(fen?: string) {
     this.game = new Chess(fen);
@@ -609,4 +613,111 @@ export class ChessLogic {
 
     return score + styleAdjustment;
   }
+}
+
+export function getCheckAttackers(chess: any, sideInCheck: 'w' | 'b'): { kingSquare: string; attackers: string[] } {
+  let kingSquare = '';
+  const board = chess.board();
+
+  // 1. Find the King
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = board[r][c];
+      if (piece && piece.type === 'k' && piece.color === sideInCheck) {
+        kingSquare = piece.square;
+        break;
+      }
+    }
+    if (kingSquare) break;
+  }
+
+  if (!kingSquare) {
+    return { kingSquare: '', attackers: [] };
+  }
+
+  const attackers: string[] = [];
+  const oppositeColor = sideInCheck === 'w' ? 'b' : 'w';
+
+  // Parse king coordinates
+  const kingFile = kingSquare[0].charCodeAt(0) - 97; // 0-7
+  const kingRank = parseInt(kingSquare[1], 10) - 1;   // 0-7
+
+  // Directions for sliding pieces
+  const rookDirs = [
+    { dr: 1, df: 0 },
+    { dr: -1, df: 0 },
+    { dr: 0, df: 1 },
+    { dr: 0, df: -1 }
+  ];
+  const bishopDirs = [
+    { dr: 1, df: 1 },
+    { dr: 1, df: -1 },
+    { dr: -1, df: 1 },
+    { dr: -1, df: -1 }
+  ];
+
+  // 2. Scan for sliding attackers (Rook, Bishop, Queen)
+  const scanSliding = (dirs: { dr: number; df: number }[], allowedTypes: string[]) => {
+    for (const dir of dirs) {
+      let r = kingRank + dir.dr;
+      let f = kingFile + dir.df;
+      while (r >= 0 && r < 8 && f >= 0 && f < 8) {
+        const boardRow = 7 - r;
+        const boardCol = f;
+        const piece = board[boardRow][boardCol];
+        if (piece) {
+          if (piece.color === oppositeColor && allowedTypes.includes(piece.type)) {
+            attackers.push(piece.square);
+          }
+          break;
+        }
+        r += dir.dr;
+        f += dir.df;
+      }
+    }
+  };
+
+  scanSliding(rookDirs, ['r', 'q']);
+  scanSliding(bishopDirs, ['b', 'q']);
+
+  // 3. Scan for Knight attackers
+  const knightMoves = [
+    { dr: 2, df: 1 }, { dr: 2, df: -1 },
+    { dr: -2, df: 1 }, { dr: -2, df: -1 },
+    { dr: 1, df: 2 }, { dr: 1, df: -2 },
+    { dr: -1, df: 2 }, { dr: -1, df: -2 }
+  ];
+  for (const move of knightMoves) {
+    const r = kingRank + move.dr;
+    const f = kingFile + move.df;
+    if (r >= 0 && r < 8 && f >= 0 && f < 8) {
+      const boardRow = 7 - r;
+      const boardCol = f;
+      const piece = board[boardRow][boardCol];
+      if (piece && piece.color === oppositeColor && piece.type === 'n') {
+        attackers.push(piece.square);
+      }
+    }
+  }
+
+  // 4. Scan for Pawn attackers
+  const pawnDirection = sideInCheck === 'w' ? 1 : -1;
+  const pawnOffsets = [-1, 1];
+  for (const df of pawnOffsets) {
+    const r = kingRank + pawnDirection;
+    const f = kingFile + df;
+    if (r >= 0 && r < 8 && f >= 0 && f < 8) {
+      const boardRow = 7 - r;
+      const boardCol = f;
+      const piece = board[boardRow][boardCol];
+      if (piece && piece.color === oppositeColor && piece.type === 'p') {
+        attackers.push(piece.square);
+      }
+    }
+  }
+
+  return {
+    kingSquare,
+    attackers
+  };
 }

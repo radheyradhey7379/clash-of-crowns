@@ -65,12 +65,19 @@ class RustRoomBridge {
     });
   }
 
-  public submitRustMove(move: Omit<RealtimeMovePayload, 'roomId' | 'playerUid'>) {
+  public submitRustMove(move: {
+    matchId: string;
+    sessionId: string;
+    moveUci: string;
+    clientMoveNumber: number;
+    clientFenBefore: string;
+    timestamp: number;
+  }) {
     if (!this.config) return;
     realtimeClient.submitRealtimeMove({
       ...move,
       roomId: this.config.roomId,
-      playerUid: this.config.uid,
+      playerId: this.config.uid,
     });
   }
 

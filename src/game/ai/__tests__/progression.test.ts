@@ -22,7 +22,7 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
     expect(next.tier).toBe('beginner');
     expect(next.level).toBe(2);
-    expect(next.elo).toBe(25); // 0 + 25
+    expect(next.elo).toBe(20); // 0 + 20
   });
 
   it('2. Beginner 5 win unlocks Learner', () => {
@@ -61,7 +61,7 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     expect(next.tier).toBe('learner');
     expect(next.level).toBe(2); // Dropped from 3 to 2
     expect(next.consecutiveLosses).toBe(0); // Resets after drop
-    expect(next.elo).toBe(345); // 350 - 5
+    expect(next.elo).toBe(324); // 350 - 26
   });
 
   it('6. Learner 1 consecutive losses drops back to Beginner 5', () => {
@@ -90,7 +90,7 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
     expect(next.tier).toBe('intermediate');
     expect(next.level).toBe(3);
-    expect(next.elo).toBe(340); // 350 - 10
+    expect(next.elo).toBe(324); // 350 - 26
   });
 
   it('9. Intermediate 1 consecutive losses drops back to Learner 5', () => {
@@ -118,7 +118,7 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
     const next = applyAIMatchResult(progress, { playerWon: false, isDraw: false });
     expect(next.tier).toBe('hard');
     expect(next.level).toBe(4);
-    expect(next.elo).toBe(330); // 350 - 20
+    expect(next.elo).toBe(331); // 350 - 19
   });
 
   it('12. Hard 1 loss locks Hard and returns to Intermediate 8', () => {
@@ -170,7 +170,7 @@ describe('AI Career Progression Engine (8 Tiers)', () => {
 
   it('17. Master Cup 3 completion unlocks Grandmaster', () => {
     progress.tier = 'master';
-    progress.elo = 2500;
+    progress.elo = 1450;
     progress.masterCup.currentCup = 3;
     progress.masterCup.currentMatch = 3;
     progress.masterCup.winsInCup = 2;
@@ -339,7 +339,7 @@ describe('AI Career Progression Engine (Phase 14 New Requirements)', () => {
       characterId: 'grandmaster_1',
       result: 'win',
       reason: 'checkmate',
-      eloBefore: 2600
+      eloBefore: 1450
     }, playerData);
 
     expect(summary.rewards.badge).toBe('Grandmaster Boss Slayer');
@@ -352,7 +352,7 @@ describe('AI Career Progression Engine (Phase 14 New Requirements)', () => {
       characterId: 'grandmaster_1',
       result: 'win',
       reason: 'checkmate',
-      eloBefore: 2650
+      eloBefore: 1500
     }, summary.updatedPlayerData);
 
     expect(summary2.updatedPlayerData.badges?.length).toBe(1); // Still 1!
@@ -615,18 +615,18 @@ describe('AI Personality, Dialogue & Match Feel (Phase 16)', () => {
       expect(cta.nextCharacterId).toBe('beginner_2');
     });
 
-    it('loss_result_shows_play_again', () => {
+    it('loss_result_shows_retry', () => {
       progress.tier = 'beginner';
       progress.level = 1;
       const cta = getGameResultCTA('loss', 'beginner_1', progress);
-      expect(cta.label).toBe('PLAY AGAIN');
+      expect(cta.label).toBe('RETRY');
     });
 
-    it('draw_result_shows_rematch', () => {
+    it('draw_result_shows_retry', () => {
       progress.tier = 'beginner';
       progress.level = 1;
       const cta = getGameResultCTA('draw', 'beginner_1', progress);
-      expect(cta.label).toBe('REMATCH');
+      expect(cta.label).toBe('RETRY');
     });
 
     it('final_bot_win_shows_next_tier_or_cup_unlock', () => {

@@ -63,14 +63,22 @@ export class RustEngineAdapter implements IEngineAdapter {
         });
       }
       
+      const completedDepth = data.depth || 0;
+      const usedPartial = completedDepth < request.depth;
       return {
         move: parseUciMove(data.move_str),
         engineUsed: data.engine_used || this.engineType,
         thinkTimeMs: data.think_time_ms || 0,
-        searchDepth: data.depth || request.depth,
+        searchDepth: completedDepth,
         evalCp: data.eval_cp || 0,
         noiseApplied: data.noise_applied || 0,
         wasFallback: false,
+        // Pre-release Bug 5 metadata
+        move_uci: data.move_str,
+        source: 'backend',
+        depth_completed: completedDepth,
+        used_partial_result: usedPartial,
+        reason: usedPartial ? 'timeout' : 'normal',
       };
     } catch (err) {
       clearTimeout(timeoutId);

@@ -138,9 +138,9 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
   }
 
   // 1. Basic properties
-  if (typeof data.rating !== 'number' || data.rating < 0 || data.rating > 5000) {
+  if (typeof data.rating !== 'number' || isNaN(data.rating) || data.rating < 0 || data.rating > 5000) {
     const oldVal = data.rating;
-    data.rating = data.rating < 0 ? 0 : data.rating > 5000 ? 5000 : 0;
+    data.rating = (typeof data.rating !== 'number' || isNaN(data.rating) || data.rating < 0) ? 0 : data.rating > 5000 ? 5000 : 0;
     repaired = true;
     flags.push({
       type: 'invalid_elo_cap',
@@ -183,10 +183,26 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
 
   
   if (data.commentaryEnabled === undefined) {
-    data.commentaryEnabled = true;
+    data.commentaryEnabled = false;
     repaired = true;
   }
 
+  if (data.viewMode !== '2d' && data.viewMode !== '3d') {
+    data.viewMode = '3d';
+    repaired = true;
+  }
+  if (data.whiteGames === undefined || typeof data.whiteGames !== 'number') { data.whiteGames = 0; repaired = true; }
+  if (data.whiteWins === undefined || typeof data.whiteWins !== 'number') { data.whiteWins = 0; repaired = true; }
+  if (data.whiteLosses === undefined || typeof data.whiteLosses !== 'number') { data.whiteLosses = 0; repaired = true; }
+  if (data.whiteDraws === undefined || typeof data.whiteDraws !== 'number') { data.whiteDraws = 0; repaired = true; }
+  if (data.blackGames === undefined || typeof data.blackGames !== 'number') { data.blackGames = 0; repaired = true; }
+  if (data.blackWins === undefined || typeof data.blackWins !== 'number') { data.blackWins = 0; repaired = true; }
+  if (data.blackLosses === undefined || typeof data.blackLosses !== 'number') { data.blackLosses = 0; repaired = true; }
+  if (data.blackDraws === undefined || typeof data.blackDraws !== 'number') { data.blackDraws = 0; repaired = true; }
+  if (data.totalGames === undefined || typeof data.totalGames !== 'number') { data.totalGames = 0; repaired = true; }
+  if (data.totalWins === undefined || typeof data.totalWins !== 'number') { data.totalWins = 0; repaired = true; }
+  if (data.totalLosses === undefined || typeof data.totalLosses !== 'number') { data.totalLosses = 0; repaired = true; }
+  if (data.totalDraws === undefined || typeof data.totalDraws !== 'number') { data.totalDraws = 0; repaired = true; }
   if (data.arenaRating === undefined || typeof data.arenaRating !== 'number' || data.arenaRating < 100 || data.arenaRating > 5000) {
     const oldVal = data.arenaRating;
     data.arenaRating = (data.arenaRating !== undefined && typeof data.arenaRating === 'number' && data.arenaRating < 100) ? 100 : (data.arenaRating !== undefined && typeof data.arenaRating === 'number' && data.arenaRating > 5000) ? 5000 : 1200;
@@ -206,6 +222,7 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
   // Ensure aiProgress structure exists
   if (!data.aiProgress) {
     data.aiProgress = JSON.parse(JSON.stringify(DEFAULT_AI_PROGRESS));
+    data.aiProgress.elo = data.rating;
     repaired = true;
     flags.push({
       type: 'missing_ai_progress',

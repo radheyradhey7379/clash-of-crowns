@@ -14,6 +14,7 @@ export class WasmEngineAdapter implements IEngineAdapter {
   private engineType: "hce" | "nnue";
   private pendingResolver: ((res: EngineResult) => void) | null = null;
   private pendingRejecter: ((err: any) => void) | null = null;
+  private pendingRequest: EngineRequest | null = null;
   private currentTaskId: number = 0;
 
   constructor(engineType: "hce" | "nnue") {
@@ -37,19 +38,29 @@ export class WasmEngineAdapter implements IEngineAdapter {
           this.pendingRejecter?.(new Error(error));
         } else {
           const data = result;
+          const targetDepth = this.pendingRequest?.depth || 0;
+          const completedDepth = data.depth || 0;
+          const usedPartial = completedDepth < targetDepth;
           const engineResult: EngineResult = {
             move: parseUciMove(data.move_str),
             engineUsed: data.engine_used || this.engineType,
             thinkTimeMs: data.think_time_ms || 0,
-            searchDepth: data.depth || 0,
+            searchDepth: completedDepth,
             evalCp: data.eval_cp || 0,
             noiseApplied: data.noise_applied || 0,
             wasFallback: false,
+            // Pre-release Bug 5 metadata
+            move_uci: data.move_str,
+            source: 'wasm',
+            depth_completed: completedDepth,
+            used_partial_result: usedPartial,
+            reason: usedPartial ? 'timeout' : 'normal',
           };
           this.pendingResolver?.(engineResult);
         }
         this.pendingResolver = null;
         this.pendingRejecter = null;
+        this.pendingRequest = null;
       }
     };
   }
@@ -65,6 +76,7 @@ export class WasmEngineAdapter implements IEngineAdapter {
       this.currentTaskId++;
       this.pendingResolver = resolve;
       this.pendingRejecter = reject;
+      this.pendingRequest = request;
 
       const payload = JSON.stringify({
         fen: request.fen,
@@ -92,6 +104,7 @@ export class WasmEngineAdapter implements IEngineAdapter {
       this.pendingRejecter(abortErr);
       this.pendingResolver = null;
       this.pendingRejecter = null;
+      this.pendingRequest = null;
       this.initWorker();
     }
   }
@@ -103,6 +116,7 @@ export class WasmEngineAdapter implements IEngineAdapter {
     }
     this.pendingResolver = null;
     this.pendingRejecter = null;
+    this.pendingRequest = null;
   }
 
   isReady(): boolean {

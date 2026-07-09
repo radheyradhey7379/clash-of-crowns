@@ -94,16 +94,35 @@ export class EngineBrain {
       console.warn("Primary engine failed or returned no move. Playing first legal move as emergency fallback.", err);
       const moves = this.chess.getAllLegalMoves();
       if (moves.length === 0) {
-        return { move: null, engineUsed: 'hce', thinkTimeMs: 0, searchDepth: 0, evalCp: 0, noiseApplied: 0, wasFallback: true };
+        return { 
+          move: null, 
+          engineUsed: 'hce', 
+          thinkTimeMs: 0, 
+          searchDepth: 0, 
+          evalCp: 0, 
+          noiseApplied: 0, 
+          wasFallback: true,
+          source: 'emergency',
+          depth_completed: 0,
+          used_partial_result: false,
+          reason: 'no_legal_moves'
+        };
       }
+      const firstMove = moves[0];
+      const move_uci = firstMove.from + firstMove.to + (firstMove.promotion || "");
       return {
-        move: { from: moves[0].from, to: moves[0].to, promotion: moves[0].promotion },
+        move: { from: firstMove.from, to: firstMove.to, promotion: firstMove.promotion },
         engineUsed: 'hce',
         thinkTimeMs: 0,
         searchDepth: 1,
         evalCp: 0,
         noiseApplied: 0,
-        wasFallback: true
+        wasFallback: true,
+        move_uci,
+        source: 'emergency',
+        depth_completed: 0,
+        used_partial_result: false,
+        reason: 'primary_and_fallback_failed'
       };
     }
   }

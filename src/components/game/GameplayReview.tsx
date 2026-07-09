@@ -11,7 +11,7 @@ import { cn, downloadElement } from '../../lib/utils';
 import { ChessLogic } from '../../lib/chess-logic';
 import ChessBoard2D from './ChessBoard2D';
 import { PlayerData } from '../../types';
-import { db, auth, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../../firebase';
 import { collection, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { loadStripe } from '@stripe/stripe-js';
 import RecordRTC from 'recordrtc';
@@ -22,6 +22,9 @@ import { encryptObject } from '../../lib/encryption';
 import { useDeviceLayout } from '../../hooks/useDeviceLayout';
 import { getApiUrl } from '../../services/apiClient';
 import { PRICING_CONFIG } from '../../config/pricing';
+
+import { AnalysisOrchestrator, saveAnalysisLocally, loadAnalysisLocally, deleteAnalysisLocally } from '../../services/analysis/analysisOrchestrator';
+import { GameAnalysis, AnalysisProgress } from '../../services/analysis/analysisTypes';
 
 interface HistoryItem {
   fen: string;
@@ -46,6 +49,8 @@ interface GameplayReviewProps {
   blackPlayerName?: string;
   isLocalGame?: boolean;
   playerColor?: 'w' | 'b';
+  matchId?: string;
+  entitlements?: any;
 }
 
 export default function GameplayReview({ 
@@ -60,7 +65,9 @@ export default function GameplayReview({
   whitePlayerName,
   blackPlayerName,
   isLocalGame = false,
-  playerColor = 'w'
+  playerColor = 'w',
+  matchId,
+  entitlements
 }: GameplayReviewProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -83,8 +90,13 @@ export default function GameplayReview({
   const [boardSize, setBoardSize] = useState(480);
   const [isManualSize, setIsManualSize] = useState(false);
   const [minimizedWidgets, setMinimizedWidgets] = useState<string[]>([]);
-  const [includeUndo, setIncludeUndo] = useState(false);
+
   const [selectedUndoPlan, setSelectedUndoPlan] = useState<'day' | 'month' | 'year'>('month');
+
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [progress, setProgress] = useState<AnalysisProgress | null>(null);
+  const [analysis, setAnalysis] = useState<GameAnalysis | null>(null);
+  const [selectedDepth, setSelectedDepth] = useState(12);
 
   const { width, height, isMobile } = useDeviceLayout();
   const isMobileLayout = isMobile || width < 1024 || height < 650;
@@ -94,7 +106,7 @@ export default function GameplayReview({
   const reviewRef = useRef<HTMLDivElement>(null);
   const deleteTimerRef = useRef<any>(null);
 
-  const isPremium = playerData.isPremium;
+  const isPremium = entitlements?.hasPremiumAnalysis === true || playerData.isPremium === true;
   const isAuthReady = !!auth.currentUser;
 
   useEffect(() => {
@@ -128,6 +140,126 @@ export default function GameplayReview({
     window.addEventListener('open-premium-modal', handleOpenPremium);
     return () => window.removeEventListener('open-premium-modal', handleOpenPremium);
   }, []);
+
+  // Helper to calculate piece activity heatmap based on history FENs
+  const getHeatmap = () => {
+    const heat = Array(64).fill(0);
+    if (history.length === 0) return heat;
+    
+    for (const item of history) {
+      const tempChess = new ChessLogic(item.fen);
+      const boardObj = tempChess.getBoard();
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (boardObj[r][c]) {
+            heat[r * 8 + c]++;
+          }
+        }
+      }
+    }
+    
+    const maxHeat = Math.max(1, ...heat);
+    return heat.map(h => h / maxHeat);
+  };
+
+  const getBestMoveArrow = () => {
+    if (!analysis || !isPremium) return null;
+    const move = analysis.moves[currentIndex];
+    if (!move) return null;
+    
+    const playedBest = move.classification === 'best' || move.classification === 'brilliant';
+    const uci = move.bestMoveUci;
+    if (!uci || uci.length < 4) return null;
+    
+    return {
+      from: uci.substring(0, 2),
+      to: uci.substring(2, 4),
+      color: playedBest ? '#4ec97a' : '#f09820'
+    };
+  };
+
+  const getEvalBarWidth = () => {
+    if (analysis) {
+      const move = analysis.moves[currentIndex];
+      if (!move) return 50;
+      if (move.isMateScore && move.mateIn !== null) {
+        return move.mateIn > 0 ? 90 : 10;
+      }
+      const evalCp = move.evalCp;
+      const evalPawns = evalCp / 100;
+      return Math.max(10, Math.min(90, 50 + evalPawns * 8));
+    }
+    const rawEval = currentItem?.evaluation || 0;
+    return Math.max(10, Math.min(90, 50 + rawEval * 10));
+  };
+
+  const getEvalText = () => {
+    if (analysis) {
+      const move = analysis.moves[currentIndex];
+      if (!move) return '0.0';
+      if (move.isMateScore && move.mateIn !== null) {
+        return `M${Math.abs(move.mateIn)}`;
+      }
+      const evalPawns = move.evalCp / 100;
+      return `${evalPawns >= 0 ? '+' : ''}${evalPawns.toFixed(1)}`;
+    }
+    const rawEval = currentItem?.evaluation || 0;
+    return `${rawEval >= 0 ? '+' : ''}${rawEval.toFixed(1)}`;
+  };
+
+  const handleExportJSON = () => {
+    if (!analysis) return;
+    try {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(analysis, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `clash_match_analysis_${matchId || Date.now()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } catch (err) {
+      console.error("Export failed:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (matchId) {
+      const saved = loadAnalysisLocally(matchId);
+      if (saved) {
+        setAnalysis(saved);
+        return;
+      }
+    }
+
+    if (isPremium && history.length > 0) {
+      const orchestrator = new AnalysisOrchestrator();
+      setIsAnalyzing(true);
+      
+      orchestrator.analyzeGame(
+        history.map((h, idx) => ({
+          fen: h.fen,
+          move: h.move,
+          side: h.side || (idx % 2 === 0 ? 'White' : 'Black'),
+          moveNumber: h.moveNumber || Math.floor(idx / 2) + 1
+        })),
+        playerColor,
+        selectedDepth,
+        (prog) => setProgress(prog)
+      ).then(result => {
+        if (result) {
+          setAnalysis(result);
+        }
+        setIsAnalyzing(false);
+      }).catch(err => {
+        console.error("Analysis failed:", err);
+        setIsAnalyzing(false);
+      });
+
+      return () => {
+        orchestrator.cancel();
+      };
+    }
+  }, [history, isPremium, playerColor, matchId, selectedDepth]);
 
   useEffect(() => {
     if (history.length > 0) {
@@ -171,38 +303,18 @@ export default function GameplayReview({
   }, [isPlaying, currentIndex, history, playbackSpeed]);
 
   const handleSave = async () => {
-    if (!auth.currentUser) return;
+    if (!analysis) return;
     setIsSaving(true);
     try {
-      // Encrypt history for security
-      const encryptedHistory = encryptObject(history.map(h => ({
-        fen: h.fen,
-        move: h.move,
-        evaluation: h.evaluation,
-        comment: h.comment,
-        moveNumber: h.moveNumber,
-        side: h.side,
-        classification: h.classification
-      })), auth.currentUser.uid);
-
-      const sessionData = {
-        uid: auth.currentUser.uid,
-        userName: userName,
-        timestamp: serverTimestamp(),
-        history: encryptedHistory, // Store encrypted history
-        opponentName: "Opponent", 
-        opponentRating: 1450,
-        isEncrypted: true
-      };
-      
-      const docRef = await addDoc(collection(db, 'gameplaySessions'), sessionData);
-      setSavedSessionId(docRef.id);
+      if (matchId) {
+        saveAnalysisLocally(matchId, analysis);
+      }
       setIsSaving(false);
       setShowSavedPopup(true);
       setTimeout(() => setShowSavedPopup(false), 3000);
     } catch (error) {
       setIsSaving(false);
-      handleFirestoreError(error, OperationType.CREATE, 'gameplaySessions');
+      console.error("[GameplayReview] Save error:", error);
     }
   };
 
@@ -222,16 +334,8 @@ export default function GameplayReview({
   };
 
   const handleFinalDelete = async () => {
-    if (savedSessionId) {
-      setIsDeleting(true);
-      try {
-        await deleteDoc(doc(db, 'gameplaySessions', savedSessionId));
-        setSavedSessionId(null);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `gameplaySessions/${savedSessionId}`);
-      } finally {
-        setIsDeleting(false);
-      }
+    if (matchId) {
+      deleteAnalysisLocally(matchId);
     }
     onClose();
   };
@@ -293,16 +397,14 @@ export default function GameplayReview({
   const handleUpgrade = async (type: 'premium' | 'undo_day' | 'undo_month' | 'undo_year') => {
     try {
       const prices = {
-        premium: includeUndo 
-          ? (PRICING_CONFIG.PREMIUM_MONTHLY + PRICING_CONFIG.UNDO_ADDON_MONTHLY) 
-          : PRICING_CONFIG.PREMIUM_MONTHLY,
+        premium: PRICING_CONFIG.PREMIUM_MONTHLY,
         undo_day: PRICING_CONFIG.UNDO_PASS_DAILY,
         undo_month: PRICING_CONFIG.UNDO_PASS_MONTHLY,
         undo_year: PRICING_CONFIG.UNDO_PASS_YEARLY
       };
       
       const labels = {
-        premium: `Premium Bundle ${includeUndo ? '(with Undo)' : ''}`,
+        premium: 'Premium Analysis Bundle',
         undo_day: 'Daily Undo Pass',
         undo_month: 'Monthly Undo Pass',
         undo_year: 'Yearly Undo Pass'
@@ -310,7 +412,7 @@ export default function GameplayReview({
 
       alert(`Redirecting to secure payment gateway for ₹${prices[type]} ${labels[type]}...`);
       
-      // Real Stripe logic would go here
+      // Real billing is handled via Google Play Billing on Android
       /*
       const response = await fetch(getApiUrl("/api/create-checkout-session"), {
         method: "POST",
@@ -320,8 +422,7 @@ export default function GameplayReview({
         body: JSON.stringify({
           userId: auth.currentUser?.uid,
           userEmail: auth.currentUser?.email,
-          type,
-          includeUndo
+          type
         }),
       });
       const session = await response.json();
@@ -557,6 +658,7 @@ export default function GameplayReview({
                     onSquareClick={() => {}}
                     playerColor={playerColor}
                     checkInfo={null}
+                    bestMoveArrow={getBestMoveArrow()}
                   />
                 </div>
               </div>
@@ -588,6 +690,25 @@ export default function GameplayReview({
                 <div className="flex flex-col items-end">
                   <div className="text-[8px] text-[#8c7a52] font-bold tracking-widest uppercase mb-0.5">Total Time</div>
                   <div className="font-mono text-[13px] px-2.5 py-1 bg-[#080808] rounded border border-[rgba(245,197,24,0.4)] text-[#f5c518] shadow-[0_0_10px_rgba(245,197,24,0.18)]">{formatTime(whiteTime)}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Analysis Progress Indicator */}
+            {isAnalyzing && progress && (
+              <div className="w-full max-w-[520px] bg-[#111114] rounded-lg border border-[#d9ad33]/30 p-3 mt-1.5 flex flex-col gap-1.5">
+                <div className="flex justify-between items-center text-[10px] text-[#d9ad33] uppercase font-serif tracking-wider font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 size={10} className="animate-spin text-[#d9ad33]" />
+                    Analyzing Match ({progress.phase})...
+                  </span>
+                  <span>{progress.current}/{progress.total} Moves</span>
+                </div>
+                <div className="h-1 bg-[#1a1a1a] rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-[#f5c518] to-[#c9970e] transition-all duration-300"
+                    style={{ width: `${(progress.current / Math.max(progress.total, 1)) * 100}%` }}
+                  />
                 </div>
               </div>
             )}
@@ -655,6 +776,34 @@ export default function GameplayReview({
           <div className="w-full lg:w-[320px] flex-shrink-0 bg-[#111114] lg:border-l border-[#252528] flex flex-col overflow-y-auto custom-scrollbar">
           
           {/* AI Analysis */}
+          <div className="p-3 bg-[#1c160c] border border-[#d9ad33]/20 rounded-lg text-[10px] text-[#d9ad33] leading-normal flex items-start gap-2 mx-3 my-2 font-sans">
+            <Info size={14} className="flex-shrink-0 mt-0.5" />
+            <span>
+              <strong>Analysis is temporary.</strong> Save it if you want to keep it. Unsaved analysis will be deleted when you continue.
+            </span>
+          </div>
+
+          {/* Quick/Deep Toggle */}
+          {isPremium && (
+            <div className="p-3 border-b border-[#252528] flex items-center justify-between text-[10px]">
+              <span className="text-[#8a857c] uppercase font-serif tracking-wider font-bold">Analysis Mode:</span>
+              <div className="flex gap-1.5">
+                <button 
+                  onClick={() => { playSound('click'); setSelectedDepth(10); }} 
+                  className={cn("px-2 py-0.5 rounded text-[8px] uppercase font-bold transition-all border", selectedDepth === 10 ? "bg-[#d9ad33] text-black border-transparent" : "bg-[#1c1c1e] text-[#8a857c] border-white/5")}
+                >
+                  Quick (Depth 10)
+                </button>
+                <button 
+                  onClick={() => { playSound('click'); setSelectedDepth(15); }} 
+                  className={cn("px-2 py-0.5 rounded text-[8px] uppercase font-bold transition-all border", selectedDepth === 15 ? "bg-[#d9ad33] text-black border-transparent" : "bg-[#1c1c1e] text-[#8a857c] border-white/5")}
+                >
+                  Deep (Depth 15)
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="p-3 border-b border-[#252528]">
             <div 
               className="font-serif text-[8px] text-[#524e48] tracking-[0.4em] mb-2 uppercase flex items-center justify-between cursor-pointer group"
@@ -675,19 +824,19 @@ export default function GameplayReview({
                     {currentItem?.classification && (
                       <span className={cn(
                         "ml-auto px-2 py-0.5 rounded-full text-[8px] font-serif font-bold tracking-widest uppercase",
-                        currentItem.classification === 'brilliant' && "bg-[#001a20] text-[#00cfef]",
-                        currentItem.classification === 'best' && "bg-[#0d1e0d] text-[#4ec97a]",
-                        currentItem.classification === 'good' && "bg-[#111a08] text-[#90c840]",
-                        currentItem.classification === 'inaccuracy' && "bg-[#1e1a00] text-[#ffd040]",
-                        currentItem.classification === 'mistake' && "bg-[#1e1000] text-[#f09820]",
-                        currentItem.classification === 'blunder' && "bg-[#200808] text-[#e05252]"
+                        (analysis ? analysis.moves[currentIndex]?.classification : currentItem.classification) === 'brilliant' && "bg-[#001a20] text-[#00cfef]",
+                        (analysis ? analysis.moves[currentIndex]?.classification : currentItem.classification) === 'best' && "bg-[#0d1e0d] text-[#4ec97a]",
+                        (analysis ? analysis.moves[currentIndex]?.classification : currentItem.classification) === 'good' && "bg-[#111a08] text-[#90c840]",
+                        (analysis ? analysis.moves[currentIndex]?.classification : currentItem.classification) === 'inaccuracy' && "bg-[#1e1a00] text-[#ffd040]",
+                        (analysis ? analysis.moves[currentIndex]?.classification : currentItem.classification) === 'mistake' && "bg-[#1e1000] text-[#f09820]",
+                        (analysis ? analysis.moves[currentIndex]?.classification : currentItem.classification) === 'blunder' && "bg-[#200808] text-[#e05252]"
                       )}>
-                        {currentItem.classification}
+                        {analysis ? analysis.moves[currentIndex]?.classification : currentItem.classification}
                       </span>
                     )}
                   </div>
                   <p className="text-[12px] text-[#ccc] leading-relaxed italic">
-                    {currentItem?.comment || "Select a move to see the Grandmaster's analysis."}
+                    {analysis ? analysis.moves[currentIndex]?.comment : (currentItem?.comment || "Select a move to see the Grandmaster's analysis.")}
                   </p>
                 </div>
                 {!isPremium && (
@@ -730,16 +879,26 @@ export default function GameplayReview({
                     <div className="flex-1 h-[18px] rounded bg-[#181818] border border-[#323238] overflow-hidden flex">
                       <div 
                         className="bg-[#e8e8e8] transition-all duration-500" 
-                        style={{ width: `${Math.max(10, Math.min(90, 50 + (currentItem?.evaluation || 0) * 10))}%` }}
+                        style={{ width: `${getEvalBarWidth()}%` }}
                       />
                     </div>
                     <span className="text-[9px] text-[#524e48] font-serif uppercase">W</span>
                     <div className="font-mono text-[12px] text-[#8a857c] min-w-[40px] text-right">
-                      {(currentItem?.evaluation || 0) > 0 ? '+' : ''}{currentItem?.evaluation?.toFixed(1) || '0.0'}
+                      {getEvalText()}
                     </div>
                   </div>
                   <div className="mt-1 text-center text-[10px] text-[#524e48]">
-                    {(currentItem?.evaluation || 0) > 2 ? 'White winning' : (currentItem?.evaluation || 0) > 0.6 ? 'White better' : (currentItem?.evaluation || 0) < -0.6 ? 'Black better' : 'Equal position'}
+                    {analysis ? (
+                      (analysis.moves[currentIndex]?.evalCp || 0) > 200 ? 'White winning' : 
+                      (analysis.moves[currentIndex]?.evalCp || 0) > 60 ? 'White better' : 
+                      (analysis.moves[currentIndex]?.evalCp || 0) < -60 ? 'Black better' : 
+                      'Equal position'
+                    ) : (
+                      (currentItem?.evaluation || 0) > 2 ? 'White winning' : 
+                      (currentItem?.evaluation || 0) > 0.6 ? 'White better' : 
+                      (currentItem?.evaluation || 0) < -0.6 ? 'Black better' : 
+                      'Equal position'
+                    )}
                   </div>
                 </div>
                 {!isPremium && (
@@ -758,25 +917,85 @@ export default function GameplayReview({
             )}
           </div>
 
+          {/* Eval Graph (New Premium Widget) */}
+          {isPremium && !minimizedWidgets.includes('eval') && (
+            <div className="p-3 border-b border-[#252528]">
+              {analysis ? (
+                (() => {
+                  const width = 280;
+                  const height = 80;
+                  const padding = 10;
+                  const graphWidth = width - padding * 2;
+                  const graphHeight = height - padding * 2;
+                  
+                  const points = analysis.moves.map((move, idx) => {
+                    let val = move.evalCp / 100;
+                    if (move.isMateScore && move.mateIn !== null) {
+                      val = move.mateIn > 0 ? 5 : -5;
+                    }
+                    const valCapped = Math.max(-5, Math.min(5, val));
+                    
+                    const x = padding + (idx / Math.max(1, analysis.moves.length - 1)) * graphWidth;
+                    const y = padding + graphHeight / 2 - (valCapped / 5) * (graphHeight / 2);
+                    return { x, y };
+                  });
+
+                  if (points.length === 0) return null;
+
+                  const pathData = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                  const fillPathData = `${pathData} L ${points[points.length - 1].x} ${height / 2} L ${points[0].x} ${height / 2} Z`;
+                  const currentPoint = points[currentIndex];
+
+                  return (
+                    <div className="bg-[#18181c] border border-[#252528] rounded-lg p-2.5 relative overflow-hidden">
+                      <div className="font-serif text-[8px] text-[#524e48] tracking-[0.4em] mb-2 uppercase flex items-center justify-between">
+                        <span>Evaluation Graph</span>
+                        <span className="text-[#4ec97a] text-[8px] font-bold">LIVE</span>
+                      </div>
+                      <div className="relative w-full h-[80px]">
+                        <svg className="w-full h-full" viewBox={`0 0 ${width} ${height}`}>
+                          <defs>
+                            <linearGradient id="white-grad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#4ec97a" stopOpacity="0.3"/>
+                              <stop offset="100%" stopColor="#4ec97a" stopOpacity="0"/>
+                            </linearGradient>
+                          </defs>
+                          <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="#323238" strokeDasharray="3,3" />
+                          <path d={fillPathData} fill="url(#white-grad)" />
+                          <path d={pathData} fill="none" stroke="#f5c518" strokeWidth="2" strokeLinecap="round" />
+                          {currentPoint && (
+                            <circle cx={currentPoint.x} cy={currentPoint.y} r="4" fill="#f5c518" />
+                          )}
+                        </svg>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="text-center text-[10px] text-[#524e48] py-4">Waiting for analysis...</div>
+              )}
+            </div>
+          )}
+
           {/* Game Statistics */}
           <div className="p-3 border-b border-[#252528]">
             <div className="font-serif text-[8px] text-[#524e48] tracking-[0.4em] mb-2 uppercase">Game Statistics</div>
             <div className="relative overflow-hidden rounded-lg">
               <div className={cn("grid grid-cols-2 gap-1.5 transition-all", !isPremium && "opacity-40 grayscale-[0.3] pointer-events-none")}>
                 <div className="bg-[#18181c] border border-[#252528] p-2.5 rounded-md text-center">
-                  <div className="text-[24px] font-serif font-bold text-[#00cfef]">3</div>
+                  <div className="text-[24px] font-serif font-bold text-[#00cfef]">{analysis ? analysis.statistics.brilliant : 0}</div>
                   <div className="text-[8px] text-[#524e48] tracking-widest uppercase font-serif">Brilliant</div>
                 </div>
                 <div className="bg-[#18181c] border border-[#252528] p-2.5 rounded-md text-center">
-                  <div className="text-[24px] font-serif font-bold text-[#4ec97a]">11</div>
-                  <div className="text-[8px] text-[#524e48] tracking-widest uppercase font-serif">Best</div>
+                  <div className="text-[24px] font-serif font-bold text-[#4ec97a]">{analysis ? (analysis.statistics.best + analysis.statistics.excellent) : 0}</div>
+                  <div className="text-[8px] text-[#524e48] tracking-widest uppercase font-serif">Best/Excl</div>
                 </div>
                 <div className="bg-[#18181c] border border-[#252528] p-2.5 rounded-md text-center">
-                  <div className="text-[24px] font-serif font-bold text-[#f09820]">2</div>
+                  <div className="text-[24px] font-serif font-bold text-[#f09820]">{analysis ? analysis.statistics.mistake : 0}</div>
                   <div className="text-[8px] text-[#524e48] tracking-widest uppercase font-serif">Mistakes</div>
                 </div>
                 <div className="bg-[#18181c] border border-[#252528] p-2.5 rounded-md text-center">
-                  <div className="text-[24px] font-serif font-bold text-[#e05252]">1</div>
+                  <div className="text-[24px] font-serif font-bold text-[#e05252]">{analysis ? analysis.statistics.blunder : 0}</div>
                   <div className="text-[8px] text-[#524e48] tracking-widest uppercase font-serif">Blunders</div>
                 </div>
               </div>
@@ -805,15 +1024,17 @@ export default function GameplayReview({
                     <circle cx="34" cy="34" r="26" fill="none" stroke="#1e1e1e" strokeWidth="7"/>
                     <circle 
                       cx="34" cy="34" r="26" fill="none" stroke="#f5c518" strokeWidth="7"
-                      strokeDasharray="163" strokeDashoffset="41" strokeLinecap="round"
+                      strokeDasharray="163" 
+                      strokeDashoffset={163 - (163 * (analysis?.playerAccuracy || 0)) / 100} 
+                      strokeLinecap="round"
                     />
                   </svg>
-                  <div className="absolute inset-0 flex items-center justify-center font-mono text-[13px] font-bold text-[#f5c518]">75%</div>
+                  <div className="absolute inset-0 flex items-center justify-center font-mono text-[13px] font-bold text-[#f5c518]">{analysis ? `${analysis.playerAccuracy}%` : '0%'}</div>
                 </div>
                 <div>
-                  <div className="font-serif text-[21px] font-bold text-[#f5c518]">75%</div>
+                  <div className="font-serif text-[21px] font-bold text-[#f5c518]">{analysis ? `${analysis.playerAccuracy}%` : '0%'}</div>
                   <div className="text-[10px] text-[#524e48]">Your accuracy</div>
-                  <div className="text-[10px] text-[#524e48] mt-1 font-mono">ACPL: <span className="text-[#8a857c]">28</span></div>
+                  <div className="text-[10px] text-[#524e48] mt-1 font-mono">ACPL: <span className="text-[#8a857c]">{analysis ? analysis.playerACPL : 0}</span></div>
                 </div>
               </div>
               {!isPremium && (
@@ -838,9 +1059,9 @@ export default function GameplayReview({
               <span className="text-[#4ec97a] text-[8px] font-bold">✓ FREE</span>
             </div>
             <div className="bg-[#08101a] border border-[#102030] rounded-lg p-2.5">
-              <div className="font-serif text-[9px] text-[#5080b0] tracking-widest uppercase">C51</div>
-              <div className="font-serif text-[13px] text-[#80a8e0] font-bold mt-0.5">Evans Gambit</div>
-              <div className="text-[10px] text-[#524e48] mt-1 line-relaxed">White sacrifices b4 pawn for rapid development and central control.</div>
+              <div className="font-serif text-[9px] text-[#5080b0] tracking-widest uppercase">{analysis?.opening?.eco || 'A00'}</div>
+              <div className="font-serif text-[13px] text-[#80a8e0] font-bold mt-0.5">{analysis?.opening?.name || 'Custom/Unknown Opening'}</div>
+              <div className="text-[10px] text-[#524e48] mt-1 line-relaxed">{analysis?.opening?.description || 'No opening matches detected. Play standard developing moves.'}</div>
             </div>
           </div>
 
@@ -852,16 +1073,16 @@ export default function GameplayReview({
                 <div className="flex-1">
                   <div className="text-[9px] text-[#524e48] font-serif tracking-widest uppercase mb-1">White</div>
                   <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                    <div className="h-full bg-[#4ec97a] rounded-full" style={{ width: '72%' }} />
+                    <div className="h-full bg-[#4ec97a] rounded-full" style={{ width: `${analysis ? analysis.kingSafety.white : 50}%` }} />
                   </div>
-                  <div className="text-[10px] font-mono text-[#4ec97a]">72% Safe</div>
+                  <div className="text-[10px] font-mono text-[#4ec97a]">{analysis ? analysis.kingSafety.white : 50}% Safe</div>
                 </div>
                 <div className="flex-1">
                   <div className="text-[9px] text-[#524e48] font-serif tracking-widest uppercase mb-1">Black</div>
                   <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                    <div className="h-full bg-[#f09820] rounded-full" style={{ width: '44%' }} />
+                    <div className="h-full bg-[#f09820] rounded-full" style={{ width: `${analysis ? analysis.kingSafety.black : 50}%` }} />
                   </div>
-                  <div className="text-[10px] font-mono text-[#f09820]">44% Exposed</div>
+                  <div className="text-[10px] font-mono text-[#f09820]">{analysis ? analysis.kingSafety.black : 50}% Safe</div>
                 </div>
               </div>
               {!isPremium && (
@@ -884,18 +1105,17 @@ export default function GameplayReview({
             <div className="font-serif text-[8px] text-[#524e48] tracking-[0.4em] mb-2 uppercase">Piece Activity Heatmap</div>
             <div className="relative overflow-hidden rounded-lg">
               <div className={cn("grid grid-cols-8 gap-0.5 transition-all", !isPremium && "opacity-40 grayscale-[0.3] pointer-events-none")}>
-                {Array.from({ length: 64 }).map((_, i) => {
+                {getHeatmap().map((intensity, i) => {
                   const r = Math.floor(i / 8);
                   const c = i % 8;
-                  const intensity = Math.random(); // Mock intensity
                   const isLight = (r + c) % 2 === 0;
                   return (
                     <div 
                       key={i} 
                       className="aspect-square rounded-[2px]" 
                       style={{ 
-                        background: intensity > 0.4 
-                          ? `rgba(${Math.round(intensity * 220 + 30)}, ${Math.round((1 - intensity) * (isLight ? 120 : 60))}, 0, ${0.25 + intensity * 0.75})` 
+                        background: intensity > 0.1 
+                          ? `rgba(${Math.round(intensity * 220 + 35)}, ${Math.round((1 - intensity) * (isLight ? 120 : 60))}, 0, ${0.2 + intensity * 0.8})` 
                           : (isLight ? '#2a2a2a' : '#1a1a1a') 
                       }} 
                     />
@@ -1015,26 +1235,37 @@ export default function GameplayReview({
           </div>
 
           {/* Session Actions */}
-          <div className="grid grid-cols-2 gap-2 p-3">
+          <div className="grid grid-cols-3 gap-1.5 p-3">
             <button 
               onClick={() => {
                 playSound('click');
                 handleSave();
               }}
               disabled={isSaving}
-              className="px-3 py-2.5 rounded-md bg-gradient-to-br from-[#f5c518] to-[#c9970e] text-[#120900] text-[11px] font-serif font-bold tracking-wider hover:brightness-110 transition-all uppercase flex items-center justify-center gap-2 disabled:opacity-50"
+              className="px-2 py-2.5 rounded-md bg-gradient-to-br from-[#f5c518] to-[#c9970e] text-[#120900] text-[10px] font-serif font-bold tracking-wider hover:brightness-110 transition-all uppercase flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
-              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {isSaving ? 'Saving...' : 'Save Session'}
+              {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+            <button 
+              onClick={() => {
+                playSound('click');
+                handleExportJSON();
+              }}
+              disabled={!analysis}
+              className="px-2 py-2.5 rounded-md border border-[#252528] bg-[#18181c] text-[#e2ddd4] text-[10px] font-serif font-bold tracking-wider hover:bg-[#222228] transition-all uppercase flex items-center justify-center gap-1.5 disabled:opacity-55"
+            >
+              <Download size={12} />
+              Export
             </button>
             <button 
               onClick={() => {
                 playSound('click');
                 triggerDelete();
               }}
-              className="px-3 py-2.5 rounded-md border border-[#3a1515] bg-[#18181c] text-[#e05252] text-[11px] font-serif font-bold tracking-wider hover:bg-[#222228] transition-all uppercase flex items-center justify-center gap-2"
+              className="px-2 py-2.5 rounded-md border border-[#3a1515] bg-[#18181c] text-[#e05252] text-[10px] font-serif font-bold tracking-wider hover:bg-[#222228] transition-all uppercase flex items-center justify-center gap-1.5"
             >
-              <Trash2 size={14} />
+              <Trash2 size={12} />
               Delete
             </button>
           </div>
@@ -1076,30 +1307,18 @@ export default function GameplayReview({
                 
                 <div className="p-5 md:p-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                    {/* Premium Bundle */}
+                    {/* Premium Analysis Bundle */}
                     <div className="relative bg-[#1a0d2e] border-2 border-[#a855f7] rounded-2xl p-5 text-center shadow-[0_0_30px_rgba(168,85,247,0.2)] flex flex-col">
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#a855f7] to-[#7c3aed] text-white px-3 py-0.5 rounded-full text-[9px] font-serif font-bold tracking-wider whitespace-nowrap">⭐ PRO BUNDLE</div>
-                      <div className="font-serif text-[11px] text-[#c084fc] tracking-[0.2em] mb-2 uppercase">PREMIUM</div>
-                      <div className="font-serif text-[36px] font-bold text-[#f5c518]">₹{includeUndo ? (PRICING_CONFIG.PREMIUM_MONTHLY + PRICING_CONFIG.UNDO_ADDON_MONTHLY) : PRICING_CONFIG.PREMIUM_MONTHLY}</div>
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#a855f7] to-[#7c3aed] text-white px-3 py-0.5 rounded-full text-[9px] font-serif font-bold tracking-wider whitespace-nowrap">⭐ PRO SUBSCRIPTION</div>
+                      <div className="font-serif text-[11px] text-[#c084fc] tracking-[0.2em] mb-2 uppercase">PREMIUM ANALYSIS</div>
+                      <div className="font-serif text-[36px] font-bold text-[#f5c518]">₹{PRICING_CONFIG.PREMIUM_MONTHLY}</div>
                       <div className="text-[9px] text-[#524e48] uppercase tracking-widest mb-4">per month</div>
                       
-                      <div 
-                        onClick={() => {
-                          playSound('click');
-                          setIncludeUndo(!includeUndo);
-                        }}
-                        className={`mt-auto p-2 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${includeUndo ? 'border-[#f5c518] bg-[#f5c518]/10' : 'border-white/10 bg-white/5'}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${includeUndo ? 'bg-[#f5c518] border-[#f5c518]' : 'border-white/20'}`}>
-                            {includeUndo && <CheckCircle2 size={12} className="text-black" />}
-                          </div>
-                          <div className="text-left">
-                            <div className="text-[9px] font-bold text-white uppercase">Undo Add-on</div>
-                            <div className="text-[8px] text-white/40">+₹{PRICING_CONFIG.UNDO_ADDON_MONTHLY}</div>
-                          </div>
-                        </div>
-                        <Zap size={14} className={includeUndo ? 'text-[#f5c518]' : 'text-white/20'} />
+                      <div className="space-y-1.5 mb-4 text-left">
+                        <div className="flex items-center gap-1.5 text-[9px] text-white/70"><CheckCircle2 size={10} className="text-[#a855f7] shrink-0" /> Deep Match Analysis</div>
+                        <div className="flex items-center gap-1.5 text-[9px] text-white/70"><CheckCircle2 size={10} className="text-[#a855f7] shrink-0" /> Mistake / Blunder Review</div>
+                        <div className="flex items-center gap-1.5 text-[9px] text-white/70"><CheckCircle2 size={10} className="text-[#a855f7] shrink-0" /> Best Move Suggestions</div>
+                        <div className="flex items-center gap-1.5 text-[9px] text-white/70"><CheckCircle2 size={10} className="text-[#a855f7] shrink-0" /> Accuracy Score & Stats</div>
                       </div>
 
                       <button 
@@ -1107,9 +1326,9 @@ export default function GameplayReview({
                           playSound('click');
                           handleUpgrade('premium');
                         }}
-                        className="mt-4 w-full py-2.5 rounded-lg bg-gradient-to-br from-[#a855f7] to-[#7c3aed] text-white font-serif font-bold text-[11px] tracking-wider uppercase shadow-lg hover:brightness-110 transition-all"
+                        className="mt-auto w-full py-2.5 rounded-lg bg-gradient-to-br from-[#a855f7] to-[#7c3aed] text-white font-serif font-bold text-[11px] tracking-wider uppercase shadow-lg hover:brightness-110 transition-all"
                       >
-                        Get Bundle
+                        Get Analysis Bundle
                       </button>
                     </div>
 
@@ -1169,7 +1388,7 @@ export default function GameplayReview({
                     <FeatureRow text="Position Evaluation Bar" />
                     <FeatureRow text="Accuracy % & ACPL Score" />
                     <FeatureRow text="Video Replay Export (1080p)" />
-                    <FeatureRow text="Unlimited Undos (Add-on/Standalone)" />
+                    <FeatureRow text="Unlimited Undos (Separate Pass)" />
                   </div>
 
                   <div className="flex justify-center">

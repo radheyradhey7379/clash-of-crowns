@@ -26,6 +26,13 @@ export interface EngineResult {
   evalCp: number; // Centipawn evaluation
   noiseApplied: number; // Actual noise added
   wasFallback: boolean;
+
+  // Pre-release Bug 5 metadata
+  move_uci?: string;
+  source?: 'wasm' | 'backend' | 'emergency';
+  depth_completed?: number;
+  used_partial_result?: boolean;
+  reason?: string;
 }
 
 export interface IEngineAdapter {

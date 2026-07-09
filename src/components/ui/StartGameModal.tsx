@@ -33,7 +33,7 @@ export default function StartGameModal({ isOpen, onClose, onSelectMode, playerDa
             initial={{ scale: 0.95, opacity: 0, y: 30 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 30 }}
-            className="relative bg-[#030204] border-2 border-[#d9ad33]/30 shadow-2xl w-full h-full md:h-auto md:max-w-4xl p-4 sm:p-6 md:p-10 rounded-none md:rounded-3xl flex flex-col justify-between md:justify-start overflow-y-auto md:overflow-y-visible z-10"
+            className="relative bg-[#030204] border-2 border-[#d9ad33]/30 shadow-2xl w-full h-full md:h-auto md:max-w-4xl p-4 sm:p-6 md:p-10 rounded-none md:rounded-3xl flex flex-col justify-between md:justify-start overflow-y-auto md:overflow-y-visible z-10 start-game-modal-panel"
             dir={isRtl ? 'rtl' : 'ltr'}
           >
             {/* Top Crown Accent */}

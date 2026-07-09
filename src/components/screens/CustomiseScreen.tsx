@@ -97,7 +97,7 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
       </div>
 
       {/* Header */}
-      <div className="p-6 md:p-10 flex items-center justify-between z-10 bg-gradient-to-b from-black/80 to-transparent">
+      <div className="p-6 md:p-10 flex items-center justify-between z-10 bg-gradient-to-b from-black/80 to-transparent customise-header-bar">
         <div className="flex items-center gap-6">
           <motion.button
             whileHover={{ scale: 1.1, x: -5 }}
@@ -140,7 +140,7 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 customise-header-actions">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -184,7 +184,7 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto z-10 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto z-10 custom-scrollbar customise-content-area">
         <div className="max-w-7xl mx-auto p-6 md:p-10">
           <AnimatePresence mode="wait">
             {activeTab === 'free' ? (
@@ -203,7 +203,7 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
                     </div>
                     <h2 className="text-xl font-bold text-white tracking-widest uppercase">Piece Collections</h2>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-6 customise-grid-container">
                     {pieceSets.map((set) => (
                       <motion.button
                         key={set.id}
@@ -245,7 +245,7 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
                     </div>
                     <h2 className="text-xl font-bold text-white tracking-widest uppercase">Board Themes</h2>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 customise-grid-container">
                     {themes.map((theme) => (
                       <motion.button
                         key={theme.id}
@@ -282,7 +282,7 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
                     </div>
                     <h2 className="text-xl font-bold text-white tracking-widest uppercase">Home Animation</h2>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-6 customise-grid-container">
                     {animations.map((anim) => (
                       <motion.button
                         key={anim.id}
@@ -349,18 +349,18 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-2xl p-4 md:p-10"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-2xl p-4 md:p-10 customise-preview-backdrop"
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="w-full h-full max-w-6xl bg-[#1a1a1e] border border-white/10 rounded-[40px] overflow-hidden flex flex-col relative"
+              className="w-full h-full max-w-6xl bg-[#1a1a1e] border border-white/10 rounded-[40px] overflow-hidden flex flex-col relative customise-preview-panel"
             >
               {/* Close Button */}
               <button
                 onClick={() => setShowPreview(false)}
-                className="absolute top-8 right-8 z-50 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white/40 hover:text-white transition-all border border-white/10"
+                className="absolute top-8 right-8 z-50 p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-white/40 hover:text-white transition-all border border-white/10 customise-preview-close-btn"
               >
                 <X size={24} />
               </button>
@@ -432,8 +432,8 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
                 </PreviewErrorBoundary>
 
                 {/* Preview Overlay Info */}
-                <div className="absolute bottom-10 left-10 z-10">
-                  <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-6 rounded-3xl">
+                <div className="absolute bottom-10 left-10 z-10 customise-preview-overlay hidden md:block pointer-events-none">
+                  <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-6 rounded-3xl pointer-events-auto">
                     <h3 className="text-[#d9ad33] font-serif text-2xl tracking-widest uppercase mb-2">Live Preview</h3>
                     <div className="space-y-2">
                       <p className="text-white/60 text-xs tracking-widest uppercase">Set: <span className="text-white">{pendingData.selectedPieceSet}</span></p>
@@ -444,7 +444,7 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
               </div>
 
               {/* Modal Footer */}
-              <div className="p-8 bg-black/40 border-t border-white/5 flex items-center justify-between">
+              <div className="p-8 bg-black/40 border-t border-white/5 flex items-center justify-between customise-preview-footer">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-[#d9ad33]/10 rounded-xl flex items-center justify-center text-[#d9ad33]">
                     <Sparkles size={24} />
@@ -476,6 +476,35 @@ export default function CustomiseScreen({ onNavigate, playerData, onUpdatePlayer
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Mobile Sticky Actions Bar */}
+      <div className="customise-mobile-actions-bar">
+        <button
+          onClick={() => { playSound('click'); setShowPreview(true); }}
+          className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 rounded-xl text-white font-bold tracking-widest text-xs uppercase"
+        >
+          <Eye size={14} className="text-[#d9ad33]" />
+          Preview
+        </button>
+        
+        {hasChanges && (
+          <>
+            <button
+              onClick={handleReset}
+              className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white/40 hover:text-white transition-all"
+            >
+              <RotateCcw size={16} />
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex-2 flex items-center justify-center gap-2 px-6 py-3 bg-[#d9ad33] rounded-xl text-black font-bold tracking-widest text-xs uppercase"
+            >
+              <Save size={14} />
+              Save
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

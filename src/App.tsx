@@ -18,6 +18,10 @@ import ChatScreen from './components/screens/ChatScreen';
 import PremiumScreen from './components/screens/PremiumScreen';
 import CustomiseScreen from './components/screens/CustomiseScreen';
 import TournamentScreen from './components/screens/TournamentScreen';
+import HelpSupportScreen from './components/screens/HelpSupportScreen';
+import YourDataScreen from './components/screens/YourDataScreen';
+import PrivacyPolicyScreen from './components/screens/PrivacyPolicyScreen';
+import TermsOfServiceScreen from './components/screens/TermsOfServiceScreen';
 import BGMPlayer from './components/ui/BGMPlayer';
 import ForceUpdateScreen from './components/screens/ForceUpdateScreen';
 import MaintenanceScreen from './components/screens/MaintenanceScreen';
@@ -25,10 +29,11 @@ import SoftUpdateNotice from './components/ui/SoftUpdateNotice';
 import { useVersionGate } from './lib/version/useVersionGate';
 import { isCharacterUnlocked } from './game/ai/progressionEngine';
 import { setNodeHealth, setRustHealth } from './lib/config/featureAvailability';
-import { getApiUrl } from './services/apiClient';
+import { entitlementService } from './services/billing/entitlementService';
+import { UserEntitlements } from './types/billingTypes';
 
 import { auth, db } from './firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { syncUserProgress, updateUserStats } from './services/authService';
 import { subscribeToNetworkChanges } from './lib/offline/networkStatus';
@@ -103,6 +108,21 @@ export default function App() {
   const [isSessionHydrated, setIsSessionHydrated] = useState(false);
   const [activeProfile, setActiveProfile] = useState<ProfileType>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Google Play Billing entitlements state
+  const [entitlements, setEntitlements] = useState<UserEntitlements>({
+    hasPremiumAnalysis: false,
+    hasUndoAccess: false,
+    premiumExpiresAt: null,
+    undoExpiresAt: null
+  });
+
+  useEffect(() => {
+    const unregister = entitlementService.registerListener((newEnts) => {
+      setEntitlements(newEnts);
+    });
+    return () => unregister();
+  }, []);
 
   // Initialize session from Capacitor Preferences on startup
   useEffect(() => {
@@ -291,6 +311,9 @@ export default function App() {
           setActiveProfile('user');
           await initializeSessionLock(user.uid);
           
+          // Start real-time billing entitlements listener
+          entitlementService.startListening(user.uid);
+          
           // Check for Stripe success
           const urlParams = new URLSearchParams(window.location.search);
           const paymentStatus = urlParams.get('payment');
@@ -320,6 +343,9 @@ export default function App() {
           console.log("No user signed in onAuthStateChanged.");
           setIsCloudSyncReady(false);
           setIsDataSynced(true);
+          
+          // Stop real-time billing entitlements listener
+          entitlementService.stopListening();
           
           // If we had a active 'user' profile but Firebase says we are signed out, clear the session.
           // If it was 'guest', we keep it as guest!
@@ -440,6 +466,39 @@ export default function App() {
     }
   };
 
+  const performFullLogout = async () => {
+    try {
+      if (auth.currentUser) {
+        if (isOnlineState) {
+          await releaseSessionLock(auth.currentUser.uid).catch(() => {});
+        }
+        await signOut(auth).catch(() => {});
+      }
+      await clearSession();
+      if (activeProfile === 'guest') {
+        await clearGuestSessionProgress();
+      }
+      
+      setActiveProfile(null);
+      const resetData = resetPlayerData();
+      setPlayerData(resetData);
+      setSelectedCharacterId(null);
+      setLocalGameConfig(null);
+      setMultiplayerConfig(null);
+      setViewingProfileUid(null);
+      
+      setScreen('Login');
+    } catch (e) {
+      console.error("Error during performFullLogout:", e);
+      setScreen('Login');
+    }
+  };
+
+  const handleDataDeleted = async () => {
+    await handleReset();
+    handleNavigate('Login');
+  };
+
   const handleUpdatePlayerData = (newData: Partial<PlayerData>) => {
     setPlayerData(prev => ({ ...prev, ...newData }));
   };
@@ -462,6 +521,19 @@ export default function App() {
       selectedPieceSet: playerData.selectedPieceSet,
       boardTheme: playerData.boardTheme,
       homeAnimation: playerData.homeAnimation,
+      whiteGames: playerData.whiteGames,
+      whiteWins: playerData.whiteWins,
+      whiteLosses: playerData.whiteLosses,
+      whiteDraws: playerData.whiteDraws,
+      blackGames: playerData.blackGames,
+      blackWins: playerData.blackWins,
+      blackLosses: playerData.blackLosses,
+      blackDraws: playerData.blackDraws,
+      coins: playerData.coins,
+      xp: playerData.xp,
+      badges: playerData.badges,
+      aiProgress: playerData.aiProgress,
+      viewMode: playerData.viewMode || '3d',
       lastActive: new Date().toISOString()
     };
     
@@ -476,10 +548,25 @@ export default function App() {
     playerData.wins,
     playerData.losses,
     playerData.draws,
+    playerData.streak,
+    playerData.bestStreak,
     playerData.photoURL, 
     playerData.selectedPieceSet,
     playerData.boardTheme,
     playerData.homeAnimation,
+    playerData.whiteGames,
+    playerData.whiteWins,
+    playerData.whiteLosses,
+    playerData.whiteDraws,
+    playerData.blackGames,
+    playerData.blackWins,
+    playerData.blackLosses,
+    playerData.blackDraws,
+    playerData.coins,
+    playerData.xp,
+    playerData.viewMode,
+    JSON.stringify(playerData.badges || []),
+    JSON.stringify(playerData.aiProgress || {}),
     isAuthReady,
     isDataSynced,
     isOnlineState,
@@ -488,9 +575,6 @@ export default function App() {
 
   const renderScreen = () => {
     // Version Gate Blocking Screens
-    if (versionStatus === 'checking') {
-      return <SplashScreen onFinish={() => {}} />;
-    }
     if (versionStatus === 'force_update') {
       return <ForceUpdateScreen config={versionConfig} />;
     }
@@ -498,8 +582,25 @@ export default function App() {
       return <MaintenanceScreen config={versionConfig} onRetry={retryVersionCheck} />;
     }
 
-    if (!isSessionHydrated || !isAuthReady) {
-      return <SplashScreen onFinish={() => {}} />;
+    // Unified initialization splash screen
+    const isAppInitializing = versionStatus === 'checking' || !isSessionHydrated || !isAuthReady || !splashFinished;
+    if (isAppInitializing) {
+      return <SplashScreen onFinish={() => setSplashFinished(true)} />;
+    }
+
+    // Session Guard: If no session profile is active, restrict access to home/gameplay screens
+    const allowedWithoutSession = ['Splash', 'Login', 'PrivacyPolicy', 'TermsOfService'];
+    if (!activeProfile && !allowedWithoutSession.includes(screen)) {
+      console.warn(`[Session Guard] Blocked screen '${screen}' because activeProfile is null.`);
+      return (
+        <LoginScreen 
+          onLoginSuccess={async () => {
+            const session = await getSession();
+            setActiveProfile(session.activeProfileType);
+            handleNavigate('Home');
+          }} 
+        />
+      );
     }
 
     console.log(`Rendering screen: ${screen}`);
@@ -507,7 +608,15 @@ export default function App() {
       case 'Splash':
         return <SplashScreen onFinish={() => setSplashFinished(true)} />;
       case 'Login':
-        return <LoginScreen onLoginSuccess={() => handleNavigate('Home')} />;
+        return (
+          <LoginScreen 
+            onLoginSuccess={async () => {
+              const session = await getSession();
+              setActiveProfile(session.activeProfileType);
+              handleNavigate('Home');
+            }} 
+          />
+        );
       case 'Home':
         return (
           <HomeScreen 
@@ -536,6 +645,7 @@ export default function App() {
             multiplayerConfig={multiplayerConfig}
             onUpdatePlayerData={handleUpdatePlayerData}
             forceOpenMenu={gameMenuTrigger}
+            entitlements={entitlements}
           />
         );
       case 'Stats':
@@ -544,6 +654,14 @@ export default function App() {
         return <SettingsScreen onNavigate={handleNavigate} playerData={playerData} onUpdate={handleUpdatePlayerData} />;
       case 'About':
         return <AboutScreen onNavigate={handleNavigate} playerData={playerData} />;
+      case 'HelpSupport':
+        return <HelpSupportScreen onNavigate={handleNavigate} playerData={playerData} />;
+      case 'YourData':
+        return <YourDataScreen onNavigate={handleNavigate} playerData={playerData} onDataDeleted={handleDataDeleted} />;
+      case 'PrivacyPolicy':
+        return <PrivacyPolicyScreen onNavigate={handleNavigate} playerData={playerData} />;
+      case 'TermsOfService':
+        return <TermsOfServiceScreen onNavigate={handleNavigate} playerData={playerData} />;
       case 'Rank':
         return <RankScreen onNavigate={handleNavigate} playerData={playerData} onReset={handleReset} />;
       case 'Leaderboard':
@@ -555,6 +673,7 @@ export default function App() {
           onUpdate={handleUpdatePlayerData}
           viewingUid={viewingProfileUid}
           onViewProfile={setViewingProfileUid}
+          onLogout={performFullLogout}
         />;
       case 'Chat':
         return <ChatScreen 
@@ -565,7 +684,7 @@ export default function App() {
       case 'Learn':
         return <LearnScreen onNavigate={handleNavigate} playerData={playerData} />;
       case 'Premium':
-        return <PremiumScreen onNavigate={handleNavigate} playerData={playerData} />;
+        return <PremiumScreen onNavigate={handleNavigate} playerData={playerData} entitlements={entitlements} />;
       case 'Customise':
         return <CustomiseScreen onNavigate={handleNavigate} playerData={playerData} onUpdatePlayerData={handleUpdatePlayerData} />;
       case 'Tournament':

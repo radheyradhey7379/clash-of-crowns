@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows, Float, Text, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
 import { AppScreen, PlayerData, TIER_LABELS } from '../../types';
-import { ChessLogic } from '../../lib/chess-logic';
+import { ChessLogic, getCheckAttackers } from '../../lib/chess-logic';
 import { EngineBrain } from '../../game/engine/engineBrain';
 import { getBotProfile } from '../../game/engine/campaign/botProfiles';
 import { getLevelElo } from '../../lib/elo-system';
@@ -27,7 +27,7 @@ import GameplayReview from '../GameplayReview';
 import { saveGameState, loadGameState, SavedGameState } from '../../lib/store';
 import { io, Socket } from 'socket.io-client';
 import GameLoadingScreen from '../ui/GameLoadingScreen';
-import { auth, db } from '../../lib/firebase';
+import { auth, db } from '../../firebase';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { submitMove, subscribeToMoves } from '../../game/multiplayer/multiplayerMoveService';
 import { setPlayerOnline, setPlayerOffline, updateLastSeen, subscribeToPresence } from '../../game/multiplayer/multiplayerPresenceService';
@@ -43,6 +43,7 @@ import { realtimeClient } from '../../services/realtime/realtimeClient';
 import { useDeviceLayout } from '../../hooks/useDeviceLayout';
 import { getOfflinePackageMetadata } from '../../lib/offline/offlinePackage';
 import { subscribeToNetworkChanges } from '../../lib/offline/networkStatus';
+import { determineMatchOutcome } from '../../game/resultHelper';
 import {
   subscribeToSyncStatus,
   subscribeToPendingCount,
@@ -71,18 +72,70 @@ interface GameScreenProps {
   multiplayerConfig?: { roomId: string; role: 'host' | 'guest'; color: 'w' | 'b' } | null;
   onUpdatePlayerData: (newData: Partial<PlayerData>) => void;
   forceOpenMenu?: number;
+  entitlements?: any;
 }
 
-function CameraDirector({ turn, playerColor, isLocalVS, isCameraLocked }: { turn: 'w' | 'b', playerColor: 'w' | 'b' | null, isLocalVS: boolean, isCameraLocked: boolean }) {
-  // CameraDirector is now a placeholder as user wants pure manual control
-  // and no auto-rotation during game.
+function CameraDirector({ turn, playerColor, isLocalVS, isCameraLocked, isMobile, isCameraAutoRotate }: { turn: 'w' | 'b', playerColor: 'w' | 'b' | null, isLocalVS: boolean, isCameraLocked: boolean, isMobile: boolean, isCameraAutoRotate: boolean }) {
+  const { camera } = useThree();
+  const lastTargetPerspective = useRef<'w' | 'b'>(playerColor || 'w');
+  const [isRotating, setIsRotating] = useState(false);
+
+  // Determine what side the camera should face
+  const getTargetPerspective = (): 'w' | 'b' => {
+    if (isLocalVS) {
+      if (isCameraAutoRotate && !isMobile) {
+        return turn; // Auto-rotate by active turn in local friend mode
+      }
+      return playerColor || 'w'; // Fixed side
+    } else {
+      // Comp Career, VS Computer, or Multiplayer: always lock to player's color perspective
+      return playerColor || 'w';
+    }
+  };
+
+  const targetSide = getTargetPerspective();
+
+  useEffect(() => {
+    if (targetSide !== lastTargetPerspective.current) {
+      setIsRotating(true);
+      lastTargetPerspective.current = targetSide;
+    }
+  }, [targetSide]);
+
+  useFrame(() => {
+    if (!isRotating || isCameraLocked) return;
+
+    const isWhiteTarget = targetSide === 'w';
+    const targetZ = isWhiteTarget ? -12 : 12;
+    const targetX = 0;
+    const targetY = 10;
+
+    // Smoothly interpolate camera position
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.05);
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, 0.05);
+    camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, 0.05);
+    
+    camera.lookAt(0, 1.5, 0);
+
+    // If close enough to target, finish rotating
+    const dist = Math.sqrt(
+      Math.pow(camera.position.x - targetX, 2) +
+      Math.pow(camera.position.y - targetY, 2) +
+      Math.pow(camera.position.z - targetZ, 2)
+    );
+    if (dist < 0.05) {
+      setIsRotating(false);
+    }
+  });
+
   return null;
 }
 
-function CameraResetter({ playerColor }: { playerColor: 'w' | 'b' }) {
+function CameraResetter({ playerColor }: { playerColor: 'w' | 'b' | null }) {
   const { camera } = useThree();
   useEffect(() => {
-    camera.position.set(0, 10, -12);
+    const isBlack = playerColor === 'b';
+    camera.position.set(0, 10, isBlack ? 12 : -12);
     camera.lookAt(0, 1.5, 0);
   }, [playerColor, camera]);
   return null;
@@ -240,7 +293,8 @@ function PerformanceOverlay({
   );
 }
 
-export default function GameScreen({ onNavigate, playerData, selectedCharacterId, localGameConfig, multiplayerConfig, onUpdatePlayerData, forceOpenMenu }: GameScreenProps) {
+export default function GameScreen({ onNavigate, playerData, selectedCharacterId, localGameConfig, multiplayerConfig, onUpdatePlayerData, forceOpenMenu, entitlements }: GameScreenProps) {
+  const { isMobile } = useDeviceLayout();
   const t = useTranslation(playerData.language || 'en');
   const user = auth.currentUser;
   const isRtl = playerData.language === 'ur' || playerData.language === 'ar';
@@ -273,7 +327,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     return 'w';
   });
 
-  const effectiveViewMode = (playerColor === 'b') ? '2d' : playerData.viewMode;
+  const effectiveViewMode = playerData.viewMode;
   
   // Loading & Performance states
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -302,12 +356,12 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const aiCharacter = activeCharacterId ? AI_CHARACTERS.find(c => c.id === activeCharacterId) : null;
 
   const nextCharacter = React.useMemo(() => {
-    if (gameOver && gameOver.includes(t.victory) && !isLocalVS && playerData.aiProgress) {
+    if (gameOver && determineMatchOutcome(gameOver, playerColor, isLocalVS) === 'win' && playerData.aiProgress) {
       const nextCharId = getCurrentPlayableCharacterId(playerData.aiProgress);
       return AI_CHARACTERS.find(c => c.id === nextCharId);
     }
     return null;
-  }, [gameOver, isLocalVS, playerData.aiProgress, t.victory]);
+  }, [gameOver, isLocalVS, playerData.aiProgress, playerColor]);
 
   useEffect(() => {
     if (!isLocalVS && aiCharacter && aiCharacter.tier === 'master' && playerData.aiProgress) {
@@ -412,6 +466,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
 
     setEloChange(summary.eloChange);
     setMatchRewards(summary.rewards);
+    setLocalProgress(summary.updatedPlayerData.aiProgress);
     onUpdatePlayerData(summary.updatedPlayerData);
   };
 
@@ -440,6 +495,15 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   }, []);
 
   const [checkInfo, setCheckInfo] = useState<{ king: string; checker: string } | null>(null);
+  const [checkVisual, setCheckVisual] = useState<{
+    isCheck: boolean;
+    kingSquare: string | null;
+    attackerSquares: string[];
+  }>({
+    isCheck: false,
+    kingSquare: null,
+    attackerSquares: []
+  });
   const [matchRewards, setMatchRewards] = useState<any>(null);
   const [isAIThinking, setIsAIThinking] = useState(false);
   const [is3DLoaded, setIs3DLoaded] = useState(false);
@@ -463,12 +527,23 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const [capturedPieces, setCapturedPieces] = useState<{ w: string[], b: string[] }>({ w: [], b: [] });
   const [showReview, setShowReview] = useState(false);
   const [eloChange, setEloChange] = useState<number | null>(null);
+  const [localProgress, setLocalProgress] = useState<any>(null);
   const [showDeclareConfirm, setShowDeclareConfirm] = useState(false);
   const [showResignConfirm, setShowResignConfirm] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [latency, setLatency] = useState<number>(0);
   const [whiteTime, setWhiteTime] = useState(0);
   const [blackTime, setBlackTime] = useState(0);
+
+  // Pre-release Bug 4 timer tracking states
+  const [userThinkTimeMs, setUserThinkTimeMs] = useState(0);
+  const [computerThinkTimeMs, setComputerThinkTimeMs] = useState(0);
+  const userTurnStartedAt = useRef<number>(Date.now());
+  const userTimeBeforeTurn = useRef<number>(0);
+  const aiCalculationStartedAt = useRef<number>(0);
+  const computerTimeBeforeTurn = useRef<number>(0);
+  const pausedDurationThisTurn = useRef<number>(0);
+  const pausedStartedAt = useRef<number | null>(null);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
 
   // Dismiss loading screen when progress is 100% and 3D board is ready (if 3D mode)
@@ -700,28 +775,88 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     }
   }, [localGameConfig]);
 
+  // Sync user/computer think times to whiteTime and blackTime states
+  useEffect(() => {
+    if (isLocalVS) return;
+    if (playerColor === 'w') {
+      setWhiteTime(Math.floor(userThinkTimeMs / 1000));
+      setBlackTime(Math.floor(computerThinkTimeMs / 1000));
+    } else {
+      setWhiteTime(Math.floor(computerThinkTimeMs / 1000));
+      setBlackTime(Math.floor(userThinkTimeMs / 1000));
+    }
+  }, [userThinkTimeMs, computerThinkTimeMs, playerColor, isLocalVS]);
+
+  // Turn changes: reset stopwatch anchors
+  useEffect(() => {
+    if (isLocalVS) return;
+    if (turn === playerColor) {
+      userTurnStartedAt.current = Date.now();
+      userTimeBeforeTurn.current = userThinkTimeMs;
+    } else {
+      aiCalculationStartedAt.current = Date.now();
+      computerTimeBeforeTurn.current = computerThinkTimeMs;
+      pausedDurationThisTurn.current = 0;
+      pausedStartedAt.current = null;
+    }
+  }, [turn, playerColor, isLocalVS]);
+
+  // Pause / Resume: adjust stopwatch anchors so modal open duration is paused
+  const isPaused = isGameInteractionBlocked || !gameStarted;
+  useEffect(() => {
+    if (isLocalVS) return;
+
+    if (isPaused) {
+      if (pausedStartedAt.current === null) {
+        pausedStartedAt.current = Date.now();
+      }
+    } else {
+      if (pausedStartedAt.current !== null) {
+        const pauseElapsed = Date.now() - pausedStartedAt.current;
+        pausedDurationThisTurn.current += pauseElapsed;
+        pausedStartedAt.current = null;
+      }
+      
+      userTurnStartedAt.current = Date.now();
+      userTimeBeforeTurn.current = userThinkTimeMs;
+      aiCalculationStartedAt.current = Date.now();
+      computerTimeBeforeTurn.current = computerThinkTimeMs;
+    }
+  }, [isPaused, isLocalVS]);
+
+  // High-precision ticking interval
   useEffect(() => {
     let interval: any;
-    if (
-      gameStarted && 
-      !isGameInteractionBlocked && 
-      (playerColor || localGameConfig)
-    ) {
+    if (gameStarted && !isGameInteractionBlocked && (playerColor || localGameConfig)) {
       interval = setInterval(() => {
-        if (turn === 'w') {
-          setWhiteTime(prev => prev + 1);
+        if (isLocalVS) {
+          // Local Pass & Play: standard 1-second tick
+          if (turn === 'w') {
+            setWhiteTime(prev => prev + 1);
+          } else {
+            setBlackTime(prev => prev + 1);
+          }
         } else {
-          setBlackTime(prev => prev + 1);
+          // AI/Multiplayer: Stopwatch elapsed updates
+          const isUserTurn = turn === playerColor;
+          if (isUserTurn) {
+            const elapsed = Date.now() - userTurnStartedAt.current;
+            setUserThinkTimeMs(userTimeBeforeTurn.current + elapsed);
+          } else {
+            const elapsed = Date.now() - aiCalculationStartedAt.current;
+            setComputerThinkTimeMs(computerTimeBeforeTurn.current + elapsed);
+          }
         }
       }, 1000);
     }
     return () => clearInterval(interval);
   }, [
-    turn, 
-    gameStarted, 
-    isGameInteractionBlocked, 
-    playerColor, 
-    localGameConfig
+    turn,
+    gameStarted,
+    isGameInteractionBlocked,
+    playerColor,
+    localGameConfig,
+    isLocalVS
   ]);
 
   useEffect(() => {
@@ -854,7 +989,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     }
   }, [turn, gameOver, history, whiteTime, blackTime, capturedPieces, lastMove, playerColor, selectedCharacterId, localGameConfig, isMultiplayer]);
 
-  const recordMove = (move: any) => {
+  const recordMove = (move: any, thinkTimeMs?: number) => {
     setGameStarted(true);
     try {
       const fen = chess.getFen();
@@ -898,12 +1033,13 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
           comment,
           moveNumber,
           side,
-          classification
+          classification,
+          thinkTimeMs
         }];
       });
 
       // Commentary Integration
-      const isCommentaryEnabled = playerData.commentaryEnabled !== false;
+      const isCommentaryEnabled = playerData.commentaryEnabled === true && !isMobile;
       if (isCommentaryEnabled) {
         let totalPieces = 0;
         const boardObj = chess.getBoard();
@@ -1076,7 +1212,9 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
         setTurn(chess.getTurn());
         setLastMove({ from: selectedSquare, to: square });
         updateCheckInfo();
-        recordMove(moveResult);
+        const duration = Date.now() - userTurnStartedAt.current;
+        setUserThinkTimeMs(prev => prev + duration);
+        recordMove(moveResult, duration);
         playSound('move');
         
         if (isMultiplayer && multiplayerConfig) {
@@ -1188,7 +1326,9 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       setTurn(chess.getTurn());
       setLastMove({ from: pendingPromotion.from, to: pendingPromotion.to });
       updateCheckInfo();
-      recordMove(moveResult);
+      const duration = Date.now() - userTurnStartedAt.current;
+      setUserThinkTimeMs(prev => prev + duration);
+      recordMove(moveResult, duration);
       playSound('move');
 
       if (isMultiplayer && multiplayerConfig) {
@@ -1225,36 +1365,40 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   const updateCheckInfo = () => {
     if (chess.isCheck()) {
       const turn = chess.getTurn();
-      const board = chess.getBoard();
-      let kingSquare = '';
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-          const p = board[r][c];
-          if (p && p.type === 'k' && p.color === turn) {
-            kingSquare = String.fromCharCode(97 + c) + (8 - r);
-            break;
-          }
-        }
-        if (kingSquare) break;
-      }
+      const res = getCheckAttackers(chess.getGameInstance(), turn);
+      
+      setCheckVisual({
+        isCheck: true,
+        kingSquare: res.kingSquare,
+        attackerSquares: res.attackers
+      });
 
-      // Find the checker
-      // We can't easily get opponent moves from chess.js without switching turn
-      // So we just look at the last move if it was a check
-      const history = chess.getHistory({ verbose: true }) as any[];
-      const lastMove = history[history.length - 1];
-      if (lastMove && lastMove.san.includes('+')) {
-        setCheckInfo({ king: kingSquare, checker: lastMove.to });
+      // Keep legacy checkInfo populated for backward compatibility
+      if (res.attackers.length > 0) {
+        setCheckInfo({ king: res.kingSquare, checker: res.attackers[0] });
         playSound('check');
       } else {
-        // If it wasn't the last move (e.g. discovered check), we might need more logic
-        // for now, let's just use the last move's 'to' as a fallback if it's a check
-        if (lastMove) {
-           setCheckInfo({ king: kingSquare, checker: lastMove.to });
-           playSound('check');
+        const board = chess.getBoard();
+        let kingSquare = '';
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const p = board[r][c];
+            if (p && p.type === 'k' && p.color === turn) {
+              kingSquare = String.fromCharCode(97 + c) + (8 - r);
+              break;
+            }
+          }
+          if (kingSquare) break;
         }
+        setCheckInfo({ king: kingSquare, checker: '' });
+        playSound('check');
       }
     } else {
+      setCheckVisual({
+        isCheck: false,
+        kingSquare: null,
+        attackerSquares: []
+      });
       setCheckInfo(null);
     }
   };
@@ -1495,10 +1639,30 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       }
 
       const timer = setTimeout(async () => {
+        aiCalculationStartedAt.current = Date.now();
+        computerTimeBeforeTurn.current = computerThinkTimeMs;
+        const aiThinkingStartedAt = performance.now();
         try {
           const result = await brain.computeMove();
-          setAiCalcTime(result.thinkTimeMs);
-          setLastMoveLatency(result.thinkTimeMs);
+          const aiThinkingEndedAt = performance.now();
+          const engineThinkTime = result.thinkTimeMs || 0;
+          
+          const ended = Date.now();
+          let calcDuration = ended - aiCalculationStartedAt.current;
+          let totalPaused = pausedDurationThisTurn.current;
+          if (pausedStartedAt.current !== null) {
+            totalPaused += (ended - pausedStartedAt.current);
+          }
+          if (totalPaused > 0) {
+            calcDuration = Math.max(0, calcDuration - totalPaused);
+          }
+          
+          // Fallback thinkTime if the engine reported 0 but we measured something
+          const finalThinkTime = Math.max(calcDuration, engineThinkTime);
+          
+          setComputerThinkTimeMs(computerTimeBeforeTurn.current + finalThinkTime);
+          setAiCalcTime(finalThinkTime);
+          setLastMoveLatency(finalThinkTime);
 
           if (result.move) {
             const move = chess.makeMove(result.move);
@@ -1518,7 +1682,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               setTurn(chess.getTurn());
               setLastMove({ from: move.from, to: move.to });
               updateCheckInfo();
-              recordMove(move);
+              recordMove(move, finalThinkTime);
               playSound('move');
             }
           }
@@ -1558,7 +1722,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   };
 
   const triggerEndMatchCommentary = (result: 'win' | 'loss' | 'draw') => {
-    const isCommentaryEnabled = playerData.commentaryEnabled !== false;
+    const isCommentaryEnabled = playerData.commentaryEnabled === true && !isMobile;
     if (!isCommentaryEnabled) return;
 
     let trigger: CommentaryTrigger = 'match_draw';
@@ -1696,14 +1860,18 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     let requiresToken = false;
     let newFreeUndosUsed = freeUndosUsed;
 
-    if (tier === 'beginner' || tier === 'learner') {
-      if (freeUndosUsed < 1) {
-        newFreeUndosUsed = 1;
-      } else {
+    const hasActiveUndoPass = entitlements?.hasUndoAccess === true;
+
+    if (!hasActiveUndoPass) {
+      if (tier === 'beginner' || tier === 'learner') {
+        if (freeUndosUsed < 1) {
+          newFreeUndosUsed = 1;
+        } else {
+          requiresToken = true;
+        }
+      } else if (tier === 'intermediate' || tier === 'hard') {
         requiresToken = true;
       }
-    } else if (tier === 'intermediate' || tier === 'hard') {
-      requiresToken = true;
     }
 
     if (requiresToken) {
@@ -1739,6 +1907,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
   };
 
   const resetGame = () => {
+    setLocalProgress(null);
     if (tauntTimeoutRef.current) {
       clearTimeout(tauntTimeoutRef.current);
       tauntTimeoutRef.current = null;
@@ -1855,12 +2024,12 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     if (isDraw) {
       return aiCharacter.drawLine || "A balanced battle.";
     }
-    const isWin = gameOver.includes(t.victory);
+    const isWin = determineMatchOutcome(gameOver, playerColor, isLocalVS) === 'win';
     if (isWin) {
       return aiCharacter.playerWinLine || "You played well.";
     }
     return aiCharacter.playerLossLine || "The board belongs to me this time.";
-  }, [gameOver, aiCharacter, t]);
+  }, [gameOver, aiCharacter, playerColor, isLocalVS]);
 
   return (
     <div 
@@ -1942,58 +2111,19 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                     >
                       <Menu size={16} className="md:w-5 md:h-5" />
                     </motion.button>
-                    {playerColor !== 'b' && (
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => {
-                          if (isGameInteractionBlocked) return;
-                          playSound('click');
-                          onUpdatePlayerData({ viewMode: playerData.viewMode === '2d' ? '3d' : '2d' });
-                        }}
-                        className="p-1.5 md:p-2.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg md:rounded-xl text-[#d9ad33] hover:bg-white/10 transition-all shadow-2xl flex items-center justify-center min-w-[36px] md:min-w-[50px]"
-                        title={playerData.viewMode === '2d' ? t.view3d : t.view2d}
-                      >
-                        <span className="text-[8px] md:text-[10px] font-black tracking-tighter">
-                          {playerData.viewMode === '2d' ? '3D' : '2D'}
-                        </span>
-                      </motion.button>
-                     )}
-                    
-                    {/* Latency Indicator */}
-                    <div 
-                      className={cn(
-                        "p-1.5 md:p-2.5 backdrop-blur-xl border rounded-lg md:rounded-xl transition-all shadow-2xl flex flex-col items-center justify-center min-w-[36px] md:min-w-[50px] cursor-help",
-                        latencyColorClass
-                      )}
-                      title={
-                        latencyText === 'Ping...'
-                          ? 'Your network connection is low. Please wait...'
-                          : latencyText === 'Offline'
-                            ? 'Disconnected from the engine. Operating in offline local fallback mode.'
-                            : latencyText === 'Reconnecting...'
-                              ? 'Connection lost. Reconnecting to engine...'
-                              : `Ping: ${latencyText}. Lower is better for multiplayer and online engine queries.`
-                      }
-                    >
-                      <span className="text-[10px] md:text-xs font-black">
-                        {latencyText.replace(/[^0-9]/g, '') || (latencyText === 'Offline' ? '--' : '...')}
-                      </span>
-                    </div>
-
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={() => {
                         if (isGameInteractionBlocked) return;
                         playSound('click');
-                        setShowDeclareConfirm(true);
+                        onUpdatePlayerData({ viewMode: playerData.viewMode === '2d' ? '3d' : '2d' });
                       }}
                       className="p-1.5 md:p-2.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg md:rounded-xl text-[#d9ad33] hover:bg-white/10 transition-all shadow-2xl flex items-center justify-center min-w-[36px] md:min-w-[50px]"
-                      title="Declare Draw"
+                      title={playerData.viewMode === '2d' ? t.view3d : t.view2d}
                     >
-                      <span className="text-[8px] md:text-[10px] font-black tracking-tighter uppercase">
-                        Declare
+                      <span className="text-[8px] md:text-[10px] font-black tracking-tighter">
+                        {playerData.viewMode === '2d' ? '3D' : '2D'}
                       </span>
                     </motion.button>
                   </>
@@ -2106,9 +2236,10 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               validMoves={validMoves}
               lastMove={lastMove}
               onSquareClick={handleSquareClick}
-              playerColor={isLocalVS ? turn : playerColor}
+              playerColor={isLocalVS ? (isMobile ? (localGameConfig?.player1Color || 'w') : turn) : playerColor}
               checkInfo={checkInfo}
               turn={turn}
+              checkVisual={checkVisual}
             />
           </div>
 
@@ -2140,11 +2271,13 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
             position={[0, 10, -12]}
           />
           <CameraResetter playerColor={playerColor} />
-          <CameraDirector 
+           <CameraDirector 
             turn={turn} 
             playerColor={playerColor} 
             isLocalVS={isLocalVS} 
             isCameraLocked={isCameraLocked} 
+            isMobile={isMobile}
+            isCameraAutoRotate={playerData.cameraAutoRotate !== false}
           />
           <OrbitControls 
             enabled={effectiveViewMode === '3d' && !isCameraLocked}
@@ -2170,10 +2303,10 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
             <CameraGuard />
             
             <ambientLight intensity={0.5} />
-            <pointLight position={[10, 15, 10]} intensity={1.0} color="#fff" castShadow={!playerData.lowGraphics} />
-            <pointLight position={[-10, 15, 10]} intensity={1.0} color="#fff" castShadow={!playerData.lowGraphics} />
-            <pointLight position={[10, 15, -10]} intensity={1.0} color="#fff" castShadow={!playerData.lowGraphics} />
-            <pointLight position={[-10, 15, -10]} intensity={1.0} color="#fff" castShadow={!playerData.lowGraphics} />
+            <pointLight position={[10, 15, 10]} intensity={1.0} color="#fff" />
+            <pointLight position={[-10, 15, 10]} intensity={1.0} color="#fff" />
+            <pointLight position={[10, 15, -10]} intensity={1.0} color="#fff" />
+            <pointLight position={[-10, 15, -10]} intensity={1.0} color="#fff" />
             
             <spotLight position={[0, 15, 0]} angle={0.8} penumbra={1} intensity={1.5} castShadow={!playerData.lowGraphics} />
             <pointLight position={[0, 8, 0]} intensity={0.4} color="#ffbd52" />
@@ -2185,6 +2318,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               validMoves={validMoves}
               lastMove={lastMove}
               checkInfo={checkInfo}
+              checkVisual={checkVisual}
               chess={chess}
               setBoard={setBoard}
               setTurn={setTurn}
@@ -2313,7 +2447,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               <motion.div
                 initial={{ scale: 0.8, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
-                className="play-popup bg-black/60 backdrop-blur-2xl border-2 border-[#d9ad33]/40 text-center shadow-[0_0_100px_rgba(217,173,51,0.15)] relative overflow-hidden custom-scrollbar"
+                className="play-popup bg-black/60 backdrop-blur-2xl border-2 border-[#d9ad33]/40 text-center shadow-[0_0_100px_rgba(217,173,51,0.15)] relative overflow-y-auto custom-scrollbar"
               >
                 <div className="absolute top-0 left-0 w-full h-2 bg-[#d9ad33]" />
                 
@@ -2324,7 +2458,12 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                   className="mb-4"
                 >
                   <h2 className="play-popup-title text-3xl md:text-5xl font-bold text-white font-serif tracking-tighter uppercase mb-1">
-                    {gameOver.includes(t.victory) ? "BRILLIANT!" : gameOver.includes(t.defeat) ? "DEFEAT" : "DRAW"}
+                    {(() => {
+                      const outcome = determineMatchOutcome(gameOver, playerColor, isLocalVS);
+                      if (outcome === 'win') return "BRILLIANT VICTORY";
+                      if (outcome === 'loss') return "DEFEAT";
+                      return "DRAW";
+                    })()}
                   </h2>
                   <div className="h-0.5 w-16 bg-[#d9ad33] mx-auto rounded-full" />
                 </motion.div>
@@ -2344,7 +2483,17 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                 </div>
 
                 <p className="text-[#b38f42] text-[10px] md:text-xs mb-3 font-bold tracking-[0.2em] uppercase bg-[#d9ad33]/10 py-2.5 rounded-xl border border-[#d9ad33]/20">
-                  {gameOver}
+                  {(() => {
+                    const outcome = determineMatchOutcome(gameOver, playerColor, isLocalVS);
+                    if (outcome === 'win') {
+                      return activeCharacterId ? "Brilliant Victory! You defeated the computer." : "Brilliant Victory!";
+                    } else if (outcome === 'loss') {
+                      return activeCharacterId ? "Defeat. Computer won this match." : "Defeat.";
+                    } else {
+                      return "Draw. Match ended in a draw.";
+                    }
+                  })()}
+                  <span className="block mt-1 font-normal opacity-70 normal-case">({gameOver})</span>
                   {aiCharacter && postMatchLine && (
                     <span className="block mt-2 pt-2 border-t border-[#d9ad33]/20 normal-case font-normal text-white/85 italic font-sans text-xs">
                       "{postMatchLine}"
@@ -2478,45 +2627,56 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                             playSound('click');
                             navigateWithCleanup('Home');
                           }}
-                          className="play-mode-button h-10 bg-[#d9ad33] text-black font-bold tracking-[0.2em] rounded-xl shadow-lg uppercase text-[9px] cursor-pointer pointer-events-auto"
+                          className="play-mode-button h-10 bg-[#d9ad33] text-black font-bold tracking-[0.2em] rounded-xl shadow-lg uppercase text-[9px] cursor-pointer pointer-events-auto flex items-center justify-center"
                         >
                           Exit to Court
                         </motion.button>
                       );
                     }
 
-                    const outcome = gameOver
-                      ? (gameOver.includes(t.victory)
-                        ? 'win'
-                        : (chess.isDraw() || gameOver.includes(t.draw) || gameOver.toLowerCase().includes('draw') || gameOver.toLowerCase().includes('stalemate')
-                          ? 'draw'
-                          : 'loss'))
-                      : 'loss';
+                    const outcome = determineMatchOutcome(gameOver, playerColor, isLocalVS);
+                    const progressToUse = localProgress || playerData.aiProgress || { tier: 'beginner', level: 1, elo: 0, consecutiveLosses: 0, unlockedTiers: ['beginner'], lockedTiers: [], promotionTrial: { unlocked: false, completed: false }, hard: { locked: true }, masterCup: { currentCup: 1, currentMatch: 1, winsInCup: 0, lossesInCup: 0, completedCups: [] }, grandmaster: { unlocked: false, bossDefeated: false, bossSeriesWins: 0, bossSeriesLosses: 0, seasonPoints: 0 } };
 
                     const cta = getGameResultCTA(
                       outcome,
                       activeCharacterId,
-                      playerData.aiProgress || { tier: 'beginner', level: 1, elo: 0, consecutiveLosses: 0, unlockedTiers: ['beginner'], lockedTiers: [], promotionTrial: { unlocked: false, completed: false }, hard: { locked: true }, masterCup: { currentCup: 1, currentMatch: 1, winsInCup: 0, lossesInCup: 0, completedCups: [] }, grandmaster: { unlocked: false, bossDefeated: false, bossSeriesWins: 0, bossSeriesLosses: 0, seasonPoints: 0 } }
+                      progressToUse
                     );
 
                     return (
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                          playSound('click');
-                          if (cta.nextCharacterId) {
-                            onNavigate('Game', cta.nextCharacterId);
-                          } else if (cta.label === 'BACK TO LEVELS') {
-                            navigateWithCleanup('LevelSelect');
-                          } else {
-                            resetGame();
-                          }
-                        }}
-                        className="play-mode-button h-10 bg-[#d9ad33] text-black font-bold tracking-[0.2em] rounded-xl shadow-lg uppercase text-[9px] cursor-pointer pointer-events-auto flex items-center justify-center"
-                      >
-                        {cta.label}
-                      </motion.button>
+                      <>
+                        {/* Main Action Button (Next Level or Retry) */}
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            playSound('click');
+                            if (cta.nextCharacterId) {
+                              onNavigate('Game', cta.nextCharacterId);
+                            } else {
+                              resetGame();
+                            }
+                          }}
+                          className="play-mode-button h-10 bg-[#d9ad33] text-black font-bold tracking-[0.2em] rounded-xl shadow-lg uppercase text-[9px] cursor-pointer pointer-events-auto flex items-center justify-center"
+                        >
+                          {cta.label}
+                        </motion.button>
+
+                        {/* Optional Replay Button if Next Level is available */}
+                        {cta.label === 'NEXT LEVEL' && (
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              playSound('click');
+                              resetGame();
+                            }}
+                            className="play-mode-button h-10 bg-white/5 border border-white/10 text-white/80 font-bold tracking-[0.2em] rounded-xl hover:bg-white/10 transition-all uppercase text-[9px] cursor-pointer pointer-events-auto flex items-center justify-center"
+                          >
+                            Replay
+                          </motion.button>
+                        )}
+                      </>
                     );
                   })()}
                   {!isMultiplayer && (
@@ -2527,7 +2687,7 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
                         playSound('click');
                         navigateWithCleanup('LevelSelect');
                       }}
-                      className="play-mode-button h-10 bg-white/5 border border-white/10 text-white/60 font-bold tracking-[0.2em] rounded-xl hover:bg-white/10 transition-all uppercase text-[9px] cursor-pointer pointer-events-auto"
+                      className="play-mode-button h-10 bg-white/5 border border-white/10 text-white/60 font-bold tracking-[0.2em] rounded-xl hover:bg-white/10 transition-all uppercase text-[9px] cursor-pointer pointer-events-auto flex items-center justify-center"
                     >
                       {t.selectLevel}
                     </motion.button>
@@ -2641,6 +2801,8 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               blackPlayerName={blackPlayerName}
               isLocalGame={isLocalVS}
               playerColor={playerColor}
+              matchId={matchIdRef.current}
+              entitlements={entitlements}
             />
           )}
           {isMultiplayer && reconnectTimeLeft !== null && (
@@ -2782,11 +2944,13 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
               </motion.div>
             </>
           )}
-          <AvatarCommentaryBubble
-            reaction={activeCommentary}
-            onClose={() => setActiveCommentary(null)}
-            characterName={isMultiplayer ? 'Commentator' : (aiCharacter?.name || 'Opponent')}
-          />
+          {!isMobile && (
+            <AvatarCommentaryBubble
+              reaction={activeCommentary}
+              onClose={() => setActiveCommentary(null)}
+              characterName={isMultiplayer ? 'Commentator' : (aiCharacter?.name || 'Opponent')}
+            />
+          )}
           {show3DTimeoutPrompt && effectiveViewMode === '3d' && !is3DLoaded && (
             <motion.div
               initial={{ opacity: 0, y: 50 }}

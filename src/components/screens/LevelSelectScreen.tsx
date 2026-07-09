@@ -110,7 +110,7 @@ export default function LevelSelectScreen({ onNavigate, playerData, onSelectLeve
             {[1, 2, 3].map(cup => (
                <div key={cup}>
                  <h2 className="text-xl text-[#d9ad33] font-bold uppercase mb-4 tracking-[0.3em] font-serif border-b border-[#d9ad33]/20 pb-2">Master Cup {cup}</h2>
-                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
                     {charactersInTier.filter(c => c.cup === cup).map(char => (
                       <CharacterCard 
                         key={char.id} 
@@ -130,7 +130,7 @@ export default function LevelSelectScreen({ onNavigate, playerData, onSelectLeve
           <div className="max-w-7xl mx-auto flex flex-col gap-8">
              <div>
                 <h2 className="text-xl text-[#d9ad33] font-bold uppercase mb-4 tracking-[0.3em] font-serif border-b border-[#d9ad33]/20 pb-2">Ultimate Challenge</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 md:gap-6">
                   {charactersInTier.filter(c => c.level === 1).map(char => (
                     <CharacterCard 
                       key={char.id} 
@@ -146,7 +146,7 @@ export default function LevelSelectScreen({ onNavigate, playerData, onSelectLeve
              </div>
              <div>
                 <h2 className="text-xl text-[#d9ad33] font-bold uppercase mb-4 tracking-[0.3em] font-serif border-b border-[#d9ad33]/20 pb-2">Prestige Modes</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 md:gap-6">
                   {charactersInTier.filter(c => c.level > 1).map(char => (
                     <CharacterCard 
                       key={char.id} 
@@ -162,7 +162,7 @@ export default function LevelSelectScreen({ onNavigate, playerData, onSelectLeve
              </div>
           </div>
         ) : (
-          <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+          <div className="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
             {charactersInTier.map((char) => (
                <CharacterCard 
                   key={char.id} 

@@ -357,13 +357,13 @@ export const LESSON_TRANSLATIONS: Record<string, Record<'hi' | 'ar', { title: st
   }
 };
 
-export function getLocalLessonText(lessonId: string, lang: 'hi' | 'ar'): string {
-  const trans = LESSON_TRANSLATIONS[lessonId]?.[lang];
+export function getLocalLessonText(lessonId: string, lang: 'hi' | 'ar' | 'ur'): string {
+  const trans = LESSON_TRANSLATIONS[lessonId]?.[lang as any];
   if (!trans) return "";
-  const rulesPrefix = lang === 'hi' ? 'नियम' : 'القواعد';
+  const rulesPrefix = lang === 'hi' ? 'नियम' : lang === 'ar' ? 'القواعد' : 'قواعد';
   return `${trans.title}. ${trans.description}. ${rulesPrefix}: ${trans.rules.join('. ')}`;
 }
 
-export function getLocalLessonObj(lessonId: string, lang: 'hi' | 'ar') {
-  return LESSON_TRANSLATIONS[lessonId]?.[lang] || null;
+export function getLocalLessonObj(lessonId: string, lang: 'hi' | 'ar' | 'ur') {
+  return LESSON_TRANSLATIONS[lessonId]?.[lang as any] || null;
 }

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ScreenBackground from '../ui/ScreenBackground';
 import { motion, AnimatePresence } from 'motion/react';
 import { AppScreen, PlayerData } from '../../types';
-import { ChevronLeft, BookOpen } from 'lucide-react';
+import { ChevronLeft, BookOpen, CheckCircle2 } from 'lucide-react';
 import { LESSON_DATA, LessonContent } from '../../lib/lessons';
 import LearnDetailScreen from './LearnDetailScreen';
 
@@ -13,6 +13,23 @@ interface LearnScreenProps {
 
 export default function LearnScreen({ onNavigate, playerData }: LearnScreenProps) {
   const [selectedLesson, setSelectedLesson] = useState<LessonContent | null>(null);
+  const [completedLessons, setCompletedLessons] = useState<string[]>([]);
+  const isNavigatingRef = useRef(false);
+
+  // Sync completed lessons list on mount / active session changes
+  const refreshCompletedList = () => {
+    try {
+      const completed = JSON.parse(localStorage.getItem('clash_academy_completed_lessons') || '[]');
+      setCompletedLessons(completed);
+    } catch (err) {
+      console.error('[LearnScreen] Failed to load completed lessons:', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshCompletedList();
+    isNavigatingRef.current = false;
+  }, []);
 
   const lessons = [
     {
@@ -34,7 +51,15 @@ export default function LearnScreen({ onNavigate, playerData }: LearnScreenProps
   ];
 
   if (selectedLesson) {
-    return <LearnDetailScreen lesson={selectedLesson} onBack={() => setSelectedLesson(null)} />;
+    return (
+      <LearnDetailScreen 
+        lesson={selectedLesson} 
+        onBack={() => {
+          setSelectedLesson(null);
+          refreshCompletedList();
+        }} 
+      />
+    );
   }
 
   return (
@@ -68,27 +93,44 @@ export default function LearnScreen({ onNavigate, playerData }: LearnScreenProps
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {section.items.map((item, ii) => (
-                  <motion.button
-                    key={item}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: (si * 0.1) + (ii * 0.05) }}
-                    whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.05)", borderColor: "rgba(217, 173, 51, 0.3)" }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      const data = LESSON_DATA[item];
-                      if (data) {
-                        setSelectedLesson(data);
-                      } else {
-                        alert(`Interactive lesson for [${item}] coming soon!`);
-                      }
-                    }}
-                    className="h-20 bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-center p-4 group transition-all shadow-2xl"
-                  >
-                    <span className="text-white text-[10px] font-bold tracking-[0.2em] group-hover:text-[#d9ad33] transition-colors uppercase">{item}</span>
-                  </motion.button>
-                ))}
+                {section.items.map((item, ii) => {
+                  const data = LESSON_DATA[item];
+                  const isCompleted = data ? completedLessons.includes(data.id) : false;
+
+                  return (
+                    <motion.button
+                      key={item}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: (si * 0.1) + (ii * 0.05) }}
+                      whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.05)", borderColor: "rgba(217, 173, 51, 0.3)" }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        if (isNavigatingRef.current) return;
+                        if (data) {
+                          isNavigatingRef.current = true;
+                          setSelectedLesson(data);
+                        } else {
+                          alert(`Interactive lesson for [${item}] coming soon!`);
+                        }
+                      }}
+                      className={`h-20 bg-black/40 backdrop-blur-md border rounded-2xl flex flex-col items-center justify-center text-center p-3 group transition-all shadow-2xl relative ${
+                        isCompleted ? 'border-[#d9ad33]/40' : 'border-white/10'
+                      }`}
+                    >
+                      {isCompleted && (
+                        <div className="absolute top-2 right-2 text-[#d9ad33]">
+                          <CheckCircle2 size={12} />
+                        </div>
+                      )}
+                      <span className={`text-[10px] font-bold tracking-[0.2em] transition-colors uppercase ${
+                        isCompleted ? 'text-[#d9ad33]' : 'text-white group-hover:text-[#d9ad33]'
+                      }`}>
+                        {item}
+                      </span>
+                    </motion.button>
+                  );
+                })}
               </div>
             </div>
           ))}

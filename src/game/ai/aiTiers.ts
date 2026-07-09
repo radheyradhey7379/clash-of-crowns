@@ -6,10 +6,10 @@ export interface TierConfig {
 }
 
 export const AI_TIERS: Record<AITier, TierConfig> = {
-  beginner: { minElo: 0, maxElo: 700 },
-  learner: { minElo: 700, maxElo: 1100 },
-  intermediate: { minElo: 1100, maxElo: 1500 },
-  hard: { minElo: 1500, maxElo: 2000 },
-  master: { minElo: 2000, maxElo: 2500 },
-  grandmaster: { minElo: 2500, maxElo: null },
+  beginner: { minElo: 0, maxElo: 299 },
+  learner: { minElo: 300, maxElo: 549 },
+  intermediate: { minElo: 550, maxElo: 849 },
+  hard: { minElo: 850, maxElo: 1149 },
+  master: { minElo: 1150, maxElo: 1449 },
+  grandmaster: { minElo: 1450, maxElo: null },
 };

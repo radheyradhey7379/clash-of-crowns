@@ -12,6 +12,7 @@ use std::time::Instant;
 
 const MAX_DEPTH: usize = 64;
 
+#[derive(Clone)]
 pub struct SearchOptions {
     pub max_depth: usize,
     pub max_time: Duration,
@@ -46,6 +47,7 @@ impl Default for SearchOptions {
     }
 }
 
+#[derive(Clone)]
 pub struct SearchResult {
     pub best_move: Option<Move>,
     pub eval: i32,
@@ -111,17 +113,21 @@ fn pseudo_random_noise(error_noise_cp: i32, seed: u32) -> i32 {
     (val as i32 % range) - error_noise_cp
 }
 
-pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
-    let start_time = Instant::now();
+pub fn search_at_depth(
+    pos: &Chess,
+    options: &SearchOptions,
+    start_time: Instant,
+    max_time: Duration,
+) -> (SearchResult, bool) {
     let legals = pos.legal_moves();
     if legals.is_empty() {
-        return SearchResult {
+        return (SearchResult {
             best_move: None,
             eval: 0,
             nodes: 0,
-            depth: 0,
+            depth: options.max_depth,
             noise_applied: 0,
-        };
+        }, false);
     }
 
     let mut current_pos = pos.clone();
@@ -132,24 +138,30 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
         let mut child_pos = current_pos.clone();
         child_pos.play_unchecked(m);
         if child_pos.is_checkmate() {
-            return SearchResult {
+            return (SearchResult {
                 best_move: Some(m.clone()),
                 eval: 20000,
                 nodes: legals.len() as u64,
                 depth: 1,
                 noise_applied: 0,
-            };
+            }, false);
         }
     }
 
     let initial_extension_budget = 3;
     let mut moves_evals: Vec<(Move, i32, i32)> = Vec::new(); // (Move, raw_eval_with_noise, adjusted_eval_with_penalty)
     let mut total_nodes = 0;
+    let mut aborted = false;
 
     let mut moves_vec: Vec<_> = legals.clone().into_iter().collect();
     moves_vec.sort_by_key(|m| -score_move(&current_pos, m));
 
     for m in moves_vec {
+        if start_time.elapsed() >= max_time {
+            aborted = true;
+            break;
+        }
+
         let mut child_pos = current_pos.clone();
         child_pos.play_unchecked(&m);
         let (score, _, n) = negamax(
@@ -164,6 +176,11 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
             initial_extension_budget,
         );
         total_nodes += n;
+
+        if score == 0 && n == 0 && start_time.elapsed() >= max_time {
+            aborted = true;
+            break;
+        }
 
         // Negamax returns the score from child's perspective, so negate it
         let eval = -score;
@@ -251,6 +268,16 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
         moves_evals.push((m.clone(), noisy_eval, adjusted_eval));
     }
 
+    if aborted {
+        return (SearchResult {
+            best_move: None,
+            eval: 0,
+            nodes: total_nodes,
+            depth: options.max_depth,
+            noise_applied: options.error_noise_cp,
+        }, true);
+    }
+
     // Sort moves by adjusted evaluation descending
     moves_evals.sort_by_key(|(_, _, adjusted)| -*adjusted);
 
@@ -260,11 +287,68 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
         (legals.first().cloned(), 0)
     };
 
-    SearchResult {
+    (SearchResult {
         best_move,
         eval: best_eval,
         nodes: total_nodes,
         depth: options.max_depth,
+        noise_applied: options.error_noise_cp,
+    }, false)
+}
+
+pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
+    let start_time = Instant::now();
+    let legals = pos.legal_moves();
+    if legals.is_empty() {
+        return SearchResult {
+            best_move: None,
+            eval: 0,
+            nodes: 0,
+            depth: 0,
+            noise_applied: 0,
+        };
+    }
+
+    let max_time = options.max_time;
+    let mut best_move_so_far = legals.first().cloned();
+    let mut best_eval_so_far = 0;
+    let mut total_nodes = 0;
+    let mut depth_completed = 0;
+
+    let target_depth = options.max_depth.max(1);
+
+    for d in 1..=target_depth {
+        if start_time.elapsed() >= max_time {
+            break;
+        }
+
+        let mut current_options = options.clone();
+        current_options.max_depth = d;
+
+        let (result, aborted) = search_at_depth(pos, &current_options, start_time, max_time);
+        total_nodes += result.nodes;
+
+        if aborted {
+            break;
+        }
+
+        if let Some(m) = result.best_move {
+            best_move_so_far = Some(m);
+            best_eval_so_far = result.eval;
+            depth_completed = d;
+
+            // Early exit on checkmate or forced mate
+            if result.eval >= 15000 || result.eval <= -15000 {
+                break;
+            }
+        }
+    }
+
+    SearchResult {
+        best_move: best_move_so_far,
+        eval: best_eval_so_far,
+        nodes: total_nodes,
+        depth: depth_completed,
         noise_applied: options.error_noise_cp,
     }
 }

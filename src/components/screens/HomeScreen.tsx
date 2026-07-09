@@ -5,7 +5,7 @@ import { Settings, Award, Trophy, Play, Book, BarChart2, MessageSquare, Gamepad2
 import StartGameModal from '../ui/StartGameModal';
 import LocalGameSetupModal from '../ui/LocalGameSetupModal';
 import MultiplayerSetupModal from '../ui/MultiplayerSetupModal';
-import { auth } from '../../lib/firebase';
+import { auth } from '../../firebase';
 import { useTranslation } from '../../lib/translations';
 import { cn } from '../../lib/utils';
 import { playSound } from '../../lib/sounds';

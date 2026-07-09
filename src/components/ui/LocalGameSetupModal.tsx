@@ -35,7 +35,7 @@ export default function LocalGameSetupModal({ isOpen, onClose, onStart }: LocalG
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className="relative bg-[#09090b] border-2 border-[#d9ad33]/30 w-full max-w-md p-6 md:p-8 rounded-3xl shadow-[0_0_50px_rgba(217,173,51,0.15)]"
+            className="relative bg-[#09090b] border-2 border-[#d9ad33]/30 w-full max-w-md p-6 md:p-8 rounded-3xl shadow-[0_0_50px_rgba(217,173,51,0.15)] local-setup-modal-panel"
           >
             <button 
               onClick={onClose}

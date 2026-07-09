@@ -28,6 +28,7 @@ import { isMultiplayerEnabled, isRustRealtimeEnabled } from '../../lib/config/fe
 import { setRustHealth } from '../../lib/config/featureAvailability';
 import { getApiUrl } from '../../services/apiClient';
 import { auth } from '../../firebase';
+import { currentSessionId } from '../../services/sessionLock';
 
 export interface AdapterConfig {
   roomId: string;
@@ -69,6 +70,7 @@ class RealtimeMultiplayerAdapter {
   // Firestore specific variables
   private firestoreUnsubs: (() => void)[] = [];
   private presenceHeartbeat: any = null;
+  private currentFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
   public async initFriendMatch(config: AdapterConfig) {
     if (!isMultiplayerEnabled()) {
@@ -76,42 +78,7 @@ class RealtimeMultiplayerAdapter {
       return;
     }
 
-    // Fetch fresh session token if authenticated
-    if (auth?.currentUser) {
-      try {
-        const idToken = await auth.currentUser.getIdToken(true);
-        const res = await fetch(getApiUrl('/api/auth/session-token'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idToken })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          config.token = data.token;
-        }
-      } catch (tokenErr) {
-        console.warn('[Adapter] Failed to fetch backend session token:', tokenErr);
-      }
-    } else {
-      // Guest session token generation
-      try {
-        let guestUid = localStorage.getItem('deviceId');
-        if (!guestUid) {
-          guestUid = 'temp_' + Math.random().toString(36).substring(7);
-        }
-        const res = await fetch(getApiUrl('/api/auth/session-token'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ guest: true, guestUid })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          config.token = data.token;
-        }
-      } catch (guestErr) {
-        console.warn('[Adapter] Failed to fetch guest session token:', guestErr);
-      }
-    }
+    this.currentFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
     this.config = config;
     this.currentAppliedMoveNumber = 0;
@@ -148,6 +115,43 @@ class RealtimeMultiplayerAdapter {
     if (!isHealthy) {
       this.initFirestore();
       return;
+    }
+
+    // Fetch fresh session token if authenticated
+    if (auth?.currentUser) {
+      try {
+        const idToken = await auth.currentUser.getIdToken(true);
+        const res = await fetch(getApiUrl('/api/auth/session-token'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken, sessionId: currentSessionId })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          config.token = data.token;
+        }
+      } catch (tokenErr) {
+        console.warn('[Adapter] Failed to fetch backend session token:', tokenErr);
+      }
+    } else {
+      // Guest session token generation
+      try {
+        let guestUid = typeof localStorage !== 'undefined' ? localStorage.getItem('deviceId') : null;
+        if (!guestUid) {
+          guestUid = 'temp_' + Math.random().toString(36).substring(7);
+        }
+        const res = await fetch(getApiUrl('/api/auth/session-token'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guest: true, guestUid, sessionId: currentSessionId })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          config.token = data.token;
+        }
+      } catch (guestErr) {
+        console.warn('[Adapter] Failed to fetch guest session token:', guestErr);
+      }
     }
 
     // Try starting Rust WS
@@ -194,6 +198,7 @@ class RealtimeMultiplayerAdapter {
           return;
         }
         this.currentAppliedMoveNumber = oppMove.moveNumber;
+        this.currentFen = oppMove.fenAfter;
         config.onOpponentMove(oppMove);
       });
 
@@ -276,6 +281,7 @@ class RealtimeMultiplayerAdapter {
             return;
           }
           this.currentAppliedMoveNumber = lastMove.moveNumber;
+          this.currentFen = lastMove.fenAfter;
           config.onOpponentMove({
             from: lastMove.from,
             to: lastMove.to,
@@ -342,17 +348,19 @@ class RealtimeMultiplayerAdapter {
   }) {
     if (!this.config) return;
 
+    const clientFenBefore = this.currentFen;
     this.currentAppliedMoveNumber = move.moveNumber;
+    this.currentFen = move.fenAfter;
 
     if (this.transport === 'rust_ws') {
+      const moveUci = move.from + move.to + (move.promotion ? move.promotion.toLowerCase() : "");
       rustRoomBridge.submitRustMove({
-        from: move.from,
-        to: move.to,
-        promotion: move.promotion,
-        moveNumber: move.moveNumber,
-        fenAfter: move.fenAfter,
-        san: move.san,
-        color: this.config.color,
+        matchId: this.config.roomId,
+        sessionId: currentSessionId,
+        moveUci,
+        clientMoveNumber: move.moveNumber,
+        clientFenBefore,
+        timestamp: Date.now(),
       });
     } else {
       await submitFirestoreMove(this.config.roomId, {

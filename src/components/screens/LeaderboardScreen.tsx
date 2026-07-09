@@ -9,6 +9,7 @@ import { getTopArenaKings, getMyArenaRank } from '../../game/leaderboard/arenaLe
 import { LeaderboardEntry } from '../../game/leaderboard/leaderboardTypes';
 import { sendPokeChallenge } from '../../game/social/challengeService';
 import { isChallengeMatchEnabled, isSocialPokeEnabled, getDisabledFeatureMessage } from '../../lib/config/featureFlags';
+import { isOnline, subscribeToNetworkChanges } from '../../lib/offline/networkStatus';
 
 export default function LeaderboardScreen({ onNavigate, playerData }: { onNavigate: (screen: AppScreen) => void, playerData: PlayerData }) {
   const [activeTab, setActiveTab] = useState(0); // 0 = Comp Kings, 1 = Arena Kings
@@ -25,9 +26,28 @@ export default function LeaderboardScreen({ onNavigate, playerData }: { onNaviga
   const [actionStatus, setActionStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Connectivity & manual retry state
+  const [isDeviceOnline, setIsDeviceOnline] = useState(isOnline());
+  const [retryTrigger, setRetryTrigger] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToNetworkChanges((online) => {
+      setIsDeviceOnline(online);
+    });
+    return unsubscribe;
+  }, []);
+
   useEffect(() => {
     let active = true;
     async function fetchData() {
+      if (!isOnline()) {
+        setErrorMsg("Internet required for leaderboard.");
+        setEntries([]);
+        setMyRank(-1);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setErrorMsg(null);
       try {
@@ -53,7 +73,7 @@ export default function LeaderboardScreen({ onNavigate, playerData }: { onNaviga
       } catch (err) {
         if (active) {
           console.warn('[LeaderboardScreen] Fetch error:', err);
-          setErrorMsg("Leaderboard requires internet");
+          setErrorMsg("Unable to load leaderboard. Try again.");
           setEntries([]);
           setMyRank(-1);
         }
@@ -67,7 +87,7 @@ export default function LeaderboardScreen({ onNavigate, playerData }: { onNaviga
     return () => {
       active = false;
     };
-  }, [activeTab, playerData.uid]);
+  }, [activeTab, playerData.uid, isDeviceOnline, retryTrigger]);
 
   const handleActionClick = (player: LeaderboardEntry) => {
     if (!playerData.uid) {
@@ -198,9 +218,16 @@ export default function LeaderboardScreen({ onNavigate, playerData }: { onNaviga
       )}
 
       {!loading && errorMsg && (
-        <div className="flex-1 flex flex-col items-center justify-center text-white/30 font-bold text-sm tracking-widest uppercase text-center p-8 z-10">
-          <Trophy size={48} className="text-white/10 mb-4" />
-          {errorMsg}
+        <div className="flex-1 flex flex-col items-center justify-center text-white/30 font-bold text-sm tracking-widest uppercase text-center p-8 z-10 gap-4">
+          <Trophy size={48} className="text-white/10 mb-2" />
+          <div>{errorMsg}</div>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setRetryTrigger(prev => prev + 1)}
+            className="px-6 py-2.5 bg-[#d9ad33] hover:bg-[#f5d666] text-black font-bold tracking-widest text-xs uppercase rounded-xl shadow-lg transition-all"
+          >
+            Retry
+          </motion.button>
         </div>
       )}
 

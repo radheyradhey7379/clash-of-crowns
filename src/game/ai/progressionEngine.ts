@@ -43,7 +43,7 @@ export function isCharacterUnlocked(characterId: string, progress: AIProgress): 
 }
 
 export interface GameResultCTA {
-  label: "NEXT LEVEL" | "NEXT CHALLENGE" | "PLAY AGAIN" | "RETRY" | "REMATCH" | "BACK TO LEVELS";
+  label: "NEXT LEVEL" | "NEXT CHALLENGE" | "REPLAY" | "RETRY";
   nextCharacterId: string | null;
 }
 
@@ -53,21 +53,21 @@ export function getGameResultCTA(
   progress: AIProgress
 ): GameResultCTA {
   if (result === 'draw') {
-    return { label: 'REMATCH', nextCharacterId: null };
+    return { label: 'RETRY', nextCharacterId: null };
   }
 
   if (result === 'loss') {
-    return { label: 'PLAY AGAIN', nextCharacterId: null };
+    return { label: 'RETRY', nextCharacterId: null };
   }
 
   // result === 'win'
   if (!characterId) {
-    return { label: 'PLAY AGAIN', nextCharacterId: null };
+    return { label: 'REPLAY', nextCharacterId: null };
   }
 
   const idx = AI_CHARACTERS.findIndex(c => c.id === characterId);
   if (idx === -1 || idx === AI_CHARACTERS.length - 1) {
-    return { label: 'BACK TO LEVELS', nextCharacterId: null };
+    return { label: 'REPLAY', nextCharacterId: null };
   }
 
   const nextChar = AI_CHARACTERS[idx + 1];
@@ -78,7 +78,7 @@ export function getGameResultCTA(
     };
   }
 
-  return { label: 'BACK TO LEVELS', nextCharacterId: null };
+  return { label: 'REPLAY', nextCharacterId: null };
 }
 
 /**
@@ -99,6 +99,32 @@ export function isCharacterCurrent(characterId: string, progress: AIProgress): b
   return char.tier === progress.tier && char.level === progress.level;
 }
 
+export function expectedScore(playerRating: number, opponentRating: number): number {
+  return 1 / (1 + Math.pow(10, (opponentRating - playerRating) / 400));
+}
+
+export function getKFactorForTier(tier: AITier): number {
+  if (tier === 'hard' || tier === 'master') return 24;
+  if (tier === 'grandmaster') return 16;
+  return 32;
+}
+
+export function updateElo(
+  playerRating: number,
+  opponentRating: number,
+  result: 'win' | 'loss' | 'draw',
+  kFactor: number = 32
+): { delta: number; newRating: number } {
+  const S = result === 'win' ? 1 : result === 'draw' ? 0.5 : 0;
+  const expected = expectedScore(playerRating, opponentRating);
+  const newRating = playerRating + kFactor * (S - expected);
+  const roundedNew = Math.max(0, Math.round(newRating));
+  return {
+    delta: roundedNew - playerRating,
+    newRating: roundedNew,
+  };
+}
+
 /**
  * Applies the match result to the player's career progress.
  */
@@ -114,10 +140,18 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
     return next;
   }
 
+  // 1. Calculate and update player ELO using expectedScore formula
+  const opponent = AI_CHARACTERS.find(c => c.id === result.characterId);
+  const opponentRating = opponent ? opponent.eloTarget : 100;
+  const outcome: 'win' | 'loss' | 'draw' = won ? 'win' : 'loss';
+  
+  const eloResult = updateElo(next.elo, opponentRating, outcome, getKFactorForTier(next.tier));
+  next.elo = eloResult.newRating;
+
+  // 2. Process Level and Tier progression
   switch (next.tier) {
     case 'beginner': {
       if (won) {
-        next.elo += 25;
         next.level += 1;
         if (next.level > 5) {
           next.tier = 'learner';
@@ -132,7 +166,6 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
 
     case 'learner': {
       if (won) {
-        next.elo += 25;
         next.level += 1;
         next.consecutiveLosses = 0;
         if (next.level > 5) {
@@ -143,7 +176,6 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           }
         }
       } else {
-        next.elo = Math.max(0, next.elo - 5);
         next.consecutiveLosses += 1;
         if (next.consecutiveLosses >= 3) {
           if (next.level === 1) {
@@ -160,7 +192,6 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
 
     case 'intermediate': {
       if (won) {
-        next.elo += 30;
         next.level += 1;
         next.consecutiveLosses = 0;
         if (next.level > 8) {
@@ -172,7 +203,6 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           }
         }
       } else {
-        next.elo = Math.max(0, next.elo - 10);
         next.consecutiveLosses += 1;
         if (next.consecutiveLosses >= 2) {
           if (next.level === 1) {
@@ -189,7 +219,6 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
 
     case 'hard': {
       if (won) {
-        next.elo += 35;
         next.level += 1;
         if (next.level > 8) {
           next.tier = 'master';
@@ -203,7 +232,6 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
           }
         }
       } else {
-        next.elo = Math.max(0, next.elo - 20);
         if (next.level === 1) {
           next.tier = 'intermediate';
           next.level = 8;
@@ -218,10 +246,8 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
     case 'master': {
       const cup = next.masterCup;
       if (won) {
-        next.elo += 40;
         cup.winsInCup += 1;
       } else {
-        next.elo = Math.max(0, next.elo - 15);
         cup.lossesInCup += 1;
       }
 
@@ -237,7 +263,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
 
           if (cup.currentCup === 3) {
             // Completed Cup 3
-            if (next.elo >= 2500) {
+            if (next.elo >= 1450) {
               next.tier = 'grandmaster';
               next.level = 1; // Grandmaster Boss
               next.grandmaster.unlocked = true;
@@ -245,7 +271,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
                 next.unlockedTiers.push('grandmaster');
               }
             } else {
-              // Cup completed but ELO < 2500. Stay in Cup 3 to farm ELO.
+              // Cup completed but ELO < 1450. Stay in Cup 3 to farm ELO.
               cup.currentMatch = 1;
               cup.winsInCup = 0;
               cup.lossesInCup = 0;
@@ -279,10 +305,8 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
         // Boss fight (Crownless King) - Best of 3
         if (won) {
           gm.bossSeriesWins += 1;
-          next.elo += 50;
         } else {
           gm.bossSeriesLosses += 1;
-          next.elo = Math.max(0, next.elo - 25);
         }
 
         if (gm.bossSeriesWins === 2) {
@@ -298,10 +322,7 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
       } else {
         // Daily challenge or seasonal prestige match
         if (won) {
-          next.elo += 50;
           gm.seasonPoints += 10;
-        } else {
-          next.elo = Math.max(0, next.elo - 25);
         }
       }
       break;

@@ -55,7 +55,7 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   xp: 0,
   badges: [],
   multiplayerHistory: [],
-  commentaryEnabled: true,
+  commentaryEnabled: false,
   arenaRating: 1200,
   appliedArenaResultIds: [],
 };
@@ -211,10 +211,10 @@ export function loadGameState(): SavedGameState | null {
 
 export function getRank(rating: number) {
   if (rating === 0) return "Unranked 🛡️";
-  if (rating >= 2500) return "Grandmaster 👑";
-  if (rating >= 2000) return "Master ♚";
-  if (rating >= 1500) return "Hard Level 🔥";
-  if (rating >= 1100) return "Intermediate ⚡";
-  if (rating >= 700) return "Learner ⭐";
+  if (rating >= 1450) return "Grandmaster 👑";
+  if (rating >= 1150) return "Master ♚";
+  if (rating >= 850) return "Hard Level 🔥";
+  if (rating >= 550) return "Intermediate ⚡";
+  if (rating >= 300) return "Learner ⭐";
   return "Beginner 🛡️";
 }

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AppScreen, PlayerData, TIER_LABELS, TIER_COLORS } from '../../types';
 import { AI_CHARACTERS } from '../../game/ai/aiCharacters';
 import { ChevronLeft, Award, Share2, Users, Search, MessageSquare, Send, X, QrCode, Camera, Download, LogOut } from 'lucide-react';
-import { auth, db, searchUserByUid, sendFriendRequest, googleProvider } from '../../lib/firebase';
+import { auth, db, searchUserByUid, sendFriendRequest, googleProvider } from '../../firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
@@ -18,13 +18,15 @@ export default function ProfileScreen({
   playerData, 
   onUpdate,
   viewingUid = null,
-  onViewProfile = () => {}
+  onViewProfile = () => {},
+  onLogout
 }: { 
   onNavigate: (screen: AppScreen) => void, 
   playerData: PlayerData, 
   onUpdate: (newData: Partial<PlayerData>) => void,
   viewingUid?: string | null,
-  onViewProfile?: (uid: string | null) => void
+  onViewProfile?: (uid: string | null) => void,
+  onLogout?: () => Promise<void>
 }) {
   const [showSocial, setShowSocial] = useState(false);
   const [searchId, setSearchId] = useState('');
@@ -540,20 +542,28 @@ export default function ProfileScreen({
                           lastActive: new Date().toISOString()
                         });
                       }
-                      const isGuest = !user || user.isAnonymous || (user.uid && user.uid.startsWith("guest_"));
-                      if (isGuest) {
-                        await clearGuestSessionProgress();
-                      } else if (user) {
-                        await releaseSessionLock(user.uid).catch(() => {});
+                      if (onLogout) {
+                        await onLogout();
+                      } else {
+                        const isGuest = !user || user.isAnonymous || (user.uid && user.uid.startsWith("guest_"));
+                        if (isGuest) {
+                          await clearGuestSessionProgress();
+                        } else if (user) {
+                          await releaseSessionLock(user.uid).catch(() => {});
+                        }
+                        await clearSession();
+                        await signOut(auth);
+                        onNavigate('Login');
                       }
-                      await clearSession();
-                      await signOut(auth);
-                      onNavigate('Home');
                     } catch (e) {
                       console.error("Logout error:", e);
-                      await clearSession();
-                      await signOut(auth).catch(() => {});
-                      onNavigate('Home');
+                      if (onLogout) {
+                        await onLogout();
+                      } else {
+                        await clearSession();
+                        await signOut(auth).catch(() => {});
+                        onNavigate('Login');
+                      }
                     } finally {
                       setIsLoggingOut(false);
                       setShowLogoutConfirm(false);

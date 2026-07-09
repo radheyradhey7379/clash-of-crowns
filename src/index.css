@@ -208,11 +208,13 @@
 /* Play Popup Mode Selector */
 .play-popup {
   width: min(92vw, 520px) !important;
-  max-height: 82dvh !important;
-  padding: clamp(14px, 3vw, 28px) !important;
-  border-radius: clamp(16px, 3vw, 30px) !important;
+  max-height: 85dvh !important;
+  padding: clamp(12px, 2.5vw, 24px) !important;
+  border-radius: clamp(14px, 2.5vw, 24px) !important;
   display: flex !important;
   flex-direction: column !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 
 .play-popup-title {
@@ -220,10 +222,10 @@
 }
 
 .play-mode-button {
-  height: clamp(44px, 9vh, 70px) !important;
-  font-size: clamp(13px, 2vw, 20px) !important;
-  border-radius: clamp(12px, 2vw, 20px) !important;
-  padding: clamp(8px, 2vw, 20px) !important;
+  height: clamp(40px, 8vh, 60px) !important;
+  font-size: clamp(12px, 1.8vw, 18px) !important;
+  border-radius: clamp(10px, 1.8vw, 16px) !important;
+  padding: clamp(8px, 1.8vw, 16px) !important;
 }
 
 .play-mode-subtitle {
@@ -286,6 +288,508 @@
     padding-left: calc(2rem + env(safe-area-inset-left));
     padding-right: calc(2rem + env(safe-area-inset-right));
     padding-top: calc(0.5rem + env(safe-area-inset-top));
+  }
+}
+
+/* ==========================================
+   MOBILE UI RESPONSIVENESS OVERRIDES (<= 768px)
+   ========================================== */
+@media (max-width: 900px), 
+       (max-height: 520px) and (orientation: landscape),
+       (pointer: coarse) and (max-height: 600px) {
+  /* --- 1. Premium Screen --- */
+  .premium-content-area {
+    padding: 1rem !important;
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom)) !important;
+  }
+  .premium-title-section {
+    margin-bottom: 1rem !important;
+  }
+  .premium-title-section div {
+    padding: 0.5rem !important;
+  }
+  .premium-title-section h2 {
+    font-size: clamp(1.25rem, 4vw, 2rem) !important;
+    margin-bottom: 0.25rem !important;
+  }
+  .premium-title-section p {
+    font-size: 0.75rem !important;
+  }
+  .premium-card-bundle,
+  .premium-card-standalone {
+    padding: 1rem !important;
+    min-height: auto !important;
+    border-radius: 1.5rem !important;
+  }
+  .premium-card-bundle h3,
+  .premium-card-standalone h3 {
+    font-size: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .premium-card-bundle span.text-2xl,
+  .premium-card-bundle span.text-4xl,
+  .premium-card-bundle span.md\:text-6xl {
+    font-size: 1.75rem !important;
+  }
+  .premium-benefits-list {
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+    gap: 0.25rem !important;
+  }
+  .premium-benefit-item {
+    font-size: 0.7rem !important;
+    gap: 0.35rem !important;
+  }
+  .premium-benefit-item span {
+    font-size: 0.7rem !important;
+  }
+  .premium-content-area button {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    font-size: 0.75rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  /* --- 2. Customisation Screen --- */
+  .customise-header-bar {
+    padding: 0.75rem 1rem !important;
+    padding-top: calc(0.5rem + env(safe-area-inset-top)) !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .customise-header-bar h1 {
+    font-size: 1.1rem !important;
+    letter-spacing: 0.15em !important;
+  }
+  .customise-header-bar p {
+    font-size: 0.6rem !important;
+  }
+  .customise-header-actions {
+    display: none !important; /* Hide header action buttons on mobile */
+  }
+  
+  /* Content container padding to clear the sticky bottom action bar */
+  .customise-content-area {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important;
+  }
+  
+  .customise-grid-container {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.4rem !important;
+    padding: 0.1rem !important;
+  }
+  .customise-grid-container > button {
+    flex: 1 1 calc(33.33% - 0.3rem) !important;
+    min-width: 90px !important;
+    padding: 0.4rem !important;
+    border-radius: 0.75rem !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+  }
+  .customise-grid-container > button > div.aspect-square,
+  .customise-grid-container > button > div.w-12 {
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 0.375rem !important;
+    font-size: 1.1rem !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+  }
+  .customise-grid-container > button > div.aspect-video {
+    width: 2.25rem !important;
+    height: 1.5rem !important;
+    border-radius: 0.25rem !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+  }
+  .customise-grid-container > button > div.aspect-video svg {
+    width: 0.8rem !important;
+    height: 0.8rem !important;
+  }
+  .customise-grid-container > button > div:nth-child(2) {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+  .customise-grid-container h3 {
+    font-size: 0.7rem !important;
+    margin-bottom: 0px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .customise-grid-container p {
+    display: none !important;
+  }
+  .customise-grid-container > button > div.absolute {
+    top: 0.2rem !important;
+    right: 0.2rem !important;
+    width: 0.8rem !important;
+    height: 0.8rem !important;
+  }
+  .customise-grid-container > button > div.absolute svg {
+    width: 0.45rem !important;
+    height: 0.45rem !important;
+  }
+  
+  /* customise-mobile-actions-bar */
+  .customise-mobile-actions-bar {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    background: rgba(3, 2, 4, 0.95) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    padding: 0.75rem 1rem !important;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)) !important;
+    z-index: 50 !important;
+    gap: 0.5rem !important;
+  }
+  .customise-mobile-actions-bar button {
+    border-radius: 0.75rem !important;
+    font-size: 0.75rem !important;
+    font-weight: bold !important;
+    letter-spacing: 0.1em !important;
+  }
+  
+  /* Customise Preview Modal */
+  .customise-preview-backdrop {
+    padding: 0 !important;
+  }
+  .customise-preview-panel {
+    border-radius: 0 !important;
+    border: none !important;
+  }
+  .customise-preview-close-btn {
+    top: calc(1rem + env(safe-area-inset-top)) !important;
+    right: calc(1rem + env(safe-area-inset-right)) !important;
+    padding: 0.5rem !important;
+    border-radius: 0.75rem !important;
+  }
+  .customise-preview-overlay {
+    bottom: calc(5rem + env(safe-area-inset-bottom)) !important;
+    left: 1rem !important;
+    right: 1rem !important;
+    z-index: 20 !important;
+  }
+  .customise-preview-overlay > div {
+    padding: 0.75rem !important;
+    border-radius: 1rem !important;
+  }
+  .customise-preview-overlay h3 {
+    font-size: 1rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+  .customise-preview-footer {
+    padding: 1rem !important;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+  }
+  .customise-preview-footer > div:first-child {
+    display: none !important; /* Hide visual inspection description on mobile */
+  }
+  .customise-preview-footer > div:last-child {
+    width: 100% !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+  }
+  .customise-preview-footer button {
+    flex: 1 !important;
+    padding: 0.75rem 0.5rem !important;
+    font-size: 0.75rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  /* --- 3. Academy (Learn Detail Screen) --- */
+  .academy-main-container {
+    flex-direction: column-reverse !important;
+  }
+  .academy-rules-panel {
+    width: 100% !important;
+    height: 40% !important;
+    border-right: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+  .academy-board-panel {
+    height: 60% !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    position: relative !important;
+  }
+  .academy-board-wrapper {
+    max-width: min(75vw, 42dvh, 320px) !important;
+    max-height: min(75vw, 42dvh, 320px) !important;
+    margin-top: 0 !important;
+  }
+
+  /* --- 4. Modals (StartGameModal, LocalGameSetupModal, MultiplayerSetupModal) --- */
+  .start-game-modal-panel {
+    border-radius: 0 !important;
+    border: none !important;
+    padding: 1rem !important;
+    padding-top: calc(1.5rem + env(safe-area-inset-top)) !important;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important;
+    max-height: 100dvh !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .start-game-modal-panel .grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+  }
+  .start-game-modal-panel .min-h-\[140px\] {
+    min-height: auto !important;
+    padding: 0.75rem !important;
+  }
+  .start-game-modal-panel .w-10,
+  .start-game-modal-panel .sm\:w-14 {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+  .start-game-modal-panel .w-10 svg,
+  .start-game-modal-panel .sm\:w-14 svg {
+    width: 1rem !important;
+    height: 1rem !important;
+  }
+  .start-game-modal-panel h3 {
+    font-size: 0.75rem !important;
+  }
+  .start-game-modal-panel h4 {
+    font-size: 0.6rem !important;
+  }
+  .start-game-modal-panel p {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    margin-top: 0.1rem !important;
+    font-size: 0.65rem !important;
+    line-height: 1.25 !important;
+  }
+  .start-game-modal-panel button {
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+    font-size: 0.7rem !important;
+    border-radius: 0.5rem !important;
+  }
+  
+  .local-setup-modal-panel,
+  .multiplayer-setup-modal-panel {
+    margin: 1rem !important;
+    max-height: calc(100dvh - 2rem) !important;
+    overflow-y: auto !important;
+    padding: 1.25rem !important;
+    border-radius: 1.5rem !important;
+  }
+}
+
+/* ==========================================
+   MOBILE LANDSCAPE OVERRIDES (<= 950px wide, <= 500px tall)
+   ========================================== */
+@media (max-width: 950px) and (max-height: 520px) {
+  /* --- 1. Choose Mode Modal --- */
+  .start-game-modal-panel {
+    padding: 1rem !important;
+    padding-top: calc(0.5rem + env(safe-area-inset-top)) !important;
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)) !important;
+    max-height: 100dvh !important;
+    overflow-y: auto !important;
+  }
+  .start-game-modal-panel .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important; /* side by side */
+    gap: 0.5rem !important;
+  }
+  .start-game-modal-panel .min-h-\[140px\] {
+    min-height: 90px !important;
+  }
+  .start-game-modal-panel p {
+    -webkit-line-clamp: 1 !important; /* Clamped to 1 line in landscape */
+  }
+  .start-game-modal-panel .mb-4,
+  .start-game-modal-panel .md\:mb-8 {
+    margin-bottom: 0.25rem !important;
+  }
+  .start-game-modal-panel .mt-8 {
+    margin-top: 0.5rem !important;
+  }
+
+  /* --- 2. Academy Screen --- */
+  .academy-main-container {
+    flex-direction: row !important; /* side by side */
+  }
+  .academy-rules-panel {
+    width: 45% !important;
+    height: 100% !important;
+    border-top: none !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+  .academy-board-panel {
+    width: 55% !important;
+    height: 100% !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+  }
+  .academy-board-wrapper {
+    max-width: min(75vw, 65dvh, 260px) !important;
+    max-height: min(75vw, 65dvh, 260px) !important;
+    margin-top: 0 !important;
+  }
+  .game-header-bar {
+    height: 3.5rem !important; /* Shrunk top bar height */
+    padding-top: calc(0.25rem + env(safe-area-inset-top)) !important;
+    padding-bottom: 0.25rem !important;
+  }
+  .game-header-bar h1 {
+    font-size: 0.875rem !important;
+  }
+  .game-header-bar span {
+    font-size: 0.5rem !important;
+  }
+
+  /* --- 3. Premium Screen --- */
+  .premium-title-section {
+    display: none !important; /* Hide title section completely on mobile landscape to save precious height */
+  }
+  .premium-content-area .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important; /* side by side */
+    gap: 0.5rem !important;
+    margin-top: 0.25rem !important;
+  }
+  .premium-card-bundle,
+  .premium-card-standalone {
+    padding: 0.5rem !important;
+    border-radius: 1rem !important;
+    min-height: auto !important;
+  }
+  .premium-benefits-list {
+    display: none !important; /* Hide list of details in landscape to fit CTA buttons */
+  }
+  .premium-card-bundle h3,
+  .premium-card-standalone h3 {
+    font-size: 0.65rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+  .premium-card-bundle span.text-2xl,
+  .premium-card-bundle span.text-4xl,
+  .premium-card-bundle span.md\:text-6xl {
+    font-size: 1.5rem !important;
+  }
+  .premium-card-standalone .space-y-2 button {
+    padding: 0.35rem 0.5rem !important;
+    border-radius: 0.5rem !important;
+  }
+  .premium-card-standalone .space-y-2 button svg {
+    width: 0.875rem !important;
+    height: 0.875rem !important;
+  }
+  .premium-card-standalone .space-y-2 button .text-xs {
+    font-size: 0.65rem !important;
+  }
+  .premium-card-standalone .space-y-2 button .text-\[8px\] {
+    font-size: 0.55rem !important;
+  }
+  .premium-card-standalone .space-y-2 button span.text-sm {
+    font-size: 0.75rem !important;
+  }
+  .premium-content-area button.w-full {
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+    font-size: 0.7rem !important;
+    border-radius: 0.5rem !important;
+  }
+
+  /* --- 4. Game GameOver/Result Popup --- */
+  .play-popup {
+    max-height: 90dvh !important;
+    padding: 10px 16px !important;
+  }
+  .play-popup h2.play-popup-title {
+    font-size: 1.25rem !important;
+    margin-bottom: 0.1rem !important;
+  }
+  .play-popup .mb-4 {
+    margin-bottom: 0.4rem !important;
+  }
+  .play-popup .mb-6 {
+    margin-bottom: 0.4rem !important;
+  }
+  .play-popup p.text-\[\#b38f42\] {
+    margin-bottom: 0.4rem !important;
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+    font-size: 9px !important;
+  }
+  .play-mode-button {
+    height: 36px !important;
+    padding: 4px 8px !important;
+    font-size: 9px !important;
+    border-radius: 8px !important;
+  }
+  .play-popup .grid {
+    gap: 0.35rem !important;
+    margin-bottom: 0.35rem !important;
+  }
+  .play-popup .flex-col {
+    gap: 0.35rem !important;
+  }
+}
+
+/* --- Customize Mobile Actions Bar Hidden on Desktop --- */
+.customise-mobile-actions-bar {
+  display: none;
+}
+
+/* Premium 2D Check Beam Visual Animations */
+.attack-beam-2d {
+  stroke: rgba(255, 40, 20, 0.95);
+  stroke-width: 6;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 8px rgba(255, 0, 0, 0.95))
+          drop-shadow(0 0 18px rgba(255, 80, 0, 0.75));
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: checkBeamShoot 420ms ease-out forwards;
+}
+
+.king-check-pulse-2d {
+  position: absolute;
+  border: 3px solid rgba(255, 0, 0, 0.95);
+  box-shadow: 0 0 16px rgba(255, 0, 0, 0.9),
+              inset 0 0 14px rgba(255, 0, 0, 0.6);
+  border-radius: 50%;
+  animation: kingDangerPulse 800ms ease-in-out infinite;
+  pointer-events: none;
+  z-index: 25;
+}
+
+@keyframes checkBeamShoot {
+  from {
+    stroke-dashoffset: 1000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes kingDangerPulse {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
   }
 }
 
