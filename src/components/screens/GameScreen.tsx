@@ -1949,6 +1949,12 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     undoStackRef.current = [];
     setWhiteTime(0);
     setBlackTime(0);
+    setCheckVisual({
+      isCheck: false,
+      kingSquare: null,
+      attackerSquares: []
+    });
+    setCheckInfo(null);
     setGameStarted(false);
     setShowReview(false);
     setEloChange(null);

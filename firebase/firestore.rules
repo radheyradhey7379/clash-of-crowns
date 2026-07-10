@@ -88,6 +88,36 @@ service cloud.firestore {
              (field in resource.data && field in request.resource.data && request.resource.data[field] == resource.data[field]);
     }
 
+    function hasNoPremiumFields(data) {
+      return !('isPremium' in data) &&
+             !('premium' in data) &&
+             !('premiumUntil' in data) &&
+             !('premiumPlan' in data) &&
+             !('undoPass' in data) &&
+             !('undoPassUntil' in data) &&
+             !('entitlements' in data) &&
+             !('billing' in data) &&
+             !('purchases' in data) &&
+             !('subscription' in data) &&
+             !('premiumAnalysis' in data) &&
+             !('premiumAnalysisUntil' in data);
+    }
+
+    function hasNoPremiumUpdates() {
+      return isUnchanged('isPremium') &&
+             isUnchanged('premium') &&
+             isUnchanged('premiumUntil') &&
+             isUnchanged('premiumPlan') &&
+             isUnchanged('undoPass') &&
+             isUnchanged('undoPassUntil') &&
+             isUnchanged('entitlements') &&
+             isUnchanged('billing') &&
+             isUnchanged('purchases') &&
+             isUnchanged('subscription') &&
+             isUnchanged('premiumAnalysis') &&
+             isUnchanged('premiumAnalysisUntil');
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -97,10 +127,12 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId) && 
                       (!('role' in request.resource.data) || request.resource.data.role == 'player') &&
-                      (!('rating' in request.resource.data) || request.resource.data.rating == 1200 || request.resource.data.rating == 0);
+                      (!('rating' in request.resource.data) || request.resource.data.rating == 1200 || request.resource.data.rating == 0) &&
+                      hasNoPremiumFields(request.resource.data);
       allow update: if isOwner(userId) && 
                       (!('role' in request.resource.data) || request.resource.data.role == resource.data.role) &&
-                      (!('rating' in request.resource.data) || request.resource.data.rating == resource.data.rating);
+                      (!('rating' in request.resource.data) || request.resource.data.rating == resource.data.rating) &&
+                      hasNoPremiumUpdates();
       allow delete: if isOwner(userId);
 
       match /session/current {
@@ -148,6 +180,11 @@ service cloud.firestore {
 
     // Purchase Tokens collection (Read none, Write none)
     match /purchaseTokens/{tokenHash} {
+      allow read, write: if false;
+    }
+
+    // Billing Events collection (Read none, Write none)
+    match /billingEvents/{eventId} {
       allow read, write: if false;
     }
 
@@ -353,7 +390,24 @@ service cloud.firestore {
 
     // Gameplay Sessions collection
     match /gameplaySessions/{sessionId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        ('participants' in resource.data && request.auth.uid in resource.data.participants) ||
+        ('playerIds' in resource.data && request.auth.uid in resource.data.playerIds)
+      );
+      allow create: if isAuthenticated() && (
+        ('participants' in request.resource.data && request.auth.uid in request.resource.data.participants) ||
+        ('playerIds' in request.resource.data && request.auth.uid in request.resource.data.playerIds)
+      );
+      allow update: if isAuthenticated() && (
+        ('participants' in resource.data && request.auth.uid in resource.data.participants) ||
+        ('playerIds' in resource.data && request.auth.uid in resource.data.playerIds)
+      );
+      allow delete: if isAdmin() || (
+        isAuthenticated() && (
+          ('participants' in resource.data && request.auth.uid in resource.data.participants) ||
+          ('playerIds' in resource.data && request.auth.uid in resource.data.playerIds)
+        )
+      );
     }
 
     // App Config collection (Public Read, Admin Write)

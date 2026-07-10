@@ -144,7 +144,7 @@ export const LESSON_DATA: Record<string, LessonContent> = {
       "You cannot capture your own pieces.",
       "Capturing is usually optional, unless it's the only way out of check."
     ],
-    fen: "k7/8/5p2/8/4B3/8/8/7K w - - 0 1",
+    fen: "k7/8/8/5p2/4B3/8/8/7K w - - 0 1",
     demoMoves: ["Bxf5"],
     puzzleMoves: ["Bxf5"],
     puzzleInstructions: "Capture the Black Pawn on f5 using your Bishop.",
