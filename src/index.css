@@ -262,6 +262,7 @@
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
+  object-position: center !important;
 }
 
 /* Header Padding Classes with safe-area insets */

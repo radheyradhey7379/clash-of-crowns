@@ -31,6 +31,7 @@ import { isCharacterUnlocked } from './game/ai/progressionEngine';
 import { setNodeHealth, setRustHealth } from './lib/config/featureAvailability';
 import { entitlementService } from './services/billing/entitlementService';
 import { UserEntitlements } from './types/billingTypes';
+import { DEFAULT_AI_PROGRESS } from './game/ai/aiProgressDefaults';
 
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -428,42 +429,129 @@ export default function App() {
     setScreen(newScreen);
   };
 
-  const handleReset = async () => {
-    await clearSession();
-    setActiveProfile(null);
-    const resetData = resetPlayerData();
-    setPlayerData(resetData);
-    setSelectedCharacterId(null);
-    setLocalGameConfig(null);
-    
-    // Clear any saved game state explicitly
-    localStorage.removeItem("clash_of_crowns_saved_game");
-    
+  const resetStatsOnly = async () => {
+    localStorage.setItem("clash_reset_marker_at", Date.now().toString());
+
+    setPlayerData(prev => {
+      const updated = {
+        ...prev,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        streak: 0,
+        bestStreak: 0,
+        whiteWins: 0,
+        whiteLosses: 0,
+        whiteDraws: 0,
+        whiteGames: 0,
+        blackWins: 0,
+        blackLosses: 0,
+        blackDraws: 0,
+        blackGames: 0,
+        whiteTime: 0,
+        blackTime: 0,
+        totalGames: 0,
+        totalWins: 0,
+        totalLosses: 0,
+        totalDraws: 0,
+      };
+      savePlayerData(updated);
+      return updated;
+    });
+
+    if (auth.currentUser) {
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      try {
+        await updateDoc(userRef, {
+          wins: 0,
+          losses: 0,
+          draws: 0,
+          streak: 0,
+          bestStreak: 0,
+          whiteWins: 0,
+          whiteLosses: 0,
+          whiteDraws: 0,
+          whiteGames: 0,
+          blackWins: 0,
+          blackLosses: 0,
+          blackDraws: 0,
+          blackGames: 0,
+          whiteTime: 0,
+          blackTime: 0,
+          lastActive: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error("Failed to reset Firestore stats:", err);
+      }
+    }
+  };
+
+  const resetProgressOnly = async () => {
+    localStorage.setItem("clash_reset_marker_at", Date.now().toString());
+
+    setPlayerData(prev => {
+      const updated = {
+        ...prev,
+        rating: 0,
+        tier: 0,
+        char: 0,
+        consecLoss: 0,
+        aiProgress: DEFAULT_AI_PROGRESS,
+        coins: 0,
+        xp: 0,
+        badges: [],
+        arenaRating: 1200,
+        appliedArenaResultIds: [],
+      };
+      savePlayerData(updated);
+      return updated;
+    });
+
     if (auth.currentUser) {
       const userRef = doc(db, 'users', auth.currentUser.uid);
       try {
         await updateDoc(userRef, {
           rating: 0,
-          wins: 0,
-          losses: 0,
-          streak: 0,
-          bestStreak: 0,
           tier: 0,
           char: 0,
           consecLoss: 0,
-          whiteWins: 0,
-          whiteLosses: 0,
-          blackWins: 0,
-          blackLosses: 0,
-          whiteTime: 0,
-          blackTime: 0,
-          dailyUndoCount: 0,
+          aiProgress: DEFAULT_AI_PROGRESS,
+          coins: 0,
+          xp: 0,
+          badges: [],
+          arenaRating: 1200,
+          appliedArenaResultIds: [],
           lastActive: new Date().toISOString()
         });
       } catch (err) {
-        console.error("Failed to reset Firestore data:", err);
+        console.error("Failed to reset Firestore progress:", err);
       }
     }
+  };
+
+  const deleteAllMyDataAndLogout = async () => {
+    await clearSession();
+    if (auth.currentUser) {
+      try {
+        await releaseSessionLock(auth.currentUser.uid).catch(() => {});
+        await signOut(auth).catch(() => {});
+      } catch (e) {
+        console.error("Sign out failed:", e);
+      }
+    }
+    if (activeProfile === 'guest') {
+      await clearGuestSessionProgress();
+    }
+    setActiveProfile(null);
+    const resetData = resetPlayerData();
+    setPlayerData(resetData);
+    setSelectedCharacterId(null);
+    setLocalGameConfig(null);
+    setMultiplayerConfig(null);
+    setViewingProfileUid(null);
+    localStorage.removeItem("clash_of_crowns_saved_game");
+
+    setScreen('Login');
   };
 
   const performFullLogout = async () => {
@@ -495,8 +583,7 @@ export default function App() {
   };
 
   const handleDataDeleted = async () => {
-    await handleReset();
-    handleNavigate('Login');
+    await deleteAllMyDataAndLogout();
   };
 
   const handleUpdatePlayerData = (newData: Partial<PlayerData>) => {
@@ -649,7 +736,7 @@ export default function App() {
           />
         );
       case 'Stats':
-        return <StatsScreen onNavigate={handleNavigate} playerData={playerData} onReset={handleReset} />;
+        return <StatsScreen onNavigate={handleNavigate} playerData={playerData} onReset={resetStatsOnly} />;
       case 'Settings':
         return <SettingsScreen onNavigate={handleNavigate} playerData={playerData} onUpdate={handleUpdatePlayerData} />;
       case 'About':
@@ -657,13 +744,21 @@ export default function App() {
       case 'HelpSupport':
         return <HelpSupportScreen onNavigate={handleNavigate} playerData={playerData} />;
       case 'YourData':
-        return <YourDataScreen onNavigate={handleNavigate} playerData={playerData} onDataDeleted={handleDataDeleted} />;
+        return (
+          <YourDataScreen 
+            onNavigate={handleNavigate} 
+            playerData={playerData} 
+            onDataDeleted={handleDataDeleted} 
+            onResetStats={resetStatsOnly}
+            onResetProgress={resetProgressOnly}
+          />
+        );
       case 'PrivacyPolicy':
         return <PrivacyPolicyScreen onNavigate={handleNavigate} playerData={playerData} />;
       case 'TermsOfService':
         return <TermsOfServiceScreen onNavigate={handleNavigate} playerData={playerData} />;
       case 'Rank':
-        return <RankScreen onNavigate={handleNavigate} playerData={playerData} onReset={handleReset} />;
+        return <RankScreen onNavigate={handleNavigate} playerData={playerData} onReset={resetStatsOnly} />;
       case 'Leaderboard':
         return <LeaderboardScreen onNavigate={handleNavigate} playerData={playerData} />;
       case 'Profile':

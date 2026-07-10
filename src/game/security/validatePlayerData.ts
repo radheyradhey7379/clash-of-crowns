@@ -72,6 +72,76 @@ export function validatePlayerData(playerData: PlayerData): boolean {
   return true;
 }
 
+export function migratePlayerDataToLatestVersion(playerData: PlayerData): { data: PlayerData; migrated: boolean } {
+  let migrated = false;
+  let data = JSON.parse(JSON.stringify(playerData)) as PlayerData;
+
+  const LATEST_PLAYER_SCHEMA_VERSION = 2;
+  const currentVersion = data.schemaVersion || 0;
+
+  if (currentVersion < LATEST_PLAYER_SCHEMA_VERSION) {
+    migrated = true;
+
+    data.wins = data.wins || 0;
+    data.losses = data.losses || 0;
+    data.draws = data.draws || 0;
+    data.streak = data.streak || 0;
+    data.bestStreak = data.bestStreak || 0;
+    data.whiteWins = data.whiteWins || 0;
+    data.whiteLosses = data.whiteLosses || 0;
+    data.whiteDraws = data.whiteDraws || 0;
+    data.whiteGames = data.whiteGames || 0;
+    data.blackWins = data.blackWins || 0;
+    data.blackLosses = data.blackLosses || 0;
+    data.blackDraws = data.blackDraws || 0;
+    data.blackGames = data.blackGames || 0;
+    data.totalGames = data.totalGames || 0;
+    data.totalWins = data.totalWins || 0;
+    data.totalLosses = data.totalLosses || 0;
+    data.totalDraws = data.totalDraws || 0;
+    data.whiteTime = data.whiteTime || 0;
+    data.blackTime = data.blackTime || 0;
+
+    if (!data.viewMode) {
+      data.viewMode = '3d';
+    }
+
+    const unsafeFlags = [
+      'premium', 'premiumUntil', 'premiumPlan', 'undoPass', 'undoPassUntil', 
+      'entitlements', 'billing', 'purchases', 'subscription', 'premiumAnalysis', 'premiumAnalysisUntil'
+    ];
+    unsafeFlags.forEach(flag => {
+      if (flag in data) {
+        delete (data as any)[flag];
+      }
+    });
+
+    data.dailyUndoCount = data.dailyUndoCount !== undefined ? data.dailyUndoCount : 0;
+    data.undoTokens = data.undoTokens !== undefined ? data.undoTokens : 5;
+    if (!data.lastUndoDate) {
+      data.lastUndoDate = new Date().toDateString();
+    }
+
+    data.rating = data.rating !== undefined ? data.rating : 0;
+    if (data.aiProgress) {
+      data.aiProgress.elo = data.aiProgress.elo !== undefined ? data.aiProgress.elo : 0;
+      data.rating = data.aiProgress.elo;
+    }
+
+    if ('checkVisual' in data) {
+      delete (data as any).checkVisual;
+    }
+    if ('checkInfo' in data) {
+      delete (data as any).checkInfo;
+    }
+
+    data.schemaVersion = LATEST_PLAYER_SCHEMA_VERSION;
+    data.lastMigrationAt = new Date().toISOString();
+  }
+
+  return { data, migrated };
+}
+
 /**
  * Validates and repairs player data, returning a clean copy of PlayerData.
  * Appends flags to the returned player data if repairs were made.
@@ -86,6 +156,18 @@ export function validateAndRepairPlayerData(playerData: PlayerData): {
 
   // Deep clone data to keep it immutable during repair
   let data = JSON.parse(JSON.stringify(playerData)) as PlayerData;
+
+  // Run schema migration first
+  const migrationResult = migratePlayerDataToLatestVersion(data);
+  if (migrationResult.migrated) {
+    data = migrationResult.data;
+    repaired = true;
+    flags.push({
+      type: 'schema_migration',
+      severity: 'low',
+      message: `Migrated data to version ${data.schemaVersion}`
+    });
+  }
 
   // ELO Zero Migration & Safe Recovery logic
   const wins = data.wins || 0;

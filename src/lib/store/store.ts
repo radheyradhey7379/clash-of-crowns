@@ -12,6 +12,9 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   draws: 0,
   streak: 0,
   bestStreak: 0,
+  schemaVersion: 2,
+  lastResetAt: new Date().toISOString(),
+  lastMigrationAt: new Date().toISOString(),
   musicOn: true,
   sfxOn: true,
   isPremium: false,
@@ -176,6 +179,7 @@ export function resetPlayerData(): PlayerData {
   if (deviceId) {
     localStorage.setItem("clash_of_crowns_device_id", deviceId);
   }
+  localStorage.setItem("clash_reset_marker_at", Date.now().toString());
   return DEFAULT_PLAYER_DATA;
 }
 

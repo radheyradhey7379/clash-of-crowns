@@ -83,6 +83,8 @@ export function loadProtectedPlayerData(defaultData: PlayerData): PlayerData {
   const currentDeviceId = getOrCreateDeviceId();
   const primaryJson = localStorage.getItem("clash_player_data");
   const backupJson = localStorage.getItem("clash_player_data_backup");
+  const resetMarkerStr = localStorage.getItem("clash_reset_marker_at");
+  const resetMarker = resetMarkerStr ? parseInt(resetMarkerStr, 10) : 0;
 
   let primaryParsed: any = null;
   let primaryValid = false;
@@ -93,7 +95,12 @@ export function loadProtectedPlayerData(defaultData: PlayerData): PlayerData {
     try {
       primaryParsed = JSON.parse(primaryJson);
       if (verifyProtectedSave(primaryParsed)) {
-        primaryValid = true;
+        if (primaryParsed.updatedAt >= resetMarker) {
+          primaryValid = true;
+        } else {
+          console.warn("Primary save is older than reset marker. Ignoring.");
+          primaryErrorType = 'checksum_mismatch';
+        }
       } else {
         primaryErrorType = 'checksum_mismatch';
       }
@@ -139,7 +146,11 @@ export function loadProtectedPlayerData(defaultData: PlayerData): PlayerData {
       try {
         backupParsed = JSON.parse(backupJson);
         if (verifyProtectedSave(backupParsed)) {
-          backupValid = true;
+          if (backupParsed.updatedAt >= resetMarker) {
+            backupValid = true;
+          } else {
+            console.warn("Backup save is older than reset marker. Ignoring.");
+          }
         }
       } catch (e) {
         // backup parsing failed

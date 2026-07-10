@@ -1928,37 +1928,58 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
     updateCheckInfo();
   };
 
-  const resetGame = () => {
-    setLocalProgress(null);
-    if (tauntTimeoutRef.current) {
-      clearTimeout(tauntTimeoutRef.current);
-      tauntTimeoutRef.current = null;
-    }
-    setAiTaunt(null);
-    movesSinceLastTaunt.current = 4;
-    chess.reset();
-    setBoard(chess.getBoard());
-    setTurn(chess.getTurn());
-    setSelectedSquare(null);
-    setValidMoves([]);
-    setGameOver(null);
-    setFreeUndosUsed(0);
-    setLastMove(null);
-    setHistory([]);
-    setCapturedPieces({ w: [], b: [] });
-    undoStackRef.current = [];
+  const resetMatchRuntimeState = () => {
+    setUserThinkTimeMs(0);
+    setComputerThinkTimeMs(0);
     setWhiteTime(0);
     setBlackTime(0);
+    setLastMoveLatency(null);
+    setAiCalcTime(null);
+
+    userTurnStartedAt.current = Date.now();
+    userTimeBeforeTurn.current = 0;
+    aiCalculationStartedAt.current = 0;
+    computerTimeBeforeTurn.current = 0;
+    pausedDurationThisTurn.current = 0;
+    pausedStartedAt.current = null;
+
+    setGameOver(null);
+    setEloChange(null);
+    setMatchRewards(null);
+    setShowReview(false);
+    setGameStarted(false);
+    setShowDeclareConfirm(false);
+    setShowResignConfirm(false);
+
     setCheckVisual({
       isCheck: false,
       kingSquare: null,
       attackerSquares: []
     });
     setCheckInfo(null);
-    setGameStarted(false);
-    setShowReview(false);
-    setEloChange(null);
-    setShowDeclareConfirm(false);
+
+    setHistory([]);
+    undoStackRef.current = [];
+    setLastMove(null);
+    setSelectedSquare(null);
+    setValidMoves([]);
+    setCapturedPieces({ w: [], b: [] });
+
+    setIsAIThinking(false);
+    if (tauntTimeoutRef.current) {
+      clearTimeout(tauntTimeoutRef.current);
+      tauntTimeoutRef.current = null;
+    }
+    setAiTaunt(null);
+    movesSinceLastTaunt.current = 4;
+  };
+
+  const startSameLevelAgain = () => {
+    setLocalProgress(null);
+    chess.reset();
+    setBoard(chess.getBoard());
+    setTurn(chess.getTurn());
+    setFreeUndosUsed(0);
     if (!isLocalVS) {
       setPlayerColor(playerData.preferredSide);
       gameStartTime.current = Date.now();
@@ -1967,6 +1988,11 @@ export default function GameScreen({ onNavigate, playerData, selectedCharacterId
       }
     }
     localStorage.removeItem('chess_game_session');
+  };
+
+  const resetGame = () => {
+    resetMatchRuntimeState();
+    startSameLevelAgain();
   };
 
   const handleDeclareDraw = () => {

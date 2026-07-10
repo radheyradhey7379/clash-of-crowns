@@ -98,6 +98,9 @@ export interface PlayerData {
     multiplayerPass: boolean;
     championshipPass: boolean;
   };
+  schemaVersion?: number;
+  lastResetAt?: string;
+  lastMigrationAt?: string;
 }
 
 export interface SecurityFlag {
