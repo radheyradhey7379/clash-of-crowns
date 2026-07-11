@@ -12,6 +12,9 @@ export async function deleteAccountData(uid: string): Promise<void> {
     try {
       // Delete user profile
       await deleteDoc(doc(db, 'users', uid));
+
+      // Delete cloud save document
+      await deleteDoc(doc(db, 'cloudSaves', uid));
       
       // Delete active session lock
       await deleteDoc(doc(db, 'users', uid, 'session', 'current'));

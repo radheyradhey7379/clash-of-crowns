@@ -35,13 +35,6 @@ export default function TermsOfServiceScreen({ onNavigate, playerData }: TermsOf
       }}>
         <div className="max-w-2xl w-full mx-auto flex flex-col gap-6 pt-2 pb-8">
 
-          {/* Draft Banner */}
-          <div className="py-2 px-4 bg-[#d9ad33]/10 border border-[#d9ad33]/20 rounded-xl text-center">
-            <span className="text-[#d9ad33] text-[11px] font-bold tracking-[0.2em] uppercase">
-              Draft — These terms will be finalized before public release.
-            </span>
-          </div>
-
           {/* 1. Acceptance */}
           <TermsSection title="1. Acceptance of Terms">
             By downloading, installing, or using Clash of Crowns ("the App"), you acknowledge that you have

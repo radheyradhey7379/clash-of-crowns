@@ -148,6 +148,33 @@ export function applyAIMatchResult(progress: AIProgress, result: AIMatchResult):
   const eloResult = updateElo(next.elo, opponentRating, outcome, getKFactorForTier(next.tier));
   next.elo = eloResult.newRating;
 
+  // Progression guard: only progress or regress if playing a level in the current tier or higher,
+  // and only if the level played is equal to or greater than the current career level.
+  if (result.characterId) {
+    const TIER_ORDER: Record<string, number> = {
+      'beginner': 1,
+      'learner': 2,
+      'intermediate': 3,
+      'hard': 4,
+      'master': 5,
+      'grandmaster': 6
+    };
+
+    const charTier = opponent?.tier || 'beginner';
+    const charLevel = opponent?.level || 1;
+
+    const charTierVal = TIER_ORDER[charTier] || 0;
+    const progressTierVal = TIER_ORDER[next.tier] || 0;
+
+    const isCurrentOrHigherLevel = charTierVal > progressTierVal || 
+      (charTierVal === progressTierVal && charLevel >= next.level);
+
+    if (!isCurrentOrHigherLevel) {
+      // Replaying an already-cleared lower level: do not update progression level/tier or demote
+      return next;
+    }
+  }
+
   // 2. Process Level and Tier progression
   switch (next.tier) {
     case 'beginner': {

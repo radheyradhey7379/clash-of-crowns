@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { migratePlayerDataToLatestVersion } from '../../../game/security/validatePlayerData';
 import { loadProtectedPlayerData, saveProtectedPlayerData } from '../../../lib/protectedSave';
 import { resetPlayerData, DEFAULT_PLAYER_DATA } from '../../../lib/store/store';
+import { applyAIMatchResult } from '../../../game/ai/progressionEngine';
 import { PlayerData } from '../../../types';
 
 // Mock localStorage
@@ -310,6 +311,46 @@ describe('Client Review Sprint 2 - Unit Tests', () => {
       expect(migrated.data.aiProgress.level).toBe(4);
       expect(migrated.data.aiProgress.elo).toBe(650);
       expect(migrated.data.rating).toBe(650);
+    });
+  });
+
+  // --- PROGRESSION GUARD TESTS ---
+  describe('Progression Guard', () => {
+    it('does_not_advance_or_demote_when_replaying_lower_level', () => {
+      const progress = {
+        tier: 'learner',
+        level: 3,
+        elo: 500,
+        consecutiveLosses: 0,
+        unlockedTiers: ['beginner', 'learner'],
+        lockedTiers: ['intermediate', 'hard', 'master', 'grandmaster']
+      } as any;
+
+      // Replaying learner_1 (level 1) which is lower than current learner_3 (level 3)
+      // Winning should not advance level
+      const winNext = applyAIMatchResult(progress, { result: 'win', characterId: 'learner_1', playerWon: true, isDraw: false });
+      expect(winNext.level).toBe(3);
+
+      // Losing should not demote or add to consecutiveLosses
+      const lossNext = applyAIMatchResult(progress, { result: 'loss', characterId: 'learner_1', playerWon: false, isDraw: false });
+      expect(lossNext.level).toBe(3);
+      expect(lossNext.consecutiveLosses).toBe(0);
+    });
+
+    it('advances_normally_when_playing_current_active_level', () => {
+      const progress = {
+        tier: 'learner',
+        level: 3,
+        elo: 500,
+        consecutiveLosses: 0,
+        unlockedTiers: ['beginner', 'learner'],
+        lockedTiers: ['intermediate', 'hard', 'master', 'grandmaster']
+      } as any;
+
+      // Playing learner_3 (level 3) which is the current level
+      // Winning should advance level to 4
+      const winNext = applyAIMatchResult(progress, { result: 'win', characterId: 'learner_3', playerWon: true, isDraw: false });
+      expect(winNext.level).toBe(4);
     });
   });
 });

@@ -91,14 +91,6 @@ export default function HelpSupportScreen({ onNavigate, playerData }: HelpSuppor
             </div>
           </motion.a>
 
-          {/* Testing Note */}
-          <div className="flex items-start gap-3 py-3 px-4 bg-[#d9ad33]/5 border border-[#d9ad33]/15 rounded-xl">
-            <AlertCircle size={16} className="text-[#d9ad33] mt-0.5 flex-shrink-0" />
-            <p className="text-[#8c7a52] text-xs leading-relaxed">
-              For internal testing feedback, contact the team directly.
-            </p>
-          </div>
-
           {/* FAQ Section */}
           <div className="flex flex-col gap-1 mt-2">
             <div className="flex items-center gap-2 mb-3">

@@ -43,6 +43,7 @@ import {
   registerLocalDataChangedListener,
   triggerDebouncedSync
 } from './lib/cloud/cloudSyncManager';
+import { uploadCloudSave } from './lib/cloud/cloudSaveService';
 
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
@@ -322,19 +323,22 @@ export default function App() {
           try {
             const syncedData = await syncUserProgress(user, playerData);
             setPlayerData(syncedData);
+            savePlayerData(syncedData);
             setIsCloudSyncReady(true);
             setIsDataSynced(true);
           } catch (syncErr) {
             console.warn("Failed to sync user progress, running offline:", syncErr);
             setIsCloudSyncReady(false);
             setIsDataSynced(true); // Allow local progress save
-            setPlayerData(prev => ({ ...prev, uid: user.uid, name: user.displayName || prev.name }));
+            const updated = { ...playerData, uid: user.uid, name: user.displayName || playerData.name };
+            setPlayerData(updated);
+            savePlayerData(updated);
           }
           
           if (paymentStatus === 'success') {
             try {
               await updateDoc(doc(db, 'users', user.uid), { isPremium: true });
-              setPlayerData(prev => ({ ...prev, isPremium: true }));
+              handleUpdatePlayerData({ isPremium: true });
               window.history.replaceState({}, document.title, "/");
             } catch (premiumErr) {
               console.warn("Failed to update premium flag in cloud:", premiumErr);
@@ -431,6 +435,7 @@ export default function App() {
 
   const resetStatsOnly = async () => {
     localStorage.setItem("clash_reset_marker_at", Date.now().toString());
+    const resetTime = new Date().toISOString();
 
     setPlayerData(prev => {
       const updated = {
@@ -454,13 +459,15 @@ export default function App() {
         totalWins: 0,
         totalLosses: 0,
         totalDraws: 0,
+        lastResetAt: resetTime
       };
       savePlayerData(updated);
       return updated;
     });
 
     if (auth.currentUser) {
-      const userRef = doc(db, 'users', auth.currentUser.uid);
+      const uid = auth.currentUser.uid;
+      const userRef = doc(db, 'users', uid);
       try {
         await updateDoc(userRef, {
           wins: 0,
@@ -478,8 +485,13 @@ export default function App() {
           blackGames: 0,
           whiteTime: 0,
           blackTime: 0,
+          lastResetAt: resetTime,
           lastActive: new Date().toISOString()
         });
+
+        // Instantly push to cloudSaves to sync DB
+        const currentData = loadPlayerData();
+        await uploadCloudSave(uid, currentData);
       } catch (err) {
         console.error("Failed to reset Firestore stats:", err);
       }
@@ -488,6 +500,7 @@ export default function App() {
 
   const resetProgressOnly = async () => {
     localStorage.setItem("clash_reset_marker_at", Date.now().toString());
+    const resetTime = new Date().toISOString();
 
     setPlayerData(prev => {
       const updated = {
@@ -502,13 +515,15 @@ export default function App() {
         badges: [],
         arenaRating: 1200,
         appliedArenaResultIds: [],
+        lastResetAt: resetTime
       };
       savePlayerData(updated);
       return updated;
     });
 
     if (auth.currentUser) {
-      const userRef = doc(db, 'users', auth.currentUser.uid);
+      const uid = auth.currentUser.uid;
+      const userRef = doc(db, 'users', uid);
       try {
         await updateDoc(userRef, {
           rating: 0,
@@ -521,8 +536,13 @@ export default function App() {
           badges: [],
           arenaRating: 1200,
           appliedArenaResultIds: [],
+          lastResetAt: resetTime,
           lastActive: new Date().toISOString()
         });
+
+        // Instantly push to cloudSaves to sync DB
+        const currentData = loadPlayerData();
+        await uploadCloudSave(uid, currentData);
       } catch (err) {
         console.error("Failed to reset Firestore progress:", err);
       }
@@ -587,7 +607,11 @@ export default function App() {
   };
 
   const handleUpdatePlayerData = (newData: Partial<PlayerData>) => {
-    setPlayerData(prev => ({ ...prev, ...newData }));
+    setPlayerData(prev => {
+      const updated = { ...prev, ...newData };
+      savePlayerData(updated);
+      return updated;
+    });
   };
 
   // Sync to Firestore when local state changes

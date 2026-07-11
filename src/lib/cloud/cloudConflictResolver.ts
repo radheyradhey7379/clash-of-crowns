@@ -43,6 +43,19 @@ export function resolveCloudVsLocal(
     return { action: 'keep_local_log_conflict', resolvedData: localData };
   }
 
+  // Reset marker conflict protection
+  const localResetTime = localData.lastResetAt ? new Date(localData.lastResetAt).getTime() : 0;
+  const cloudResetTime = cloudData.lastResetAt ? new Date(cloudData.lastResetAt).getTime() : 0;
+
+  if (localResetTime > cloudResetTime) {
+    console.log('[ConflictResolver] Local save has a newer reset marker. Keeping local.');
+    return { action: 'upload_local', resolvedData: localData };
+  }
+  if (cloudResetTime > localResetTime) {
+    console.log('[ConflictResolver] Cloud save has a newer reset marker. Restoring cloud.');
+    return { action: 'restore_cloud', resolvedData: cloudData };
+  }
+
   // Phase 32B: Cloud Conflict protection
   const ONE_DAY = 24 * 60 * 60 * 1000;
   const now = Date.now();
