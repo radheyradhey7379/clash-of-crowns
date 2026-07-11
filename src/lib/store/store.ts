@@ -40,7 +40,7 @@ export const DEFAULT_PLAYER_DATA: PlayerData = {
   totalDraws: 0,
   totalGames: 0,
   currentStreak: 0,
-  undoTokens: 5,
+  undoTokens: 0,
   whiteTime: 0,
   blackTime: 0,
   viewMode: '3d',

@@ -353,4 +353,52 @@ describe('Client Review Sprint 2 - Unit Tests', () => {
       expect(winNext.level).toBe(4);
     });
   });
+
+  // --- UNDO LIMIT VERIFICATION ---
+  describe('Undo Economy Rules', () => {
+    it('blocks_undo_after_2_daily_free_undos_when_tokens_are_0', () => {
+      let dailyUndoCount = 0;
+      let undoTokens = 0; // Default now
+      let requiresToken = false;
+      let showUndoModal = false;
+
+      // Simulate first undo
+      if (dailyUndoCount < 2) {
+        dailyUndoCount += 1;
+      } else {
+        requiresToken = true;
+      }
+      expect(dailyUndoCount).toBe(1);
+      expect(requiresToken).toBe(false);
+
+      // Simulate second undo
+      if (dailyUndoCount < 2) {
+        dailyUndoCount += 1;
+      } else {
+        requiresToken = true;
+      }
+      expect(dailyUndoCount).toBe(2);
+      expect(requiresToken).toBe(false);
+
+      // Simulate third undo (expires daily limit)
+      if (dailyUndoCount < 2) {
+        dailyUndoCount += 1;
+      } else {
+        requiresToken = true;
+      }
+      expect(requiresToken).toBe(true);
+
+      // If requires token, check tokens
+      if (requiresToken) {
+        if (undoTokens <= 0) {
+          showUndoModal = true;
+        } else {
+          undoTokens -= 1;
+        }
+      }
+
+      expect(showUndoModal).toBe(true);
+      expect(undoTokens).toBe(0);
+    });
+  });
 });

@@ -117,7 +117,7 @@ export function migratePlayerDataToLatestVersion(playerData: PlayerData): { data
     });
 
     data.dailyUndoCount = data.dailyUndoCount !== undefined ? data.dailyUndoCount : 0;
-    data.undoTokens = data.undoTokens !== undefined ? data.undoTokens : 5;
+    data.undoTokens = data.undoTokens !== undefined ? data.undoTokens : 0;
     if (!data.lastUndoDate) {
       data.lastUndoDate = new Date().toDateString();
     }
