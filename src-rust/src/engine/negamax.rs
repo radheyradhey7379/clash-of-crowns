@@ -2,11 +2,11 @@ use crate::engine::hce::HceEvaluator;
 use crate::engine::move_ordering::score_move;
 use crate::engine::nnue::EVALUATOR as NNUE_EVALUATOR;
 use crate::engine::quiescence::quiescence_search;
+#[cfg(target_arch = "wasm32")]
+use instant::Instant;
 use shakmaty::fen::Fen;
 use shakmaty::{CastlingMode, Chess, EnPassantMode, Move, MoveList, Position};
 use std::time::Duration;
-#[cfg(target_arch = "wasm32")]
-use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
@@ -121,13 +121,16 @@ pub fn search_at_depth(
 ) -> (SearchResult, bool) {
     let legals = pos.legal_moves();
     if legals.is_empty() {
-        return (SearchResult {
-            best_move: None,
-            eval: 0,
-            nodes: 0,
-            depth: options.max_depth,
-            noise_applied: 0,
-        }, false);
+        return (
+            SearchResult {
+                best_move: None,
+                eval: 0,
+                nodes: 0,
+                depth: options.max_depth,
+                noise_applied: 0,
+            },
+            false,
+        );
     }
 
     let mut current_pos = pos.clone();
@@ -138,13 +141,16 @@ pub fn search_at_depth(
         let mut child_pos = current_pos.clone();
         child_pos.play_unchecked(m);
         if child_pos.is_checkmate() {
-            return (SearchResult {
-                best_move: Some(m.clone()),
-                eval: 20000,
-                nodes: legals.len() as u64,
-                depth: 1,
-                noise_applied: 0,
-            }, false);
+            return (
+                SearchResult {
+                    best_move: Some(m.clone()),
+                    eval: 20000,
+                    nodes: legals.len() as u64,
+                    depth: 1,
+                    noise_applied: 0,
+                },
+                false,
+            );
         }
     }
 
@@ -196,7 +202,8 @@ pub fn search_at_depth(
 
         // Apply anti-repetition penalties
         let bot_id = options.bot_profile_id.to_lowercase();
-        let is_beginner_learner = bot_id.contains("beginner") || bot_id.contains("learner") || bot_id.contains("core");
+        let is_beginner_learner =
+            bot_id.contains("beginner") || bot_id.contains("learner") || bot_id.contains("core");
         let is_grandmaster = bot_id.contains("grandmaster");
 
         let mut penalty = 0;
@@ -233,9 +240,8 @@ pub fn search_at_depth(
 
         // Penalty 3: Recreating a recently occurred FEN position (prevents multi-move cycles)
         if !options.recent_fens.is_empty() {
-            let child_fen = clean_fen(
-                &Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string(),
-            );
+            let child_fen =
+                clean_fen(&Fen::from_position(child_pos.clone(), EnPassantMode::Legal).to_string());
             for past_fen in &options.recent_fens {
                 if clean_fen(past_fen) == child_fen {
                     if is_beginner_learner {
@@ -252,7 +258,11 @@ pub fn search_at_depth(
         // Penalty 4: Moving the same piece repeatedly (2-move cycle back-and-forth)
         if len >= 2 {
             let prev_move = &options.recent_moves[len - 2];
-            let prev_prev_move = if len >= 4 { &options.recent_moves[len - 4] } else { "" };
+            let prev_prev_move = if len >= 4 {
+                &options.recent_moves[len - 4]
+            } else {
+                ""
+            };
             if is_same_piece(&m_uci, prev_move, prev_prev_move) {
                 if is_beginner_learner {
                     penalty += 1500;
@@ -269,13 +279,16 @@ pub fn search_at_depth(
     }
 
     if aborted {
-        return (SearchResult {
-            best_move: None,
-            eval: 0,
-            nodes: total_nodes,
-            depth: options.max_depth,
-            noise_applied: options.error_noise_cp,
-        }, true);
+        return (
+            SearchResult {
+                best_move: None,
+                eval: 0,
+                nodes: total_nodes,
+                depth: options.max_depth,
+                noise_applied: options.error_noise_cp,
+            },
+            true,
+        );
     }
 
     // Sort moves by adjusted evaluation descending
@@ -287,13 +300,16 @@ pub fn search_at_depth(
         (legals.first().cloned(), 0)
     };
 
-    (SearchResult {
-        best_move,
-        eval: best_eval,
-        nodes: total_nodes,
-        depth: options.max_depth,
-        noise_applied: options.error_noise_cp,
-    }, false)
+    (
+        SearchResult {
+            best_move,
+            eval: best_eval,
+            nodes: total_nodes,
+            depth: options.max_depth,
+            noise_applied: options.error_noise_cp,
+        },
+        false,
+    )
 }
 
 pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {

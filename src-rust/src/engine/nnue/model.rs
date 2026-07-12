@@ -11,7 +11,8 @@ impl NnueModel {
     pub fn load() -> Self {
         #[cfg(target_arch = "wasm32")]
         {
-            const NNUE_WEIGHTS_BYTES: &[u8] = include_bytes!("../../../../data/nnue/exports/best_model.nnue");
+            const NNUE_WEIGHTS_BYTES: &[u8] =
+                include_bytes!("../../../../data/nnue/exports/best_model.nnue");
             if let Ok(weights) = NnueWeights::load_from_bytes(NNUE_WEIGHTS_BYTES) {
                 return Self { weights };
             }
