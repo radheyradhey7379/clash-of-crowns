@@ -18,6 +18,26 @@ export interface EngineRequest {
   recentFens?: string[];
 }
 
+export interface EngineDebugInfo {
+  tier: string;
+  botId: string;
+  botName: string;
+  evaluatorUsed: 'hce' | 'nnue';
+  searchUsed: 'negamax';
+  depthTarget: number;
+  depthReached: number;
+  timeMs: number;
+  nodes: number;
+  alphaBetaCutoffs: number;
+  quiescenceNodes: number;
+  randomErrorCpApplied: number;
+  rawEval: number;
+  finalEval: number;
+  selectedMove: string;
+  wasmVersion: string;
+  engineSource: 'wasm' | 'backend' | 'emergency';
+}
+
 export interface EngineResult {
   move: { from: string; to: string; promotion?: string } | null;
   engineUsed: EngineType;
@@ -33,6 +53,7 @@ export interface EngineResult {
   depth_completed?: number;
   used_partial_result?: boolean;
   reason?: string;
+  debugInfo?: EngineDebugInfo;
 }
 
 export interface IEngineAdapter {

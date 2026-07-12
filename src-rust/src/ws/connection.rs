@@ -17,11 +17,20 @@ fn log_security_event(
     session_id: Option<&str>,
     payload_summary: &str,
 ) {
-    let node_url = std::env::var("NODE_SERVER_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
+    let node_url =
+        std::env::var("NODE_SERVER_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
     let host_port = if node_url.contains("localhost:") {
-        node_url.split("localhost:").nth(1).map(|p| format!("127.0.0.1:{}", p)).unwrap_or_else(|| "127.0.0.1:3000".to_string())
+        node_url
+            .split("localhost:")
+            .nth(1)
+            .map(|p| format!("127.0.0.1:{}", p))
+            .unwrap_or_else(|| "127.0.0.1:3000".to_string())
     } else if node_url.contains("127.0.0.1:") {
-        node_url.split("127.0.0.1:").nth(1).map(|p| format!("127.0.0.1:{}", p)).unwrap_or_else(|| "127.0.0.1:3000".to_string())
+        node_url
+            .split("127.0.0.1:")
+            .nth(1)
+            .map(|p| format!("127.0.0.1:{}", p))
+            .unwrap_or_else(|| "127.0.0.1:3000".to_string())
     } else {
         "127.0.0.1:3000".to_string()
     };
@@ -35,7 +44,7 @@ fn log_security_event(
         "sessionId": session_id,
         "payloadSummary": payload_summary,
     });
-    
+
     let payload = serde_json::to_string(&body).unwrap();
     let request = format!(
         "POST /api/security/event HTTP/1.1\r\n\
@@ -342,7 +351,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<AppState>) {
                         Some(&room_id),
                         Some(&match_id),
                         Some(&session_id),
-                        &format!("Claimed player_id {} does not match token UID {}", player_id, uid),
+                        &format!(
+                            "Claimed player_id {} does not match token UID {}",
+                            player_id, uid
+                        ),
                     );
                     let err_msg = ServerMessage::Error {
                         code: "auth_failed".to_string(),
@@ -362,7 +374,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<AppState>) {
                         Some(&room_id),
                         Some(&match_id),
                         Some(&session_id),
-                        &format!("Claimed session_id {} does not match token session ID {}", session_id, auth_session_id),
+                        &format!(
+                            "Claimed session_id {} does not match token session ID {}",
+                            session_id, auth_session_id
+                        ),
                     );
                     let err_msg = ServerMessage::Error {
                         code: "invalid_session_id".to_string(),
@@ -479,7 +494,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<AppState>) {
                         Some(&room_id),
                         Some(&match_id),
                         Some(&session_id),
-                        &format!("Expected move {}, got {}", room.move_count + 1, client_move_number),
+                        &format!(
+                            "Expected move {}, got {}",
+                            room.move_count + 1,
+                            client_move_number
+                        ),
                     );
                     let err_msg = ServerMessage::Error {
                         code: "move_number_mismatch".to_string(),
@@ -499,7 +518,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<AppState>) {
                         Some(&room_id),
                         Some(&match_id),
                         Some(&session_id),
-                        &format!("FEN mismatch! Server: {}, Client: {}", room.fen, client_fen_before),
+                        &format!(
+                            "FEN mismatch! Server: {}, Client: {}",
+                            room.fen, client_fen_before
+                        ),
                     );
                     let resync = ServerMessage::ResyncRequired {
                         official_fen: room.fen.clone(),
@@ -545,11 +567,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<AppState>) {
                                 "w".to_string()
                             };
                             r_mut.move_count = client_move_number;
-                            
+
                             if is_checkmate || is_stalemate || is_draw {
                                 r_mut.status = RoomStatus::Completed;
                             }
-                            
+
                             r_mut.updated_at_ms = chrono::Utc::now().timestamp_millis();
                             let updated_room = r_mut.clone();
                             drop(r_mut); // Release lock
@@ -562,7 +584,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<AppState>) {
                                 current_turn: updated_room.current_turn.clone(),
                                 client_message_id: None,
                             };
-                            let _ = tx.send(Message::Text(serde_json::to_string(&accept_msg).unwrap()));
+                            let _ =
+                                tx.send(Message::Text(serde_json::to_string(&accept_msg).unwrap()));
 
                             // Broadcast verified move to opponent
                             let opponent_uid = if is_white {
@@ -590,17 +613,34 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<AppState>) {
                             // Finalize match on end state
                             if is_checkmate || is_stalemate || is_draw {
                                 let result_str = if is_checkmate {
-                                    if player_color == "w" { "white_win" } else { "black_win" }
+                                    if player_color == "w" {
+                                        "white_win"
+                                    } else {
+                                        "black_win"
+                                    }
                                 } else {
                                     "draw"
                                 };
-                                let reason_str = if is_checkmate { "checkmate" } else if is_stalemate { "stalemate" } else { "insufficient_material" };
+                                let reason_str = if is_checkmate {
+                                    "checkmate"
+                                } else if is_stalemate {
+                                    "stalemate"
+                                } else {
+                                    "insufficient_material"
+                                };
 
-                                if updated_room.mode == crate::rooms::room_state::RoomMode::RankedArena {
-                                    if let Some(mut r_mut2) = state.room_manager.get_room_mut(&room_id) {
+                                if updated_room.mode
+                                    == crate::rooms::room_state::RoomMode::RankedArena
+                                {
+                                    if let Some(mut r_mut2) =
+                                        state.room_manager.get_room_mut(&room_id)
+                                    {
                                         if let Ok((ranked_res, ver_id, ver_hash, timestamp)) =
                                             crate::ranked::ranked_result::finalize_ranked_match(
-                                                &mut r_mut2, uid, result_str, reason_str,
+                                                &mut r_mut2,
+                                                uid,
+                                                result_str,
+                                                reason_str,
                                             )
                                         {
                                             let verified_msg = ServerMessage::VerifiedResult {
@@ -615,11 +655,23 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<AppState>) {
                                                 duration_ms: ranked_res.duration_ms,
                                                 rating_delta_white: ranked_res.rating_delta_white,
                                                 rating_delta_black: ranked_res.rating_delta_black,
-                                                new_rating_white: r_mut2.white.as_ref().map(|w| w.rating).unwrap_or(1200) + ranked_res.rating_delta_white,
-                                                new_rating_black: r_mut2.black.as_ref().map(|b| b.rating).unwrap_or(1200) + ranked_res.rating_delta_black,
+                                                new_rating_white: r_mut2
+                                                    .white
+                                                    .as_ref()
+                                                    .map(|w| w.rating)
+                                                    .unwrap_or(1200)
+                                                    + ranked_res.rating_delta_white,
+                                                new_rating_black: r_mut2
+                                                    .black
+                                                    .as_ref()
+                                                    .map(|b| b.rating)
+                                                    .unwrap_or(1200)
+                                                    + ranked_res.rating_delta_black,
                                                 verification_hash: ver_hash,
                                             };
-                                            let ws_msg = Message::Text(serde_json::to_string(&verified_msg).unwrap());
+                                            let ws_msg = Message::Text(
+                                                serde_json::to_string(&verified_msg).unwrap(),
+                                            );
                                             if let Some(ref w) = r_mut2.white {
                                                 state.send_to_user(&w.uid, ws_msg.clone());
                                             }
@@ -637,14 +689,18 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<AppState>) {
                                         None
                                     };
 
-                                    if let Ok(updated_room2) = state.room_manager.end_match(&room_id, RoomStatus::Completed) {
+                                    if let Ok(updated_room2) = state
+                                        .room_manager
+                                        .end_match(&room_id, RoomStatus::Completed)
+                                    {
                                         let end_msg = ServerMessage::MatchEnded {
                                             room_id: room_id.clone(),
                                             result: result_str.to_string(),
                                             reason: reason_str.to_string(),
                                             winner_uid,
                                         };
-                                        let ws_msg = Message::Text(serde_json::to_string(&end_msg).unwrap());
+                                        let ws_msg =
+                                            Message::Text(serde_json::to_string(&end_msg).unwrap());
                                         if let Some(ref w) = updated_room2.white {
                                             state.send_to_user(&w.uid, ws_msg.clone());
                                         }

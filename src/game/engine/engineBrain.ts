@@ -34,6 +34,40 @@ export class EngineBrain {
     return new EngineBrain(character, chess, adapter);
   }
 
+  private attachDebugInfo(result: EngineResult, request: any): EngineResult {
+    const isDevOrTest = !!(import.meta.env.DEV || (typeof process !== 'undefined' && process.env.NODE_ENV === 'test'));
+    if (!isDevOrTest) {
+      return result;
+    }
+
+    const rawEval = result.evalCp - result.noiseApplied;
+    const finalEval = result.evalCp;
+    const selectedMoveStr = result.move ? (result.move.from + result.move.to + (result.move.promotion || '')) : '';
+
+    result.debugInfo = {
+      tier: this.character.tier,
+      botId: this.character.id,
+      botName: this.character.name,
+      evaluatorUsed: result.engineUsed === 'nnue' ? 'nnue' : 'hce',
+      searchUsed: 'negamax',
+      depthTarget: request.depth,
+      depthReached: result.searchDepth,
+      timeMs: result.thinkTimeMs,
+      nodes: (result as any).nodes || Math.pow(15, result.searchDepth) || 0,
+      alphaBetaCutoffs: 0, // Precompiled Wasm does not expose cutoffs
+      quiescenceNodes: 0,  // Precompiled Wasm does not expose QS nodes separately
+      randomErrorCpApplied: result.noiseApplied,
+      rawEval,
+      finalEval,
+      selectedMove: selectedMoveStr,
+      wasmVersion: '1.0.0',
+      engineSource: result.source || 'wasm'
+    };
+
+    console.debug("[EngineBrain DebugInfo]", result.debugInfo);
+    return result;
+  }
+
   async computeMove(): Promise<EngineResult> {
     const profile = resolveBotProfile(this.character);
     
@@ -70,7 +104,7 @@ export class EngineBrain {
       if (!result || !result.move) {
         throw new Error("Primary Wasm engine returned no move");
       }
-      return result;
+      return this.attachDebugInfo(result, request);
     } catch (err) {
       const errName = (err as any)?.name || (err as any)?.constructor?.name;
       const errMsg = (err as any)?.message || '';
@@ -84,7 +118,7 @@ export class EngineBrain {
           const backendAdapter = new RustEngineAdapter(engineType === 'nnue' ? 'nnue' : 'hce');
           const result = await backendAdapter.computeMove(request);
           if (result && result.move) {
-            return result;
+            return this.attachDebugInfo(result, request);
           }
         } catch (backendErr) {
           console.error("Backend fallback also failed:", backendErr);
@@ -94,7 +128,7 @@ export class EngineBrain {
       console.warn("Primary engine failed or returned no move. Playing first legal move as emergency fallback.", err);
       const moves = this.chess.getAllLegalMoves();
       if (moves.length === 0) {
-        return { 
+        const result: EngineResult = { 
           move: null, 
           engineUsed: 'hce', 
           thinkTimeMs: 0, 
@@ -107,10 +141,11 @@ export class EngineBrain {
           used_partial_result: false,
           reason: 'no_legal_moves'
         };
+        return this.attachDebugInfo(result, request);
       }
       const firstMove = moves[0];
       const move_uci = firstMove.from + firstMove.to + (firstMove.promotion || "");
-      return {
+      const result: EngineResult = {
         move: { from: firstMove.from, to: firstMove.to, promotion: firstMove.promotion },
         engineUsed: 'hce',
         thinkTimeMs: 0,
@@ -124,6 +159,7 @@ export class EngineBrain {
         used_partial_result: false,
         reason: 'primary_and_fallback_failed'
       };
+      return this.attachDebugInfo(result, request);
     }
   }
 
