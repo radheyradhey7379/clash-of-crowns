@@ -43,7 +43,7 @@ export function isCharacterUnlocked(characterId: string, progress: AIProgress): 
 }
 
 export interface GameResultCTA {
-  label: "NEXT LEVEL" | "NEXT CHALLENGE" | "REPLAY" | "RETRY";
+  label: string;
   nextCharacterId: string | null;
 }
 
@@ -52,17 +52,91 @@ export function getGameResultCTA(
   characterId: string | null,
   progress: AIProgress
 ): GameResultCTA {
+  if (!characterId) {
+    return { label: 'REPLAY', nextCharacterId: null };
+  }
+
+  const char = AI_CHARACTERS.find(c => c.id === characterId);
+  if (!char) {
+    return { label: 'REPLAY', nextCharacterId: null };
+  }
+
+  // --- 1. GRANDMASTER TIER / BOSS FIGHT ---
+  if (char.tier === 'grandmaster') {
+    if (char.id === 'grandmaster_1') {
+      const gm = progress.grandmaster;
+      if (result === 'draw') {
+        return { label: 'RETRY GAME', nextCharacterId: 'grandmaster_1' };
+      }
+      
+      if (gm.bossDefeated) {
+        return { label: 'CROWN CLEARED', nextCharacterId: 'grandmaster_2' };
+      }
+
+      if (gm.bossSeriesWins === 0 && gm.bossSeriesLosses === 0) {
+        return { label: 'RETRY BOSS', nextCharacterId: 'grandmaster_1' };
+      }
+
+      if (gm.bossSeriesWins === 1 && gm.bossSeriesLosses === 1) {
+        return { label: 'DECIDER MATCH', nextCharacterId: 'grandmaster_1' };
+      }
+
+      return { label: 'NEXT GAME', nextCharacterId: 'grandmaster_1' };
+    }
+
+    return { label: 'REPLAY', nextCharacterId: null };
+  }
+
+  // --- 2. MASTER CUP TIER ---
+  if (char.tier === 'master') {
+    const cup = progress.masterCup;
+
+    if (cup.currentMatch > 1 && cup.currentMatch <= 3) {
+      const nextLevel = (cup.currentCup - 1) * 3 + cup.currentMatch;
+      const nextChar = AI_CHARACTERS.find(c => c.tier === 'master' && c.level === nextLevel);
+      return {
+        label: 'NEXT MATCH',
+        nextCharacterId: nextChar?.id || null
+      };
+    }
+
+    if (cup.currentMatch === 1) {
+      const justPlayedCup = char.cup || 1;
+      const wasCleared = cup.completedCups.includes(justPlayedCup);
+
+      if (wasCleared) {
+        if (justPlayedCup === 3) {
+          if (progress.tier === 'grandmaster') {
+            return { label: 'NEXT TIER', nextCharacterId: 'grandmaster_1' };
+          } else {
+            return { label: 'RETRY CUP', nextCharacterId: 'master_3_1' };
+          }
+        } else {
+          const nextLevel = justPlayedCup * 3 + 1;
+          const nextChar = AI_CHARACTERS.find(c => c.tier === 'master' && c.level === nextLevel);
+          return {
+            label: 'NEXT CUP',
+            nextCharacterId: nextChar?.id || null
+          };
+        }
+      } else {
+        const retryLevel = (justPlayedCup - 1) * 3 + 1;
+        const nextChar = AI_CHARACTERS.find(c => c.tier === 'master' && c.level === retryLevel);
+        return {
+          label: 'RETRY CUP',
+          nextCharacterId: nextChar?.id || null
+        };
+      }
+    }
+  }
+
+  // --- 3. OTHER TIERS ---
   if (result === 'draw') {
     return { label: 'RETRY', nextCharacterId: null };
   }
 
   if (result === 'loss') {
     return { label: 'RETRY', nextCharacterId: null };
-  }
-
-  // result === 'win'
-  if (!characterId) {
-    return { label: 'REPLAY', nextCharacterId: null };
   }
 
   const idx = AI_CHARACTERS.findIndex(c => c.id === characterId);

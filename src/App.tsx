@@ -500,6 +500,7 @@ export default function App() {
 
   const resetProgressOnly = async () => {
     localStorage.setItem("clash_reset_marker_at", Date.now().toString());
+    localStorage.removeItem("clash_cup_round_robin_state");
     const resetTime = new Date().toISOString();
 
     setPlayerData(prev => {

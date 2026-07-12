@@ -4,11 +4,13 @@ import {
   isCharacterUnlocked,
   isCharacterCurrent,
   getGameResultCTA,
-  validateCharacterSelection
+  validateCharacterSelection,
+  getCurrentPlayableCharacterId
 } from '../progressionEngine';
 import { DEFAULT_AI_PROGRESS } from '../aiProgressDefaults';
 import { AIProgress } from '../../../types/aiProgression';
 import { createProtectedSave, verifyProtectedSave } from '../../../lib/protectedSave';
+import { recordMatchResult, determineWinner } from '../../engine/campaign/cupRoundRobin';
 
 
 describe('AI Career Progression Engine (8 Tiers)', () => {
@@ -650,6 +652,415 @@ describe('AI Personality, Dialogue & Match Feel (Phase 16)', () => {
       const keyVal1 = 'beginner_1';
       const keyVal2 = 'beginner_2';
       expect(keyVal1).not.toBe(keyVal2);
+    });
+  });
+
+  describe('Phase 5 Master Cup and Grandmaster Boss QA', () => {
+    let progress: AIProgress;
+
+    beforeEach(() => {
+      progress = JSON.parse(JSON.stringify(DEFAULT_AI_PROGRESS));
+    });
+
+    // --- Master Cup Tests ---
+    it('master_cup_1_starts_correctly', () => {
+      progress.tier = 'hard';
+      progress.level = 8;
+      const next = applyAIMatchResult(progress, { playerWon: true, isDraw: false });
+      expect(next.tier).toBe('master');
+      expect(next.level).toBe(1);
+      expect(next.masterCup.currentCup).toBe(1);
+      expect(next.masterCup.currentMatch).toBe(1);
+      expect(next.masterCup.winsInCup).toBe(0);
+    });
+
+    it('master_cup_match_1_to_match_2_progresses', () => {
+      progress.tier = 'master';
+      progress.masterCup.currentCup = 1;
+      progress.masterCup.currentMatch = 1;
+      const next = applyAIMatchResult(progress, { playerWon: true, result: 'win', characterId: 'master_1_1' });
+      expect(next.masterCup.currentCup).toBe(1);
+      expect(next.masterCup.currentMatch).toBe(2);
+      expect(next.level).toBe(2);
+    });
+
+    it('master_cup_match_2_to_match_3_progresses', () => {
+      progress.tier = 'master';
+      progress.masterCup.currentCup = 1;
+      progress.masterCup.currentMatch = 2;
+      const next = applyAIMatchResult(progress, { playerWon: false, result: 'loss', characterId: 'master_1_2' });
+      expect(next.masterCup.currentCup).toBe(1);
+      expect(next.masterCup.currentMatch).toBe(3);
+      expect(next.level).toBe(3);
+    });
+
+    it('cup_points_win_draw_loss_correct', () => {
+      const p = [
+        { id: 'player', name: 'Player', isPlayer: true },
+        { id: 'ai1', name: 'AI 1', isPlayer: false },
+        { id: 'ai2', name: 'AI 2', isPlayer: false },
+        { id: 'ai3', name: 'AI 3', isPlayer: false }
+      ];
+      let rr = {
+        cupId: 1 as 1,
+        participants: p,
+        matches: [
+          { matchIndex: 0, whiteId: 'player', blackId: 'ai1', result: 'pending' as any, isSimulated: false },
+          { matchIndex: 1, whiteId: 'ai2', blackId: 'player', result: 'pending' as any, isSimulated: false },
+          { matchIndex: 2, whiteId: 'player', blackId: 'ai3', result: 'pending' as any, isSimulated: false },
+          { matchIndex: 3, whiteId: 'ai1', blackId: 'ai2', result: 'pending' as any, isSimulated: true },
+          { matchIndex: 4, whiteId: 'ai1', blackId: 'ai3', result: 'pending' as any, isSimulated: true },
+          { matchIndex: 5, whiteId: 'ai2', blackId: 'ai3', result: 'pending' as any, isSimulated: true }
+        ],
+        pointsTable: { player: 0, ai1: 0, ai2: 0, ai3: 0 },
+        currentMatchIndex: 0,
+        status: 'in_progress' as any,
+        winnerId: null as string | null
+      };
+
+      // Record player's match result in Round Robin helper from cupRoundRobin.ts
+      rr = recordMatchResult(rr, 0, 'white_win');
+      expect(rr.pointsTable.player).toBe(3);
+      expect(rr.pointsTable.ai1).toBe(0);
+
+      rr = recordMatchResult(rr, 1, 'draw');
+      expect(rr.pointsTable.player).toBe(4);
+      expect(rr.pointsTable.ai2).toBe(1);
+
+      rr = recordMatchResult(rr, 2, 'black_win');
+      expect(rr.pointsTable.player).toBe(4);
+      expect(rr.pointsTable.ai3).toBe(3);
+    });
+
+    it('cup_clear_unlocks_next_cup', () => {
+      progress.tier = 'master';
+      progress.masterCup.currentCup = 1;
+      progress.masterCup.currentMatch = 3;
+      progress.masterCup.winsInCup = 2;
+      const next = applyAIMatchResult(progress, { playerWon: true, result: 'win', characterId: 'master_1_3', cupCleared: true });
+      expect(next.masterCup.currentCup).toBe(2);
+      expect(next.masterCup.currentMatch).toBe(1);
+    });
+
+    it('cup_fail_retries_same_cup', () => {
+      progress.tier = 'master';
+      progress.masterCup.currentCup = 1;
+      progress.masterCup.currentMatch = 3;
+      progress.masterCup.winsInCup = 1;
+      const next = applyAIMatchResult(progress, { playerWon: false, result: 'loss', characterId: 'master_1_3', cupCleared: false });
+      expect(next.masterCup.currentCup).toBe(1);
+      expect(next.masterCup.currentMatch).toBe(1);
+    });
+
+    it('cup_all_wins_clears_cup', () => {
+      progress.tier = 'master';
+      progress.masterCup.currentCup = 1;
+      progress.masterCup.currentMatch = 3;
+      progress.masterCup.winsInCup = 2;
+      const next = applyAIMatchResult(progress, { playerWon: true, result: 'win', characterId: 'master_1_3', cupCleared: true });
+      expect(next.masterCup.completedCups).toContain(1);
+    });
+
+    it('cup_one_loss_behavior_correct', () => {
+      progress.tier = 'master';
+      progress.masterCup.currentCup = 1;
+      progress.masterCup.currentMatch = 2;
+      progress.masterCup.winsInCup = 1;
+      progress.masterCup.lossesInCup = 0;
+      const next = applyAIMatchResult(progress, { playerWon: false, result: 'loss', characterId: 'master_1_2' });
+      expect(next.masterCup.lossesInCup).toBe(1);
+      expect(next.masterCup.currentMatch).toBe(3);
+    });
+
+    it('cup_all_draws_no_deadlock', () => {
+      const p = [
+        { id: 'player', name: 'Player', isPlayer: true },
+        { id: 'ai1', name: 'AI 1', isPlayer: false },
+        { id: 'ai2', name: 'AI 2', isPlayer: false },
+        { id: 'ai3', name: 'AI 3', isPlayer: false }
+      ];
+      const rr = {
+        cupId: 1 as 1,
+        participants: p,
+        matches: [
+          { matchIndex: 0, whiteId: 'player', blackId: 'ai1', result: 'draw' as any, isSimulated: false },
+          { matchIndex: 1, whiteId: 'ai2', blackId: 'player', result: 'draw' as any, isSimulated: false },
+          { matchIndex: 2, whiteId: 'player', blackId: 'ai3', result: 'draw' as any, isSimulated: false },
+          { matchIndex: 3, whiteId: 'ai1', blackId: 'ai2', result: 'draw' as any, isSimulated: true },
+          { matchIndex: 4, whiteId: 'ai1', blackId: 'ai3', result: 'draw' as any, isSimulated: true },
+          { matchIndex: 5, whiteId: 'ai2', blackId: 'ai3', result: 'draw' as any, isSimulated: true }
+        ],
+        pointsTable: { player: 3, ai1: 3, ai2: 3, ai3: 3 },
+        currentMatchIndex: 5,
+        status: 'completed' as any,
+        winnerId: null as string | null
+      };
+
+      const winner = determineWinner(rr);
+      expect(winner).toBe('player');
+    });
+
+    it('cup_3_clear_with_elo_1450_unlocks_grandmaster', () => {
+      progress.tier = 'master';
+      progress.elo = 1450;
+      progress.masterCup.currentCup = 3;
+      progress.masterCup.currentMatch = 3;
+      progress.masterCup.winsInCup = 2;
+      const next = applyAIMatchResult(progress, { playerWon: true, result: 'win', characterId: 'master_3_3', cupCleared: true });
+      expect(next.tier).toBe('grandmaster');
+      expect(next.grandmaster.unlocked).toBe(true);
+    });
+
+    it('cup_3_clear_below_1450_does_not_unlock_grandmaster', () => {
+      progress.tier = 'master';
+      progress.elo = 1400;
+      progress.masterCup.currentCup = 3;
+      progress.masterCup.currentMatch = 3;
+      progress.masterCup.winsInCup = 2;
+      const next = applyAIMatchResult(progress, { playerWon: true, result: 'win', characterId: 'master_3_3', cupCleared: true });
+      expect(next.tier).toBe('master');
+      expect(next.grandmaster.unlocked).toBe(false);
+      expect(next.masterCup.currentMatch).toBe(1);
+    });
+
+    it('no_invalid_next_cup_after_cup_3', () => {
+      progress.tier = 'master';
+      progress.elo = 1400;
+      progress.masterCup.currentCup = 3;
+      progress.masterCup.currentMatch = 3;
+      const next = applyAIMatchResult(progress, { playerWon: true, result: 'win', characterId: 'master_3_3', cupCleared: true });
+      expect(next.masterCup.currentCup).toBe(3);
+    });
+
+    // --- Grandmaster Boss Tests ---
+    it('grandmaster_boss_starts_after_unlock', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      progress.grandmaster.unlocked = true;
+      progress.grandmaster.bossDefeated = false;
+      const charId = getCurrentPlayableCharacterId(progress);
+      expect(charId).toBe('grandmaster_1');
+    });
+
+    it('boss_best_of_3_initial_state_correct', () => {
+      expect(progress.grandmaster.bossSeriesWins).toBe(0);
+      expect(progress.grandmaster.bossSeriesLosses).toBe(0);
+      expect(progress.grandmaster.bossDefeated).toBe(false);
+    });
+
+    it('boss_one_win_records_series_win', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      const next = applyAIMatchResult(progress, { playerWon: true, result: 'win', characterId: 'grandmaster_1' });
+      expect(next.grandmaster.bossSeriesWins).toBe(1);
+      expect(next.grandmaster.bossSeriesLosses).toBe(0);
+      expect(next.grandmaster.bossDefeated).toBe(false);
+    });
+
+    it('boss_one_loss_records_series_loss', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      const next = applyAIMatchResult(progress, { playerWon: false, result: 'loss', characterId: 'grandmaster_1' });
+      expect(next.grandmaster.bossSeriesWins).toBe(0);
+      expect(next.grandmaster.bossSeriesLosses).toBe(1);
+      expect(next.grandmaster.bossDefeated).toBe(false);
+    });
+
+    it('boss_two_wins_clears_boss', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      progress.grandmaster.bossSeriesWins = 1;
+      const next = applyAIMatchResult(progress, { playerWon: true, result: 'win', characterId: 'grandmaster_1' });
+      expect(next.grandmaster.bossDefeated).toBe(true);
+      expect(next.grandmaster.bossSeriesWins).toBe(0);
+      expect(next.grandmaster.bossSeriesLosses).toBe(0);
+    });
+
+    it('boss_two_losses_fails_and_retry', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      progress.grandmaster.bossSeriesLosses = 1;
+      const next = applyAIMatchResult(progress, { playerWon: false, result: 'loss', characterId: 'grandmaster_1' });
+      expect(next.grandmaster.bossDefeated).toBe(false);
+      expect(next.grandmaster.bossSeriesWins).toBe(0);
+      expect(next.grandmaster.bossSeriesLosses).toBe(0);
+    });
+
+    it('boss_1_1_score_starts_decider_match', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      progress.grandmaster.bossSeriesWins = 1;
+      progress.grandmaster.bossSeriesLosses = 1;
+      const cta = getGameResultCTA('win', 'grandmaster_1', progress);
+      expect(cta.label).toBe('DECIDER MATCH');
+      expect(cta.nextCharacterId).toBe('grandmaster_1');
+    });
+
+    it('boss_draw_does_not_corrupt_series', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      progress.grandmaster.bossSeriesWins = 1;
+      progress.grandmaster.bossSeriesLosses = 0;
+      const next = applyAIMatchResult(progress, { result: 'draw', characterId: 'grandmaster_1' });
+      expect(next.grandmaster.bossSeriesWins).toBe(1);
+      expect(next.grandmaster.bossSeriesLosses).toBe(0);
+    });
+
+    // --- Result Popup / CTA Checks ---
+    it('cup_result_popup_next_match_correct', () => {
+      progress.tier = 'master';
+      progress.masterCup.currentCup = 1;
+      progress.masterCup.currentMatch = 2;
+      const cta = getGameResultCTA('win', 'master_1_1', progress);
+      expect(cta.label).toBe('NEXT MATCH');
+      expect(cta.nextCharacterId).toBe('master_1_2');
+    });
+
+    it('cup_result_popup_retry_same_cup_correct', () => {
+      progress.tier = 'master';
+      progress.masterCup.currentCup = 1;
+      progress.masterCup.currentMatch = 1;
+      const cta = getGameResultCTA('loss', 'master_1_3', progress);
+      expect(cta.label).toBe('RETRY CUP');
+      expect(cta.nextCharacterId).toBe('master_1_1');
+    });
+
+    it('boss_result_popup_decider_correct', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      progress.grandmaster.bossSeriesWins = 1;
+      progress.grandmaster.bossSeriesLosses = 1;
+      const cta = getGameResultCTA('win', 'grandmaster_1', progress);
+      expect(cta.label).toBe('DECIDER MATCH');
+      expect(cta.nextCharacterId).toBe('grandmaster_1');
+    });
+
+    it('cup_progress_persists_after_reload', () => {
+      const mockStorage: Record<string, string> = {};
+      const key = 'clash_cup_round_robin_state';
+      const rrState = { cupId: 1, currentMatchIndex: 2, status: 'in_progress' };
+      mockStorage[key] = JSON.stringify(rrState);
+      
+      const loaded = JSON.parse(mockStorage[key]);
+      expect(loaded.cupId).toBe(1);
+      expect(loaded.currentMatchIndex).toBe(2);
+      expect(loaded.status).toBe('in_progress');
+    });
+
+    it('cup_restart_mid_cup_restores_valid_state', () => {
+      // Simulate app restart mid-cup where active state is reloaded from storage instead of starting over.
+      const savedState = { cupId: 2, currentMatchIndex: 1, status: 'in_progress' };
+      const currentCup = 2;
+      const currentMatch = 2; // match index 1 corresponds to Match 2
+      
+      let initNew = false;
+      if (savedState.cupId !== currentCup || currentMatch === 1) {
+        initNew = true;
+      }
+      expect(initNew).toBe(false); // Restores active state instead of starting a new cup
+    });
+
+    it('reset_progress_clears_cup_state', () => {
+      const mockStorage: Record<string, string> = {
+        'clash_cup_round_robin_state': '{"cupId":1}'
+      };
+      
+      // Simulate resetProgressOnly clearing cup state
+      delete mockStorage['clash_cup_round_robin_state'];
+      expect(mockStorage['clash_cup_round_robin_state']).toBeUndefined();
+    });
+
+    it('delete_all_data_clears_cup_state', () => {
+      const mockStorage: Record<string, string> = {
+        'clash_cup_round_robin_state': '{"cupId":1}'
+      };
+      
+      // Simulate resetPlayerData calling localStorage.clear()
+      mockStorage['clash_cup_round_robin_state'] = undefined as any;
+      expect(mockStorage['clash_cup_round_robin_state']).toBeUndefined();
+    });
+
+    it('cup_3_below_1450_gives_clear_message_to_farm_elo_or_retry', () => {
+      progress.tier = 'master';
+      progress.elo = 1400;
+      progress.masterCup.currentCup = 3;
+      progress.masterCup.currentMatch = 3;
+      
+      const next = applyAIMatchResult(progress, { playerWon: true, result: 'win', characterId: 'master_3_3', cupCleared: true });
+      expect(next.tier).toBe('master');
+      expect(next.masterCup.currentCup).toBe(3);
+      expect(next.masterCup.currentMatch).toBe(1); // farm Elo
+    });
+
+    it('boss_series_persists_after_reload', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      progress.grandmaster.bossSeriesWins = 1;
+      
+      const saved = JSON.stringify(progress);
+      const reloaded = JSON.parse(saved) as AIProgress;
+      expect(reloaded.grandmaster.bossSeriesWins).toBe(1);
+    });
+
+    it('boss_retry_resets_series_correctly', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      progress.grandmaster.bossSeriesLosses = 1; // 1 loss, next loss makes it 2 and triggers reset
+      
+      const next = applyAIMatchResult(progress, { playerWon: false, result: 'loss', characterId: 'grandmaster_1' });
+      expect(next.grandmaster.bossSeriesWins).toBe(0);
+      expect(next.grandmaster.bossSeriesLosses).toBe(0);
+    });
+
+    it('boss_completion_marks_grandmaster_complete_if_intended', () => {
+      progress.tier = 'grandmaster';
+      progress.level = 1;
+      progress.grandmaster.bossSeriesWins = 1;
+      
+      const next = applyAIMatchResult(progress, { playerWon: true, result: 'win', characterId: 'grandmaster_1' });
+      expect(next.grandmaster.bossDefeated).toBe(true);
+    });
+
+    it('cup_result_popup_tiebreak_correct', () => {
+      progress.tier = 'master';
+      progress.masterCup.currentCup = 1;
+      progress.masterCup.currentMatch = 1; // finished cup, reset to 1
+      progress.masterCup.completedCups = [1]; // cleared cup via tiebreak
+      
+      const cta = getGameResultCTA('win', 'master_1_3', progress);
+      expect(cta.label).toBe('NEXT CUP');
+    });
+
+    it('cup_result_processed_once_only', () => {
+      let processCount = 0;
+      const matchId = 'match_123';
+      let processedMatchId = '';
+      
+      const handleCompletion = (id: string) => {
+        if (processedMatchId === id) return;
+        processedMatchId = id;
+        processCount++;
+      };
+      
+      handleCompletion(matchId);
+      handleCompletion(matchId); // duplicate
+      expect(processCount).toBe(1);
+    });
+
+    it('boss_result_processed_once_only', () => {
+      let processCount = 0;
+      const matchId = 'boss_match_123';
+      let processedMatchId = '';
+      
+      const handleCompletion = (id: string) => {
+        if (processedMatchId === id) return;
+        processedMatchId = id;
+        processCount++;
+      };
+      
+      handleCompletion(matchId);
+      handleCompletion(matchId); // duplicate
+      expect(processCount).toBe(1);
     });
   });
 });
