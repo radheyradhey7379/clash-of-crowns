@@ -1,4 +1,4 @@
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub mod benchmark;
 pub mod handlers;
 pub mod hce;
@@ -8,16 +8,16 @@ pub mod nnue;
 pub mod pst;
 pub mod quiescence;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub use handlers::eval_handler;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub use handlers::move_handler;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub use handlers::simulate_handler;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub use handlers::status_handler;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub use handlers::validate_handler;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "backend"))]
 mod tests;

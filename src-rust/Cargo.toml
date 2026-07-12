@@ -22,3 +22,7 @@ shakmaty = "0.27"
 hex = "0.4"
 rand = "0.8"
 lazy_static = "1.4"
+
+[features]
+default = ["backend"]
+backend = []

@@ -21,8 +21,8 @@ This document tracks the status of each phase in the Clash of Crowns Final Techn
 | **Phase 4** | NNUE / HCE / PST / Random Error | `PHASE_4_NNUE_HCE_PST_RANDOM_READY` | 2026-07-12 | Centralized bot parameters, synced evaluations, and exposed telemetry. |
 | **Phase 5** | Master Cup / RR / Grandmaster | `PHASE_5_CUP_GRANDMASTER_READY` | 2026-07-12 | Robust Round Robin tiebreaks, best-of-3 series progress, and result CTA mappings. |
 | **Phase 6** | Payment / Premium / Security | `PHASE_6_PAYMENT_SECURITY_READY` | 2026-07-12 | Centralized product pricing, verified entitlements checks, and robust Firestore rules. |
-| **Phase 7** | User-Facing Error Sanitization | `Pending` | - | - |
-| **Phase 8** | API & Dependency Review | `Pending` | - | - |
+| **Phase 7** | User-Facing Error Sanitization | `PHASE_7_ERROR_SANITIZATION_READY` | 2026-07-12 | Centralized user-safe error sanitizer and unit tests completed. |
+| **Phase 8** | API & Dependency Review | `PHASE_8_API_DEPENDENCY_REVIEW_READY` | 2026-07-12 | Isolated wasm compilation, audited npm packages, and security hardening tests. |
 | **Phase 9** | Gameplay Tuning & Playtest Build | `Pending` | - | - |
 | **Phase 10** | Final Release Build | `Pending` | - | - |
 

@@ -1,4 +1,4 @@
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use shakmaty::fen::Fen;
@@ -63,7 +63,7 @@ pub struct EngineMoveResponse {
     pub random_error_debug_info: Option<crate::engine::negamax::RandomErrorDebugInfo>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub async fn move_handler(
     Json(req): Json<EngineMoveRequest>,
 ) -> Result<Json<EngineMoveResponse>, (axum::http::StatusCode, String)> {
@@ -164,7 +164,7 @@ pub struct EngineEvalResponse {
     pub inference_mode: String,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub async fn eval_handler(
     Json(req): Json<EngineEvalRequest>,
 ) -> Result<Json<EngineEvalResponse>, (axum::http::StatusCode, String)> {
@@ -218,7 +218,7 @@ pub struct SimulateResponse {
     pub duration_ms: u64,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub async fn simulate_handler(Json(req): Json<SimulateRequest>) -> Json<SimulateResponse> {
     let start_time = std::time::Instant::now();
     let mut pos = Chess::default();
@@ -346,7 +346,7 @@ pub struct ValidateMoveResponse {
     pub is_repetition: bool,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub async fn validate_handler(Json(req): Json<ValidateMoveRequest>) -> Json<ValidateMoveResponse> {
     let setup = match Fen::from_str(&req.fen) {
         Ok(s) => s,
@@ -448,7 +448,7 @@ pub async fn validate_handler(Json(req): Json<ValidateMoveRequest>) -> Json<Vali
                     let is_fifty = p2.halfmoves() >= 100;
                     let is_insufficient = p2.is_insufficient_material();
 
-                    let is_repetition = if let Some(ref fens) = req.recent_fens {
+                    let is_repetition = if let Some(fens) = &req.recent_fens {
                         is_threefold_repetition(&next_fen, fens)
                     } else {
                         false
@@ -518,7 +518,7 @@ pub struct EngineStatusResponse {
     pub inference_mode: String,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "backend")]
 pub async fn status_handler() -> Json<EngineStatusResponse> {
     let is_tensor = crate::engine::nnue::EVALUATOR.model.weights.status
         == crate::engine::nnue::weights::WeightsStatus::Trained;
