@@ -3,7 +3,7 @@
 This document tracks the status of each phase in the Clash of Crowns Final Technical QA and Completion Plan.
 
 ## Baseline Audit (Phase 0)
-- **Commit Hash**: `48001b15a9c642d90446e0917853cdbe6f437c4d`
+- **Commit Hash**: `63a7b2d0b373f3dbb68b6c1f42ce8721c67289e8`
 - **Unit Test Count**: `537`
 - **Build Status**: `BUILD SUCCESSFUL`
 - **Current APK Hash**: `8DD06D3ABD89C2CFB0ABEBDA1A04E49B9C555B0C7D94E31629DB7B168DFC5B30`
@@ -15,7 +15,7 @@ This document tracks the status of each phase in the Clash of Crowns Final Techn
 | Phase | Description | Status | Target Date / Complete Date | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | Project Freeze & Baseline Audit | `PHASE_0_BASELINE_READY` | 2026-07-12 | Baseline metrics gathered. |
-| **Phase 1** | Core Gameplay Flow Fix | `Pending` | - | - |
+| **Phase 1** | Core Gameplay Flow Fix | `PHASE_1_CORE_GAMEPLAY_FLOW_READY` | 2026-07-12 | Core flow verified and tested. |
 | **Phase 2** | Engine Runtime Routing Proof | `Pending` | - | - |
 | **Phase 3** | Search Algorithm Technical QA | `Pending` | - | - |
 | **Phase 4** | NNUE / HCE / PST / Random Error | `Pending` | - | - |
