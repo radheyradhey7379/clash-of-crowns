@@ -38,6 +38,28 @@ export interface EngineDebugInfo {
   engineSource: 'wasm' | 'backend' | 'emergency';
 }
 
+export interface SearchDebugInfo {
+  searchUsed: string;
+  depthTarget: number;
+  depthReached: number;
+  depthSequence: number[] | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  nodesVisited: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  alphaBetaCutoffs: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  betaCutoffs: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  quiescenceNodes: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  quiescenceDepthMax: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  transpositionHits: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  transpositionStores: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  moveOrderingUsed: boolean;
+  lmrReductions: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  timeBudgetMs: number;
+  actualTimeMs: number;
+  stoppedByTimeout: boolean;
+  returnedBestSoFar: boolean;
+  selectedMove: string;
+  evalScore: number;
+}
+
 export interface EngineResult {
   move: { from: string; to: string; promotion?: string } | null;
   engineUsed: EngineType;
@@ -54,6 +76,7 @@ export interface EngineResult {
   used_partial_result?: boolean;
   reason?: string;
   debugInfo?: EngineDebugInfo;
+  searchDebugInfo?: SearchDebugInfo;
 }
 
 export interface IEngineAdapter {

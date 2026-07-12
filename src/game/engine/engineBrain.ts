@@ -64,7 +64,35 @@ export class EngineBrain {
       engineSource: result.source || 'wasm'
     };
 
+    const depthSeq: number[] = [];
+    for (let d = 1; d <= result.searchDepth; d++) {
+      depthSeq.push(d);
+    }
+
+    result.searchDebugInfo = {
+      searchUsed: 'negamax',
+      depthTarget: request.depth,
+      depthReached: result.searchDepth,
+      depthSequence: depthSeq,
+      nodesVisited: 'UNAVAILABLE_FROM_CURRENT_WASM',
+      alphaBetaCutoffs: 'UNAVAILABLE_FROM_CURRENT_WASM',
+      betaCutoffs: 'UNAVAILABLE_FROM_CURRENT_WASM',
+      quiescenceNodes: 'UNAVAILABLE_FROM_CURRENT_WASM',
+      quiescenceDepthMax: 'UNAVAILABLE_FROM_CURRENT_WASM',
+      transpositionHits: 'UNAVAILABLE_FROM_CURRENT_WASM',
+      transpositionStores: 'UNAVAILABLE_FROM_CURRENT_WASM',
+      moveOrderingUsed: true,
+      lmrReductions: 'UNAVAILABLE_FROM_CURRENT_WASM',
+      timeBudgetMs: request.maxThinkTimeMs || 5000,
+      actualTimeMs: result.thinkTimeMs,
+      stoppedByTimeout: result.reason === 'timeout',
+      returnedBestSoFar: result.reason === 'timeout' || result.wasFallback,
+      selectedMove: selectedMoveStr,
+      evalScore: result.evalCp
+    };
+
     console.debug("[EngineBrain DebugInfo]", result.debugInfo);
+    console.debug("[EngineBrain SearchDebugInfo]", result.searchDebugInfo);
     return result;
   }
 
