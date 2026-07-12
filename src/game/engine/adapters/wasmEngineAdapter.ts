@@ -56,6 +56,9 @@ export class WasmEngineAdapter implements IEngineAdapter {
             used_partial_result: usedPartial,
             reason: usedPartial ? 'timeout' : 'normal',
           };
+          if (data.debug_stats) {
+            (engineResult as any).wasmDebugStats = data.debug_stats;
+          }
           this.pendingResolver?.(engineResult);
         }
         this.pendingResolver = null;

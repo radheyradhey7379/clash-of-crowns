@@ -44,52 +44,97 @@ export class EngineBrain {
     const finalEval = result.evalCp;
     const selectedMoveStr = result.move ? (result.move.from + result.move.to + (result.move.promotion || '')) : '';
 
-    result.debugInfo = {
-      tier: this.character.tier,
-      botId: this.character.id,
-      botName: this.character.name,
-      evaluatorUsed: result.engineUsed === 'nnue' ? 'nnue' : 'hce',
-      searchUsed: 'negamax',
-      depthTarget: request.depth,
-      depthReached: result.searchDepth,
-      timeMs: result.thinkTimeMs,
-      nodes: (result as any).nodes || Math.pow(15, result.searchDepth) || 0,
-      alphaBetaCutoffs: 0, // Precompiled Wasm does not expose cutoffs
-      quiescenceNodes: 0,  // Precompiled Wasm does not expose QS nodes separately
-      randomErrorCpApplied: result.noiseApplied,
-      rawEval,
-      finalEval,
-      selectedMove: selectedMoveStr,
-      wasmVersion: '1.0.0',
-      engineSource: result.source || 'wasm'
-    };
+    const debugStats = (result as any).wasmDebugStats;
+    if (debugStats) {
+      result.searchDebugInfo = {
+        searchUsed: 'negamax',
+        depthTarget: debugStats.depth_target,
+        depthReached: debugStats.depth_reached,
+        depthSequence: debugStats.depth_sequence,
+        nodesVisited: debugStats.nodes_visited,
+        alphaBetaCutoffs: debugStats.alpha_beta_cutoffs,
+        betaCutoffs: debugStats.beta_cutoffs,
+        quiescenceNodes: debugStats.quiescence_nodes,
+        quiescenceDepthMax: debugStats.quiescence_depth_max,
+        transpositionHits: 'NOT_IMPLEMENTED',
+        transpositionStores: 'NOT_IMPLEMENTED',
+        moveOrderingUsed: debugStats.move_ordering_used,
+        lmrReductions: 'NOT_IMPLEMENTED',
+        timeBudgetMs: request.maxThinkTimeMs || 5000,
+        actualTimeMs: debugStats.actual_time_ms,
+        stoppedByTimeout: debugStats.stopped_by_timeout,
+        returnedBestSoFar: debugStats.returned_best_so_far,
+        selectedMove: selectedMoveStr,
+        evalScore: result.evalCp
+      };
 
-    const depthSeq: number[] = [];
-    for (let d = 1; d <= result.searchDepth; d++) {
-      depthSeq.push(d);
+      result.debugInfo = {
+        tier: this.character.tier,
+        botId: this.character.id,
+        botName: this.character.name,
+        evaluatorUsed: result.engineUsed === 'nnue' ? 'nnue' : 'hce',
+        searchUsed: 'negamax',
+        depthTarget: request.depth,
+        depthReached: result.searchDepth,
+        timeMs: result.thinkTimeMs,
+        nodes: debugStats.nodes_visited,
+        alphaBetaCutoffs: debugStats.alpha_beta_cutoffs,
+        quiescenceNodes: debugStats.quiescence_nodes,
+        randomErrorCpApplied: result.noiseApplied,
+        rawEval,
+        finalEval,
+        selectedMove: selectedMoveStr,
+        wasmVersion: '1.0.0',
+        engineSource: result.source || 'wasm'
+      };
+    } else {
+      result.debugInfo = {
+        tier: this.character.tier,
+        botId: this.character.id,
+        botName: this.character.name,
+        evaluatorUsed: result.engineUsed === 'nnue' ? 'nnue' : 'hce',
+        searchUsed: 'negamax',
+        depthTarget: request.depth,
+        depthReached: result.searchDepth,
+        timeMs: result.thinkTimeMs,
+        nodes: (result as any).nodes || Math.pow(15, result.searchDepth) || 0,
+        alphaBetaCutoffs: 0,
+        quiescenceNodes: 0,
+        randomErrorCpApplied: result.noiseApplied,
+        rawEval,
+        finalEval,
+        selectedMove: selectedMoveStr,
+        wasmVersion: '1.0.0',
+        engineSource: result.source || 'wasm'
+      };
+
+      const depthSeq: number[] = [];
+      for (let d = 1; d <= result.searchDepth; d++) {
+        depthSeq.push(d);
+      }
+
+      result.searchDebugInfo = {
+        searchUsed: 'negamax',
+        depthTarget: request.depth,
+        depthReached: result.searchDepth,
+        depthSequence: depthSeq,
+        nodesVisited: 'UNAVAILABLE_FROM_CURRENT_WASM',
+        alphaBetaCutoffs: 'UNAVAILABLE_FROM_CURRENT_WASM',
+        betaCutoffs: 'UNAVAILABLE_FROM_CURRENT_WASM',
+        quiescenceNodes: 'UNAVAILABLE_FROM_CURRENT_WASM',
+        quiescenceDepthMax: 'UNAVAILABLE_FROM_CURRENT_WASM',
+        transpositionHits: 'UNAVAILABLE_FROM_CURRENT_WASM',
+        transpositionStores: 'UNAVAILABLE_FROM_CURRENT_WASM',
+        moveOrderingUsed: true,
+        lmrReductions: 'UNAVAILABLE_FROM_CURRENT_WASM',
+        timeBudgetMs: request.maxThinkTimeMs || 5000,
+        actualTimeMs: result.thinkTimeMs,
+        stoppedByTimeout: result.reason === 'timeout',
+        returnedBestSoFar: result.reason === 'timeout' || result.wasFallback,
+        selectedMove: selectedMoveStr,
+        evalScore: result.evalCp
+      };
     }
-
-    result.searchDebugInfo = {
-      searchUsed: 'negamax',
-      depthTarget: request.depth,
-      depthReached: result.searchDepth,
-      depthSequence: depthSeq,
-      nodesVisited: 'UNAVAILABLE_FROM_CURRENT_WASM',
-      alphaBetaCutoffs: 'UNAVAILABLE_FROM_CURRENT_WASM',
-      betaCutoffs: 'UNAVAILABLE_FROM_CURRENT_WASM',
-      quiescenceNodes: 'UNAVAILABLE_FROM_CURRENT_WASM',
-      quiescenceDepthMax: 'UNAVAILABLE_FROM_CURRENT_WASM',
-      transpositionHits: 'UNAVAILABLE_FROM_CURRENT_WASM',
-      transpositionStores: 'UNAVAILABLE_FROM_CURRENT_WASM',
-      moveOrderingUsed: true,
-      lmrReductions: 'UNAVAILABLE_FROM_CURRENT_WASM',
-      timeBudgetMs: request.maxThinkTimeMs || 5000,
-      actualTimeMs: result.thinkTimeMs,
-      stoppedByTimeout: result.reason === 'timeout',
-      returnedBestSoFar: result.reason === 'timeout' || result.wasFallback,
-      selectedMove: selectedMoveStr,
-      evalScore: result.evalCp
-    };
 
     console.debug("[EngineBrain DebugInfo]", result.debugInfo);
     console.debug("[EngineBrain SearchDebugInfo]", result.searchDebugInfo);

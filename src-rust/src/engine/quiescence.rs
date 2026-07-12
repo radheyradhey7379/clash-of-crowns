@@ -21,8 +21,13 @@ pub fn quiescence_search(
     hce_evaluator: &HceEvaluator,
     bot_profile_id: &str,
     nodes: &mut u64,
+    qs_depth_max: &mut u32,
 ) -> i32 {
     *nodes += 1;
+    let current_depth = qs_depth as u32;
+    if current_depth > *qs_depth_max {
+        *qs_depth_max = current_depth;
+    }
 
     if start_time.elapsed() >= max_time {
         return alpha;
@@ -73,6 +78,7 @@ pub fn quiescence_search(
             hce_evaluator,
             bot_profile_id,
             nodes,
+            qs_depth_max,
         );
 
         if score >= beta {

@@ -48,10 +48,10 @@ export interface SearchDebugInfo {
   betaCutoffs: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
   quiescenceNodes: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
   quiescenceDepthMax: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
-  transpositionHits: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
-  transpositionStores: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  transpositionHits: number | 'NOT_IMPLEMENTED' | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  transpositionStores: number | 'NOT_IMPLEMENTED' | 'UNAVAILABLE_FROM_CURRENT_WASM';
   moveOrderingUsed: boolean;
-  lmrReductions: number | 'UNAVAILABLE_FROM_CURRENT_WASM';
+  lmrReductions: number | 'NOT_IMPLEMENTED' | 'UNAVAILABLE_FROM_CURRENT_WASM';
   timeBudgetMs: number;
   actualTimeMs: number;
   stoppedByTimeout: boolean;

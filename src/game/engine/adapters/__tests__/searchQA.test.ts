@@ -67,13 +67,13 @@ describe('Phase 3 Search Algorithm QA Tests', () => {
   });
 
   it('alpha_beta_cutoffs_occur_on_branching_position', async () => {
-    // Assert that the prebuilt WASM marks cutoffs as UNAVAILABLE_FROM_CURRENT_WASM
-    const bot = { id: 'beginner_1', tier: 'beginner', depth: 1, errorNoiseCp: 0, engine: 'hce' } as any;
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 3, errorNoiseCp: 0, engine: 'hce' } as any;
     const chess = new ChessLogic();
     const brain = EngineBrain.create(bot, chess);
 
     const result = await brain.computeMove();
-    expect(result.searchDebugInfo?.alphaBetaCutoffs).toBe('UNAVAILABLE_FROM_CURRENT_WASM');
+    expect(typeof result.searchDebugInfo?.alphaBetaCutoffs).toBe('number');
+    expect(result.searchDebugInfo?.alphaBetaCutoffs).toBeGreaterThanOrEqual(0);
   });
 
   it('alpha_beta_never_returns_illegal_move', async () => {
@@ -235,5 +235,136 @@ describe('Phase 3 Search Algorithm QA Tests', () => {
       fen = chess.getFen();
     }
     expect(true).toBe(true);
+  });
+
+  // --- Part 8: Real WASM Search Counters Tests ---
+
+  it('real_nodes_visited_counter_increases', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 2, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+    expect(typeof result.searchDebugInfo?.nodesVisited).toBe('number');
+    expect(result.searchDebugInfo?.nodesVisited).toBeGreaterThan(0);
+  });
+
+  it('real_alpha_beta_cutoffs_counter_increases_on_branching_position', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 3, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+    expect(typeof result.searchDebugInfo?.alphaBetaCutoffs).toBe('number');
+    expect(result.searchDebugInfo?.alphaBetaCutoffs).toBeGreaterThan(0);
+  });
+
+  it('real_quiescence_nodes_counter_increases_on_noisy_position', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 1, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic('r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3');
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+    expect(typeof result.searchDebugInfo?.quiescenceNodes).toBe('number');
+    expect(result.searchDebugInfo?.quiescenceNodes).toBeGreaterThan(0);
+  });
+
+  it('real_quiescence_depth_max_recorded', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 1, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic('r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3');
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+    expect(typeof result.searchDebugInfo?.quiescenceDepthMax).toBe('number');
+    expect(result.searchDebugInfo?.quiescenceDepthMax).toBeGreaterThan(0);
+  });
+
+  it('iterative_deepening_depth_sequence_real', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 2, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+    expect(Array.isArray(result.searchDebugInfo?.depthSequence)).toBe(true);
+    expect(result.searchDebugInfo?.depthSequence).toEqual([1, 2]);
+  });
+
+  it('timeout_sets_stopped_by_timeout_true', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 5, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const adapter = new WasmEngineAdapter('hce');
+    const result = await adapter.computeMove({
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      depth: 5,
+      errorNoiseCp: 0,
+      maxThinkTimeMs: 1,
+      botProfileId: 'beginner_1',
+      style: { aggression: 0.5, defense: 0.5, openingKnowledge: 0.5, endgameSkill: 0.5 }
+    });
+    const brainResult = (brain as any).attachDebugInfo(result, { depth: 5, maxThinkTimeMs: 1 });
+    expect(brainResult.searchDebugInfo?.stoppedByTimeout).toBe(true);
+  });
+
+  it('timeout_returns_best_so_far_when_available', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 5, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const adapter = new WasmEngineAdapter('hce');
+    const result = await adapter.computeMove({
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      depth: 5,
+      errorNoiseCp: 0,
+      maxThinkTimeMs: 10,
+      botProfileId: 'beginner_1',
+      style: { aggression: 0.5, defense: 0.5, openingKnowledge: 0.5, endgameSkill: 0.5 }
+    });
+    const brainResult = (brain as any).attachDebugInfo(result, { depth: 5, maxThinkTimeMs: 10 });
+    expect(brainResult.move).not.toBeNull();
+    if (brainResult.searchDebugInfo?.depthReached! > 0) {
+      expect(brainResult.searchDebugInfo?.returnedBestSoFar).toBe(true);
+    }
+  });
+
+  it('lmr_marked_not_implemented', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 1, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+    expect(result.searchDebugInfo?.lmrReductions).toBe('NOT_IMPLEMENTED');
+  });
+
+  it('tt_marked_not_implemented', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 1, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+    expect(result.searchDebugInfo?.transpositionHits).toBe('NOT_IMPLEMENTED');
+    expect(result.searchDebugInfo?.transpositionStores).toBe('NOT_IMPLEMENTED');
+  });
+
+  it('search_debug_info_has_no_unavailable_for_core_counters', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 1, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+    expect(result.searchDebugInfo?.nodesVisited).not.toBe('UNAVAILABLE_FROM_CURRENT_WASM');
+    expect(result.searchDebugInfo?.alphaBetaCutoffs).not.toBe('UNAVAILABLE_FROM_CURRENT_WASM');
+    expect(result.searchDebugInfo?.quiescenceNodes).not.toBe('UNAVAILABLE_FROM_CURRENT_WASM');
+    expect(result.searchDebugInfo?.quiescenceDepthMax).not.toBe('UNAVAILABLE_FROM_CURRENT_WASM');
+  });
+
+  it('debug_info_hidden_from_release_ui', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 1, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const oldEnv = import.meta.env.DEV;
+    (import.meta.env as any).DEV = false;
+    const oldNodeEnv = process.env.NODE_ENV;
+    delete (process.env as any).NODE_ENV;
+    
+    try {
+      const result = await brain.computeMove();
+      expect(result.debugInfo).toBeUndefined();
+      expect(result.searchDebugInfo).toBeUndefined();
+    } finally {
+      (import.meta.env as any).DEV = oldEnv;
+      (process.env as any).NODE_ENV = oldNodeEnv;
+    }
   });
 });

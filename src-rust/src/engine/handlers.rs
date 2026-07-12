@@ -57,6 +57,7 @@ pub struct EngineMoveResponse {
     pub weights_status: String,
     pub weights_source: String,
     pub inference_mode: String,
+    pub debug_stats: Option<crate::engine::negamax::SearchDebugStats>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -141,6 +142,7 @@ pub async fn move_handler(
         weights_status,
         weights_source,
         inference_mode,
+        debug_stats: Some(result.debug_stats),
     }))
 }
 

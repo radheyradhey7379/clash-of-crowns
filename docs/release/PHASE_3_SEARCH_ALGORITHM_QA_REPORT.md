@@ -34,22 +34,20 @@ No configured bot depths or difficulty configurations were altered in this phase
 ---
 
 ## 3. Real SearchDebugInfo Counter Status
-The prebuilt Wasm binary compiled into `wasm_engine_bg.wasm` does not output deep telemetry stats like subnode categories or cutoffs. Exposing these counters directly requires installing the `wasm-pack` build toolchain to recompile the WASM binary. Since `wasm-pack` is currently missing from the host environment, we select **Option B** and mark the counter telemetry status as **PENDING_WASM_REBUILD**.
-
-The counters in `SearchDebugInfo` are returned as follows:
+The WASM engine binary has been successfully instrumented with search counter telemetry. The counters in `SearchDebugInfo` are returned as follows:
 - **searchUsed**: `REAL` ('negamax')
 - **depthTarget**: `REAL`
 - **depthReached**: `REAL`
-- **depthSequence**: `REAL` (computed sequentially up to reached depth)
-- **nodesVisited**: `UNAVAILABLE` (marked `UNAVAILABLE_FROM_CURRENT_WASM`)
-- **alphaBetaCutoffs**: `UNAVAILABLE` (marked `UNAVAILABLE_FROM_CURRENT_WASM`)
-- **betaCutoffs**: `UNAVAILABLE` (marked `UNAVAILABLE_FROM_CURRENT_WASM`)
-- **quiescenceNodes**: `UNAVAILABLE` (marked `UNAVAILABLE_FROM_CURRENT_WASM`)
-- **quiescenceDepthMax**: `UNAVAILABLE` (marked `UNAVAILABLE_FROM_CURRENT_WASM`)
-- **transpositionHits**: `UNAVAILABLE` (marked `UNAVAILABLE_FROM_CURRENT_WASM`)
-- **transpositionStores**: `UNAVAILABLE` (marked `UNAVAILABLE_FROM_CURRENT_WASM`)
+- **depthSequence**: `REAL`
+- **nodesVisited**: `REAL`
+- **alphaBetaCutoffs**: `REAL`
+- **betaCutoffs**: `REAL`
+- **quiescenceNodes**: `REAL`
+- **quiescenceDepthMax**: `REAL`
+- **transpositionHits**: `NOT_IMPLEMENTED`
+- **transpositionStores**: `NOT_IMPLEMENTED`
 - **moveOrderingUsed**: `REAL` (always true)
-- **lmrReductions**: `UNAVAILABLE` (marked `UNAVAILABLE_FROM_CURRENT_WASM`)
+- **lmrReductions**: `NOT_IMPLEMENTED`
 - **timeBudgetMs**: `REAL`
 - **actualTimeMs**: `REAL`
 - **stoppedByTimeout**: `REAL`

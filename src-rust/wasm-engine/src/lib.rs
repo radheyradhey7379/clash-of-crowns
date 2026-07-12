@@ -31,6 +31,11 @@ pub fn compute_move(request_json: &str) -> String {
         bot_profile_id: req.bot_profile_id.clone().unwrap_or_default(),
         recent_moves: req.recent_moves.clone().unwrap_or_default(),
         recent_fens: req.recent_fens.clone().unwrap_or_default(),
+        ai_move_history: req.ai_move_history.clone().unwrap_or_default(),
+        full_move_history: req.full_move_history.clone().unwrap_or_default(),
+        bot_tier: req.bot_tier.clone().unwrap_or_default(),
+        player_color: req.player_color.clone().unwrap_or_default(),
+        current_ply: req.current_ply.unwrap_or_default(),
     };
 
     let start = instant::Instant::now();
@@ -82,6 +87,7 @@ pub fn compute_move(request_json: &str) -> String {
         weights_status,
         weights_source,
         inference_mode,
+        debug_stats: Some(result.debug_stats),
     };
 
     serde_json::to_string(&response).unwrap_or_default()
@@ -313,6 +319,11 @@ pub fn simulate_round_robin(request_json: &str) -> String {
             bot_profile_id: String::new(),
             recent_moves: Vec::new(),
             recent_fens: Vec::new(),
+            ai_move_history: Vec::new(),
+            full_move_history: Vec::new(),
+            bot_tier: String::new(),
+            player_color: String::new(),
+            current_ply: 0,
         };
 
         let search_res = search(&pos, &options);

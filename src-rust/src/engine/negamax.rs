@@ -47,6 +47,30 @@ impl Default for SearchOptions {
     }
 }
 
+#[derive(Clone, serde::Serialize, Default)]
+pub struct SearchDebugStats {
+    pub depth_target: u32,
+    pub depth_reached: u32,
+    pub depth_sequence: Vec<u32>,
+    pub nodes_visited: u64,
+    pub alpha_beta_cutoffs: u64,
+    pub beta_cutoffs: u64,
+    pub quiescence_nodes: u64,
+    pub quiescence_depth_max: u32,
+    pub move_ordering_used: bool,
+    pub stopped_by_timeout: bool,
+    pub returned_best_so_far: bool,
+    pub actual_time_ms: u64,
+}
+
+pub struct SearchContext {
+    pub nodes_visited: u64,
+    pub alpha_beta_cutoffs: u64,
+    pub beta_cutoffs: u64,
+    pub quiescence_nodes: u64,
+    pub quiescence_depth_max: u32,
+}
+
 #[derive(Clone)]
 pub struct SearchResult {
     pub best_move: Option<Move>,
@@ -54,6 +78,7 @@ pub struct SearchResult {
     pub nodes: u64,
     pub depth: usize,
     pub noise_applied: i32,
+    pub debug_stats: SearchDebugStats,
 }
 
 fn is_reversing(m_uci: &str, prev_move: &str) -> bool {
@@ -118,6 +143,7 @@ pub fn search_at_depth(
     options: &SearchOptions,
     start_time: Instant,
     max_time: Duration,
+    ctx: &mut SearchContext,
 ) -> (SearchResult, bool) {
     let legals = pos.legal_moves();
     if legals.is_empty() {
@@ -128,6 +154,7 @@ pub fn search_at_depth(
                 nodes: 0,
                 depth: options.max_depth,
                 noise_applied: 0,
+                debug_stats: SearchDebugStats::default(),
             },
             false,
         );
@@ -148,6 +175,7 @@ pub fn search_at_depth(
                     nodes: legals.len() as u64,
                     depth: 1,
                     noise_applied: 0,
+                    debug_stats: SearchDebugStats::default(),
                 },
                 false,
             );
@@ -180,6 +208,7 @@ pub fn search_at_depth(
             &hce_evaluator,
             1,
             initial_extension_budget,
+            ctx,
         );
         total_nodes += n;
 
@@ -286,6 +315,7 @@ pub fn search_at_depth(
                 nodes: total_nodes,
                 depth: options.max_depth,
                 noise_applied: options.error_noise_cp,
+                debug_stats: SearchDebugStats::default(),
             },
             true,
         );
@@ -307,6 +337,7 @@ pub fn search_at_depth(
             nodes: total_nodes,
             depth: options.max_depth,
             noise_applied: options.error_noise_cp,
+            debug_stats: SearchDebugStats::default(),
         },
         false,
     )
@@ -322,6 +353,7 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
             nodes: 0,
             depth: 0,
             noise_applied: 0,
+            debug_stats: SearchDebugStats::default(),
         };
     }
 
@@ -330,21 +362,33 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
     let mut best_eval_so_far = 0;
     let mut total_nodes = 0;
     let mut depth_completed = 0;
+    let mut depth_sequence = Vec::new();
+    let mut stopped_by_timeout = false;
+
+    let mut ctx = SearchContext {
+        nodes_visited: 0,
+        alpha_beta_cutoffs: 0,
+        beta_cutoffs: 0,
+        quiescence_nodes: 0,
+        quiescence_depth_max: 0,
+    };
 
     let target_depth = options.max_depth.max(1);
 
     for d in 1..=target_depth {
         if start_time.elapsed() >= max_time {
+            stopped_by_timeout = true;
             break;
         }
 
         let mut current_options = options.clone();
         current_options.max_depth = d;
 
-        let (result, aborted) = search_at_depth(pos, &current_options, start_time, max_time);
+        let (result, aborted) = search_at_depth(pos, &current_options, start_time, max_time, &mut ctx);
         total_nodes += result.nodes;
 
         if aborted {
+            stopped_by_timeout = true;
             break;
         }
 
@@ -352,6 +396,7 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
             best_move_so_far = Some(m);
             best_eval_so_far = result.eval;
             depth_completed = d;
+            depth_sequence.push(d as u32);
 
             // Early exit on checkmate or forced mate
             if result.eval >= 15000 || result.eval <= -15000 {
@@ -360,12 +405,31 @@ pub fn search(pos: &Chess, options: &SearchOptions) -> SearchResult {
         }
     }
 
+    let actual_time_ms = start_time.elapsed().as_millis() as u64;
+    let returned_best_so_far = stopped_by_timeout && depth_completed > 0;
+
+    let debug_stats = SearchDebugStats {
+        depth_target: target_depth as u32,
+        depth_reached: depth_completed as u32,
+        depth_sequence,
+        nodes_visited: ctx.nodes_visited,
+        alpha_beta_cutoffs: ctx.alpha_beta_cutoffs,
+        beta_cutoffs: ctx.beta_cutoffs,
+        quiescence_nodes: ctx.quiescence_nodes,
+        quiescence_depth_max: ctx.quiescence_depth_max,
+        move_ordering_used: true,
+        stopped_by_timeout,
+        returned_best_so_far,
+        actual_time_ms,
+    };
+
     SearchResult {
         best_move: best_move_so_far,
         eval: best_eval_so_far,
         nodes: total_nodes,
         depth: depth_completed,
         noise_applied: options.error_noise_cp,
+        debug_stats,
     }
 }
 
@@ -379,7 +443,10 @@ fn negamax(
     hce_evaluator: &HceEvaluator,
     ply: usize,
     extension_budget: usize,
+    ctx: &mut SearchContext,
 ) -> (i32, Option<Move>, u64) {
+    ctx.nodes_visited += 1;
+
     if start_time.elapsed() >= options.max_time {
         return (0, None, 0);
     }
@@ -411,7 +478,9 @@ fn negamax(
             hce_evaluator,
             &options.bot_profile_id,
             &mut qs_nodes,
+            &mut ctx.quiescence_depth_max,
         );
+        ctx.quiescence_nodes += qs_nodes;
         return (score, None, qs_nodes);
     }
 
@@ -454,6 +523,7 @@ fn negamax(
             hce_evaluator,
             ply + 1,
             next_budget,
+            ctx,
         );
         let mut eval = -eval_raw;
         nodes += child_nodes;
@@ -519,6 +589,8 @@ fn negamax(
         }
 
         if alpha >= beta {
+            ctx.alpha_beta_cutoffs += 1;
+            ctx.beta_cutoffs += 1;
             break; // Beta cut-off
         }
     }
