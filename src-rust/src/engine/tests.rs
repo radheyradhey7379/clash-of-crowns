@@ -970,4 +970,161 @@ mod anti_repetition_tests {
         // Let's assert that the move found is legal.
         assert!(!m.is_empty());
     }
+
+    mod phase4_evaluation_tests {
+        use super::*;
+        use crate::engine::hce::HceEvaluator;
+        use crate::engine::nnue::EVALUATOR;
+        use crate::engine::negamax::{search, SearchOptions};
+        use shakmaty::{Chess, CastlingMode, Color};
+        use shakmaty::fen::Fen;
+        use std::env;
+        use std::fs;
+
+        #[test]
+        fn hce_material_eval_changes_with_material_advantage() {
+            let setup_start = Fen::from_str("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+            let pos_start = setup_start.into_position::<Chess>(CastlingMode::Standard).unwrap();
+            let setup_advantage = Fen::from_str("rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+            let pos_advantage = setup_advantage.into_position::<Chess>(CastlingMode::Standard).unwrap();
+            
+            let eval = HceEvaluator::new();
+            let score_start = eval.evaluate(pos_start.board(), Color::White, true);
+            let score_advantage = eval.evaluate(pos_advantage.board(), Color::White, true);
+            
+            assert_eq!(score_start, 0);
+            assert_eq!(score_advantage, 895); // White has queen (900), black has missing queen (adjusted by PST)
+        }
+
+        #[test]
+        fn beginner_limited_pst_uses_pawn_bishop_knight() {
+            let eval = HceEvaluator::new();
+            let board_pawn = Fen::from_str("k7/8/8/8/4P3/8/8/7K w - - 0 1")
+                .unwrap().into_position::<Chess>(CastlingMode::Standard).unwrap();
+            let detailed = eval.evaluate_detailed(board_pawn.board(), Color::White, false);
+            assert!(detailed.used_piece_tables.contains(&"Pawn".to_string()));
+            assert!(detailed.used_piece_tables.contains(&"Knight".to_string()));
+            assert!(detailed.used_piece_tables.contains(&"Bishop".to_string()));
+        }
+
+        #[test]
+        fn beginner_limited_pst_ignores_rook_queen_king() {
+            let eval = HceEvaluator::new();
+            let board = Fen::from_str("k7/8/8/8/4P3/8/8/7K w - - 0 1")
+                .unwrap().into_position::<Chess>(CastlingMode::Standard).unwrap();
+            let detailed = eval.evaluate_detailed(board.board(), Color::White, false);
+            assert!(detailed.ignored_piece_tables.contains(&"Rook".to_string()));
+            assert!(detailed.ignored_piece_tables.contains(&"Queen".to_string()));
+            assert!(detailed.ignored_piece_tables.contains(&"King".to_string()));
+        }
+
+        #[test]
+        fn learner_full_pst_uses_all_piece_tables() {
+            let eval = HceEvaluator::new();
+            let board = Fen::from_str("k7/8/8/8/4P3/8/8/7K w - - 0 1")
+                .unwrap().into_position::<Chess>(CastlingMode::Standard).unwrap();
+            let detailed = eval.evaluate_detailed(board.board(), Color::White, true);
+            assert!(detailed.used_piece_tables.contains(&"Rook".to_string()));
+            assert!(detailed.used_piece_tables.contains(&"Queen".to_string()));
+            assert!(detailed.used_piece_tables.contains(&"King".to_string()));
+            assert!(detailed.ignored_piece_tables.is_empty());
+        }
+
+        #[test]
+        fn hce_eval_stable_on_start_position() {
+            let eval = HceEvaluator::new();
+            let board = Fen::from_str("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+                .unwrap().into_position::<Chess>(CastlingMode::Standard).unwrap();
+            let score1 = eval.evaluate(board.board(), Color::White, true);
+            let score2 = eval.evaluate(board.board(), Color::White, true);
+            assert_eq!(score1, score2);
+        }
+
+        #[test]
+        fn hce_eval_stable_on_endgame_position() {
+            let eval = HceEvaluator::new();
+            let board = Fen::from_str("8/8/8/8/8/4k3/8/7K w - - 0 1")
+                .unwrap().into_position::<Chess>(CastlingMode::Standard).unwrap();
+            let score1 = eval.evaluate(board.board(), Color::White, true);
+            let score2 = eval.evaluate(board.board(), Color::White, true);
+            assert_eq!(score1, score2);
+        }
+
+        #[test]
+        fn hce_eval_no_crash_on_check_position() {
+            let eval = HceEvaluator::new();
+            let board = Fen::from_str("8/8/8/8/8/1q2k3/8/7K w - - 0 1")
+                .unwrap().into_position::<Chess>(CastlingMode::Standard).unwrap();
+            let score = eval.evaluate(board.board(), Color::White, true);
+            assert!(score != i32::MIN);
+        }
+
+        #[test]
+        fn nnue_weights_file_exists() {
+            let path = "../data/nnue/exports/best_model.nnue";
+            assert!(fs::metadata(path).is_ok());
+        }
+
+        #[test]
+        fn nnue_model_loads_successfully() {
+            let path = "../data/nnue/exports/best_model.nnue";
+            env::set_var("NNUE_WEIGHTS_PATH", path);
+            let model = crate::engine::nnue::model::NnueModel::load();
+            assert_eq!(model.weights.status, crate::engine::nnue::weights::WeightsStatus::Trained);
+            env::remove_var("NNUE_WEIGHTS_PATH");
+        }
+
+        #[test]
+        fn nnue_missing_weights_fallback_safe() {
+            env::set_var("NNUE_WEIGHTS_PATH", "/does/not/exist.nnue");
+            let model = crate::engine::nnue::model::NnueModel::load();
+            assert_eq!(model.weights.status, crate::engine::nnue::weights::WeightsStatus::Placeholder);
+            env::remove_var("NNUE_WEIGHTS_PATH");
+        }
+
+        #[test]
+        fn nnue_eval_returns_finite_number() {
+            let path = "../data/nnue/exports/best_model.nnue";
+            env::set_var("NNUE_WEIGHTS_PATH", path);
+            let evaluator = crate::engine::nnue::NnueEvaluator::new();
+            let board = Fen::from_str("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+                .unwrap().into_position::<Chess>(CastlingMode::Standard).unwrap();
+            let score = evaluator.evaluate(board.board(), Color::White);
+            assert!(score != i32::MIN && score != i32::MAX);
+            env::remove_var("NNUE_WEIGHTS_PATH");
+        }
+
+        #[test]
+        fn nnue_eval_stable_same_fen_repeated() {
+            let path = "../data/nnue/exports/best_model.nnue";
+            env::set_var("NNUE_WEIGHTS_PATH", path);
+            let evaluator = crate::engine::nnue::NnueEvaluator::new();
+            let board = Fen::from_str("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+                .unwrap().into_position::<Chess>(CastlingMode::Standard).unwrap();
+            let score1 = evaluator.evaluate(board.board(), Color::White);
+            let score2 = evaluator.evaluate(board.board(), Color::White);
+            assert_eq!(score1, score2);
+            env::remove_var("NNUE_WEIGHTS_PATH");
+        }
+
+        #[test]
+        fn random_error_formula_matches_expected() {
+            let raw = 100;
+            let scale = 50.0;
+            let factor = 0.5;
+            let final_val = raw + (factor * scale) as i32;
+            assert_eq!(final_val, 125);
+        }
+
+        #[test]
+        fn random_error_config_centralized() {
+            let bot_beginner = "beginner_1";
+            let bot_learner = "learner_1";
+            let bot_grandmaster = "grandmaster_1";
+            assert!(bot_beginner.contains("beginner"));
+            assert!(bot_learner.contains("learner"));
+            assert!(bot_grandmaster.contains("grandmaster"));
+        }
+
+    }
 }

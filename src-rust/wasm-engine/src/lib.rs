@@ -88,6 +88,9 @@ pub fn compute_move(request_json: &str) -> String {
         weights_source,
         inference_mode,
         debug_stats: Some(result.debug_stats),
+        hce_debug_info: result.hce_debug_info,
+        nnue_debug_info: result.nnue_debug_info,
+        random_error_debug_info: result.random_error_debug_info,
     };
 
     serde_json::to_string(&response).unwrap_or_default()

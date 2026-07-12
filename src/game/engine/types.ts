@@ -60,6 +60,37 @@ export interface SearchDebugInfo {
   evalScore: number;
 }
 
+export interface HceDebugInfo {
+  materialScore: number;
+  pstScore: number;
+  pstMode: 'limited' | 'full';
+  usedPieceTables: string[];
+  ignoredPieceTables: string[];
+  finalHceEval: number;
+}
+
+export interface NnueDebugInfo {
+  modelLoaded: boolean;
+  weightsSource: string;
+  weightsHash: string;
+  inputFeaturesCount: number;
+  forwardPassUsed: boolean;
+  activationType: string;
+  quantizationType: string;
+  rawNnueEval: number;
+  finalNnueEval: number;
+}
+
+export interface RandomErrorDebugInfo {
+  rawEval: number;
+  randomFactor: number;
+  botImpairmentScale: number;
+  randomErrorCpApplied: number;
+  finalEval: number;
+  formulaUsed: string;
+  appliedOnce: boolean;
+}
+
 export interface EngineResult {
   move: { from: string; to: string; promotion?: string } | null;
   engineUsed: EngineType;
@@ -77,6 +108,9 @@ export interface EngineResult {
   reason?: string;
   debugInfo?: EngineDebugInfo;
   searchDebugInfo?: SearchDebugInfo;
+  hceDebugInfo?: HceDebugInfo;
+  nnueDebugInfo?: NnueDebugInfo;
+  randomErrorDebugInfo?: RandomErrorDebugInfo;
 }
 
 export interface IEngineAdapter {

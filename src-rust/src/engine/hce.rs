@@ -1,6 +1,16 @@
 use crate::engine::pst::{BISHOP_PST, KING_PST, KNIGHT_PST, PAWN_PST, QUEEN_PST, ROOK_PST};
 use shakmaty::{Board, Color, Role, Square};
 
+#[derive(Clone, serde::Serialize, Default)]
+pub struct HceDetailedScore {
+    pub material_score: i32,
+    pub pst_score: i32,
+    pub pst_mode: String,
+    pub used_piece_tables: Vec<String>,
+    pub ignored_piece_tables: Vec<String>,
+    pub final_hce_eval: i32,
+}
+
 pub struct HceEvaluator;
 
 impl HceEvaluator {
@@ -9,11 +19,28 @@ impl HceEvaluator {
     }
 
     pub fn evaluate(&self, board: &Board, turn: Color, use_all_pst: bool) -> i32 {
-        let mut score = 0;
+        self.evaluate_detailed(board, turn, use_all_pst).final_hce_eval
+    }
+
+    pub fn evaluate_detailed(&self, board: &Board, turn: Color, use_all_pst: bool) -> HceDetailedScore {
+        let mut material_score = 0;
+        let mut pst_score = 0;
+        let mut used_piece_tables = vec!["Pawn".to_string(), "Knight".to_string(), "Bishop".to_string()];
+        let mut ignored_piece_tables = Vec::new();
+
+        if use_all_pst {
+            used_piece_tables.push("Rook".to_string());
+            used_piece_tables.push("Queen".to_string());
+            used_piece_tables.push("King".to_string());
+        } else {
+            ignored_piece_tables.push("Rook".to_string());
+            ignored_piece_tables.push("Queen".to_string());
+            ignored_piece_tables.push("King".to_string());
+        }
 
         for sq in Square::ALL {
             if let Some(piece) = board.piece_at(sq) {
-                let mut val = match piece.role {
+                let material_val = match piece.role {
                     Role::Pawn => 100,
                     Role::Knight => 320,
                     Role::Bishop => 330,
@@ -55,15 +82,23 @@ impl HceEvaluator {
                     }
                 };
 
-                val += pst_val;
-
                 if piece.color == turn {
-                    score += val;
+                    material_score += material_val;
+                    pst_score += pst_val;
                 } else {
-                    score -= val;
+                    material_score -= material_val;
+                    pst_score -= pst_val;
                 }
             }
         }
-        score
+
+        HceDetailedScore {
+            material_score,
+            pst_score,
+            pst_mode: if use_all_pst { "full".to_string() } else { "limited".to_string() },
+            used_piece_tables,
+            ignored_piece_tables,
+            final_hce_eval: material_score + pst_score,
+        }
     }
 }

@@ -59,6 +59,40 @@ export class WasmEngineAdapter implements IEngineAdapter {
           if (data.debug_stats) {
             (engineResult as any).wasmDebugStats = data.debug_stats;
           }
+          if (data.hce_debug_info) {
+            engineResult.hceDebugInfo = {
+              materialScore: data.hce_debug_info.material_score,
+              pstScore: data.hce_debug_info.pst_score,
+              pstMode: data.hce_debug_info.pst_mode,
+              usedPieceTables: data.hce_debug_info.used_piece_tables,
+              ignoredPieceTables: data.hce_debug_info.ignored_piece_tables,
+              finalHceEval: data.hce_debug_info.final_hce_eval,
+            };
+          }
+          if (data.nnue_debug_info) {
+            engineResult.nnueDebugInfo = {
+              modelLoaded: data.nnue_debug_info.model_loaded,
+              weightsSource: data.nnue_debug_info.weights_source,
+              weightsHash: data.nnue_debug_info.weights_hash,
+              inputFeaturesCount: data.nnue_debug_info.input_features_count,
+              forwardPassUsed: data.nnue_debug_info.forward_pass_used,
+              activationType: data.nnue_debug_info.activation_type,
+              quantizationType: data.nnue_debug_info.quantization_type,
+              rawNnueEval: data.nnue_debug_info.raw_nnue_eval,
+              finalNnueEval: data.nnue_debug_info.final_nnue_eval,
+            };
+          }
+          if (data.random_error_debug_info) {
+            engineResult.randomErrorDebugInfo = {
+              rawEval: data.random_error_debug_info.raw_eval,
+              randomFactor: data.random_error_debug_info.random_factor,
+              botImpairmentScale: data.random_error_debug_info.bot_impairment_scale,
+              randomErrorCpApplied: data.random_error_debug_info.random_error_cp_applied,
+              finalEval: data.random_error_debug_info.final_eval,
+              formulaUsed: data.random_error_debug_info.formula_used,
+              appliedOnce: data.random_error_debug_info.applied_once,
+            };
+          }
           this.pendingResolver?.(engineResult);
         }
         this.pendingResolver = null;

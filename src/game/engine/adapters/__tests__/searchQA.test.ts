@@ -362,9 +362,79 @@ describe('Phase 3 Search Algorithm QA Tests', () => {
       const result = await brain.computeMove();
       expect(result.debugInfo).toBeUndefined();
       expect(result.searchDebugInfo).toBeUndefined();
+      expect(result.hceDebugInfo).toBeUndefined();
+      expect(result.nnueDebugInfo).toBeUndefined();
+      expect(result.randomErrorDebugInfo).toBeUndefined();
     } finally {
       (import.meta.env as any).DEV = oldEnv;
       (process.env as any).NODE_ENV = oldNodeEnv;
     }
   });
+
+  // --- Phase 4 Evaluation and Telemetry Tests ---
+
+  it('hce_detailed_score_breakdown_exposed_in_dev', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 1, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+
+    expect(result.hceDebugInfo).toBeDefined();
+    expect(typeof result.hceDebugInfo?.materialScore).toBe('number');
+    expect(typeof result.hceDebugInfo?.pstScore).toBe('number');
+    expect(result.hceDebugInfo?.pstMode).toBe('limited');
+    expect(result.hceDebugInfo?.usedPieceTables).toContain('Pawn');
+    expect(result.hceDebugInfo?.ignoredPieceTables).toContain('Rook');
+  });
+
+  it('learner_full_pst_mode_uses_all_tables', async () => {
+    const bot = { id: 'learner_1', tier: 'learner', depth: 1, errorNoiseCp: 0, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+
+    expect(result.hceDebugInfo).toBeDefined();
+    expect(result.hceDebugInfo?.pstMode).toBe('full');
+    expect(result.hceDebugInfo?.usedPieceTables).toContain('Rook');
+    expect(result.hceDebugInfo?.usedPieceTables).toContain('Queen');
+    expect(result.hceDebugInfo?.usedPieceTables).toContain('King');
+    expect(result.hceDebugInfo?.ignoredPieceTables?.length).toBe(0);
+  });
+
+  it('nnue_eval_exposed_for_intermediate_and_above', async () => {
+    const bot = { id: 'intermediate_1', tier: 'intermediate', depth: 1, errorNoiseCp: 0, engine: 'nnue' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+
+    expect(result.nnueDebugInfo).toBeDefined();
+    expect(result.nnueDebugInfo?.modelLoaded).toBe(true);
+    expect(result.nnueDebugInfo?.weightsSource).toBe('file');
+    expect(typeof result.nnueDebugInfo?.rawNnueEval).toBe('number');
+    expect(typeof result.nnueDebugInfo?.finalNnueEval).toBe('number');
+    expect(result.nnueDebugInfo?.activationType).toBe('ARCHITECTURE_DECISION_CURRENTLY_FLOAT32_RELU');
+  });
+
+  it('random_error_applied_according_to_noise_factor', async () => {
+    const bot = { id: 'beginner_1', tier: 'beginner', depth: 1, errorNoiseCp: 50, engine: 'hce' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+
+    expect(result.randomErrorDebugInfo).toBeDefined();
+    expect(result.randomErrorDebugInfo?.botImpairmentScale).toBe(50);
+    expect(result.randomErrorDebugInfo?.formulaUsed).toBe('Final_Eval = Raw_Eval + (Random_Factor * Bot_Impairment_Scale)');
+    expect(result.randomErrorDebugInfo?.appliedOnce).toBe(true);
+  });
+
+  it('grandmaster_has_zero_random_error', async () => {
+    const bot = { id: 'grandmaster_1', tier: 'grandmaster', depth: 1, errorNoiseCp: 0, engine: 'nnue' } as any;
+    const chess = new ChessLogic();
+    const brain = EngineBrain.create(bot, chess);
+    const result = await brain.computeMove();
+
+    expect(result.randomErrorDebugInfo).toBeUndefined();
+    expect(result.noiseApplied).toBe(0);
+  });
+
 });

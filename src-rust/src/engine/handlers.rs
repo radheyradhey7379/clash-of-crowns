@@ -58,6 +58,9 @@ pub struct EngineMoveResponse {
     pub weights_source: String,
     pub inference_mode: String,
     pub debug_stats: Option<crate::engine::negamax::SearchDebugStats>,
+    pub hce_debug_info: Option<crate::engine::hce::HceDetailedScore>,
+    pub nnue_debug_info: Option<crate::engine::negamax::NnueDebugInfo>,
+    pub random_error_debug_info: Option<crate::engine::negamax::RandomErrorDebugInfo>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -143,6 +146,9 @@ pub async fn move_handler(
         weights_source,
         inference_mode,
         debug_stats: Some(result.debug_stats),
+        hce_debug_info: result.hce_debug_info,
+        nnue_debug_info: result.nnue_debug_info,
+        random_error_debug_info: result.random_error_debug_info,
     }))
 }
 

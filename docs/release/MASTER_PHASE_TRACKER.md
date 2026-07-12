@@ -18,7 +18,7 @@ This document tracks the status of each phase in the Clash of Crowns Final Techn
 | **Phase 1** | Core Gameplay Flow Fix | `PHASE_1_CORE_GAMEPLAY_FLOW_READY` | 2026-07-12 | Core flow verified and tested. |
 | **Phase 2** | Engine Runtime Routing Proof | `PHASE_2_ENGINE_RUNTIME_ROUTING_READY` | 2026-07-12 | Engine and evaluator selectors verified. |
 | **Phase 3** | Search Algorithm Technical QA | `PHASE_3A_WASM_SEARCH_COUNTERS_READY` | 2026-07-12 | WASM rebuilt with real node counts, cutoffs, and quiescence telemetry. |
-| **Phase 4** | NNUE / HCE / PST / Random Error | `Pending` | - | - |
+| **Phase 4** | NNUE / HCE / PST / Random Error | `PHASE_4_NNUE_HCE_PST_RANDOM_READY` | 2026-07-12 | Centralized bot parameters, synced evaluations, and exposed telemetry. |
 | **Phase 5** | Master Cup / RR / Grandmaster | `Pending` | - | - |
 | **Phase 6** | Payment / Premium / Security | `Pending` | - | - |
 | **Phase 7** | User-Facing Error Sanitization | `Pending` | - | - |

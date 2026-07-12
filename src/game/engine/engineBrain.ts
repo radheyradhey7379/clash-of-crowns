@@ -37,6 +37,11 @@ export class EngineBrain {
   private attachDebugInfo(result: EngineResult, request: any): EngineResult {
     const isDevOrTest = !!(import.meta.env.DEV || (typeof process !== 'undefined' && process.env.NODE_ENV === 'test'));
     if (!isDevOrTest) {
+      delete result.hceDebugInfo;
+      delete result.nnueDebugInfo;
+      delete result.randomErrorDebugInfo;
+      delete result.debugInfo;
+      delete result.searchDebugInfo;
       return result;
     }
 
