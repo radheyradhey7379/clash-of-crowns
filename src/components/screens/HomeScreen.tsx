@@ -15,12 +15,15 @@ import { getOfflinePackageMetadata } from '../../lib/offline/offlinePackage';
 import { isMultiplayerEnabled } from '../../lib/config/featureFlags';
 import { useEffect } from 'react';
 
+import { UserEntitlements } from '../../types/billingTypes';
+
 interface HomeScreenProps {
   onNavigate: (screen: AppScreen, level?: any, localConfig?: any, multiplayerConfig?: any) => void;
   playerData: PlayerData;
+  entitlements?: UserEntitlements;
 }
 
-export default function HomeScreen({ onNavigate, playerData }: HomeScreenProps) {
+export default function HomeScreen({ onNavigate, playerData, entitlements }: HomeScreenProps) {
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
   const [isLocalSetupOpen, setIsLocalSetupOpen] = useState(false);
   const [isMultiplayerSetupOpen, setIsMultiplayerSetupOpen] = useState(false);
@@ -112,11 +115,11 @@ export default function HomeScreen({ onNavigate, playerData }: HomeScreenProps) 
               </span>
               <span className={cn(
                 "text-[7px] px-1 rounded font-black tracking-tighter",
-                playerData.isPremium 
+                entitlements?.hasPremiumAnalysis === true 
                 ? "bg-[#a855f7] text-white" 
                 : "bg-white/10 text-white/40 border border-white/10"
               )}>
-                {playerData.isPremium ? "PREMIUM" : "FREE"}
+                {entitlements?.hasPremiumAnalysis === true ? "PREMIUM" : "FREE"}
               </span>
             </div>
             <span className="profile-elo text-[#d9ad33] font-bold tracking-[0.2em]">

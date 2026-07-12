@@ -417,7 +417,7 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
                         <div className="text-[8px] sm:text-[10px] text-white/40 uppercase">30 Days Access</div>
                       </div>
                     </div>
-                    <span className="text-sm sm:text-lg font-black text-[#f5c518]">{getProductPrice(BILLING_PRODUCTS.UNDO_MONTHLY, "₹199")}</span>
+                    <span className="text-sm sm:text-lg font-black text-[#f5c518]">{getProductPrice(BILLING_PRODUCTS.UNDO_MONTHLY, "₹79")}</span>
                   </button>
 
                   <button 
@@ -435,7 +435,7 @@ export default function PremiumScreen({ onNavigate, playerData, entitlements }: 
                         <div className="text-[8px] sm:text-[10px] text-white/40 uppercase">365 Days Access</div>
                       </div>
                     </div>
-                    <span className="text-sm sm:text-lg font-black text-[#f5c518]">{getProductPrice(BILLING_PRODUCTS.UNDO_YEARLY, "₹399")}</span>
+                    <span className="text-sm sm:text-lg font-black text-[#f5c518]">{getProductPrice(BILLING_PRODUCTS.UNDO_YEARLY, "₹299")}</span>
                   </button>
                 </div>
 

@@ -13,20 +13,24 @@ import { downloadElement, cn } from '../../lib/utils';
 import { clearSession, clearGuestSessionProgress } from '../../lib/session';
 import { releaseSessionLock } from '../../services/sessionLock';
 
+import { UserEntitlements } from '../../types/billingTypes';
+
 export default function ProfileScreen({ 
   onNavigate, 
   playerData, 
   onUpdate,
   viewingUid = null,
   onViewProfile = () => {},
-  onLogout
+  onLogout,
+  entitlements
 }: { 
   onNavigate: (screen: AppScreen) => void, 
   playerData: PlayerData, 
   onUpdate: (newData: Partial<PlayerData>) => void,
   viewingUid?: string | null,
   onViewProfile?: (uid: string | null) => void,
-  onLogout?: () => Promise<void>
+  onLogout?: () => Promise<void>,
+  entitlements?: UserEntitlements
 }) {
   const [showSocial, setShowSocial] = useState(false);
   const [searchId, setSearchId] = useState('');
@@ -425,11 +429,11 @@ export default function ProfileScreen({
                 )}
                 <span className={cn(
                   "text-[10px] px-2 py-0.5 rounded-full font-black tracking-widest shadow-lg",
-                  displayData.isPremium 
+                  (isOwnProfile ? (entitlements?.hasPremiumAnalysis === true) : (displayData.isPremium === true))
                     ? "bg-gradient-to-br from-[#a855f7] to-[#7c3aed] text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]" 
                     : "bg-white/10 text-white/40 border border-white/10"
                 )}>
-                  {displayData.isPremium ? "PREMIUM" : "FREE"}
+                  {(isOwnProfile ? (entitlements?.hasPremiumAnalysis === true) : (displayData.isPremium === true)) ? "PREMIUM" : "FREE"}
                 </span>
               </div>
               <span className="text-[#8c7a52] text-[10px] tracking-[0.5em] uppercase font-bold">Crown Identity</span>

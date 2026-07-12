@@ -734,6 +734,7 @@ export default function App() {
           <HomeScreen 
             onNavigate={handleNavigate} 
             playerData={playerData} 
+            entitlements={entitlements}
           />
         );
       case 'LevelSelect':
@@ -794,6 +795,7 @@ export default function App() {
           viewingUid={viewingProfileUid}
           onViewProfile={setViewingProfileUid}
           onLogout={performFullLogout}
+          entitlements={entitlements}
         />;
       case 'Chat':
         return <ChatScreen 
@@ -810,7 +812,7 @@ export default function App() {
       case 'Tournament':
         return <TournamentScreen onNavigate={handleNavigate} playerData={playerData} />;
       default:
-        return <HomeScreen onNavigate={handleNavigate} playerData={playerData} />;
+        return <HomeScreen onNavigate={handleNavigate} playerData={playerData} entitlements={entitlements} />;
     }
   };
 

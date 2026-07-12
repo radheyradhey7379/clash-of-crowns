@@ -106,7 +106,7 @@ export default function GameplayReview({
   const reviewRef = useRef<HTMLDivElement>(null);
   const deleteTimerRef = useRef<any>(null);
 
-  const isPremium = entitlements?.hasPremiumAnalysis === true || playerData.isPremium === true;
+  const isPremium = entitlements?.hasPremiumAnalysis === true;
   const isAuthReady = !!auth.currentUser;
 
   useEffect(() => {
