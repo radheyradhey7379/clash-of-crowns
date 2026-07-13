@@ -30,8 +30,8 @@ Final build and environment parameters for the mobile bundle:
 | **Package ID** | `com.clashofcrowns.game` | Verified |
 | **Version Name** | `1.0` | Verified |
 | **Version Code** | `1` | Verified |
-| **Min SDK** | `22` (Android 5.1) | Verified |
-| **Target SDK** | `34` (Android 14) | Verified |
+| **Min SDK** | `24` (Android 7.0) | Verified |
+| **Target SDK** | `35` (Android 15) | Verified |
 | **Screen Orientation** | `sensorLandscape` | Verified |
 | **Permissions** | `INTERNET`, `BILLING` (merged) | Verified |
 | **Cleartext Traffic** | Prohibited (HTTPS only) | Verified |
@@ -53,11 +53,11 @@ All release assets and configurations have been inspected to prevent leakages an
 - **Vitest Suite**: 735 / 735 tests passed successfully.
 - **WASM Engine**: Compiled and verified successfully.
 - **Android Debug APK**: Assembled successfully.
-  - **APK Hash (SHA-256)**: `8AA352D6CBC6221B5A9F46EF6187E67CC5EFA1BB0A5B14A482773AE724400C80`
+  - **APK Hash (SHA-256)**: `72B50F381A801967396717C66BB87625EF48A2002B792B9324B4616A69A74497`
 - **Android Release Bundle (AAB)**: Generated successfully and signed using `release.keystore`.
   - **AAB Path**: [app-release.aab](file:///U:/clash-of-crowns/android/app/build/outputs/bundle/release/app-release.aab)
-  - **AAB Size**: 17,421,128 bytes (~16.6 MB)
-  - **AAB Hash (SHA-256)**: `D70C8556BDF75F38E376D74317510B5396A3FBC3F0CD241C3C825FA83FCDDF02`
+  - **AAB Size**: 17,421,236 bytes (~16.6 MB)
+  - **AAB Hash (SHA-256)**: `731807535A3549327C6ADDDBA20E9695E86AB722C10EDD340AD2C7CADF2AD588`
 
 ---
 
