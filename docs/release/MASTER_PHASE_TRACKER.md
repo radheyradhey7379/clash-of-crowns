@@ -24,7 +24,7 @@ This document tracks the status of each phase in the Clash of Crowns Final Techn
 | **Phase 7** | User-Facing Error Sanitization | `PHASE_7_ERROR_SANITIZATION_READY` | 2026-07-12 | Centralized user-safe error sanitizer and unit tests completed. |
 | **Phase 8** | API & Dependency Review | `PHASE_8_API_DEPENDENCY_REVIEW_READY` | 2026-07-12 | Isolated wasm compilation, audited npm packages, and security hardening tests. |
 | **Phase 9** | Gameplay Tuning & Playtest Build | `PHASE_9_GAMEPLAY_TUNING_READY` | 2026-07-13 | Simulated 28 matches across all tiers, verified Android performance, and generated playtest APK. |
-| **Phase 10** | Final Release Build | `Pending` | - | - |
+| **Phase 10** | Final Release Build | `FINAL_SIGNED_AAB_READY_FOR_CLIENT_REVIEW` | 2026-07-13 | Release bundle built, signed using release.keystore, and sign-off report created. |
 
 ---
 
